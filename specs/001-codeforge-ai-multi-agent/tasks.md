@@ -8,6 +8,7 @@
 ## Path Conventions
 
 This is a **monorepo web application** with the following structure:
+
 - `backend/src/` - Express API, CLI, agents, services
 - `frontend/src/` - React SPA with Vite
 - `vscode-extension/src/` - VS Code extension
@@ -18,21 +19,21 @@ This is a **monorepo web application** with the following structure:
 
 ## Phase 3.1: Setup & Configuration
 
-- [ ] **T001** Initialize monorepo with npm workspaces in package.json (root, backend, frontend, vscode-extension, shared)
-- [ ] **T002** Configure TypeScript for backend in `backend/tsconfig.json` (extends base, paths for @iqai/adk from ../../adk-ts)
-- [ ] **T003** Configure TypeScript for frontend in `frontend/tsconfig.json` (React JSX support)
-- [ ] **T004** Configure TypeScript for VS Code extension in `vscode-extension/tsconfig.json`
-- [ ] **T005** Configure TypeScript for shared types in `shared/tsconfig.json`
-- [ ] **T006** Setup ESLint with TypeScript parser in `.eslintrc.js` (root config)
-- [ ] **T007** Setup Prettier in `.prettierrc` (single quotes, no semicolons, 2 spaces)
-- [ ] **T008** Setup Husky pre-commit hooks in `.husky/pre-commit` (lint-staged with ESLint + Prettier)
-- [ ] **T009** Configure Jest for backend in `backend/jest.config.js` (TypeScript support, coverage thresholds 80%)
-- [ ] **T010** Configure Vitest for frontend in `frontend/vitest.config.ts` (React testing library)
-- [ ] **T011** Create `.env.example` in root with OPENAI_API_KEY, PORT, NODE_ENV, LOG_LEVEL
-- [ ] **T012** Create environment validation utility in `backend/src/utils/config.ts` (validate required env vars on startup)
-- [ ] **T013** Setup Vercel deployment configuration in `vercel.json` (serverless functions + static hosting)
-- [ ] **T014** Configure CI workflow in `.github/workflows/ci.yml` (lint, test, build on pull request)
-- [ ] **T015** Configure deployment workflow in `.github/workflows/deploy.yml` (Vercel deploy on main branch)
+- [x] **T001** Initialize monorepo with npm workspaces in package.json (root, backend, frontend, vscode-extension, shared)
+- [x] **T002** Configure TypeScript for backend in `backend/tsconfig.json` (extends base, paths for @iqai/adk from ../../adk-ts)
+- [x] **T003** Configure TypeScript for frontend in `frontend/tsconfig.json` (React JSX support)
+- [x] **T004** Configure TypeScript for VS Code extension in `vscode-extension/tsconfig.json`
+- [x] **T005** Configure TypeScript for shared types in `shared/tsconfig.json`
+- [x] **T006** Setup ESLint with TypeScript parser in `.eslintrc.js` (root config)
+- [x] **T007** Setup Prettier in `.prettierrc` (single quotes, no semicolons, 2 spaces)
+- [x] **T008** Setup Husky pre-commit hooks in `.husky/pre-commit` (lint-staged with ESLint + Prettier)
+- [x] **T009** Configure Jest for backend in `backend/jest.config.js` (TypeScript support, coverage thresholds 80%)
+- [x] **T010** Configure Vitest for frontend in `frontend/vitest.config.ts` (React testing library)
+- [x] **T011** Create `.env.example` in root with OPENAI_API_KEY, PORT, NODE_ENV, LOG_LEVEL
+- [x] **T012** Create environment validation utility in `backend/src/utils/config.ts` (validate required env vars on startup)
+- [x] **T013** Setup Vercel deployment configuration in `vercel.json` (serverless functions + static hosting)
+- [x] **T014** Configure CI workflow in `.github/workflows/ci.yml` (lint, test, build on pull request)
+- [x] **T015** Configure deployment workflow in `.github/workflows/deploy.yml` (Vercel deploy on main branch)
 
 ---
 
@@ -284,6 +285,7 @@ This is a **monorepo web application** with the following structure:
 ## Dependencies
 
 **Critical Path**:
+
 1. Setup (T001-T015) → Everything
 2. Tests (T016-T030) → Implementation (T031+)
 3. Models (T031-T039) → Services (T056-T064)
@@ -297,6 +299,7 @@ This is a **monorepo web application** with the following structure:
 11. Everything → Documentation (T136-T147)
 
 **Parallel Opportunities**:
+
 - All Phase 3.2 tests can run in parallel [P]
 - All Phase 3.3 models can be created in parallel [P]
 - All Phase 3.5 tools can be implemented in parallel [P]
@@ -309,6 +312,7 @@ This is a **monorepo web application** with the following structure:
 ## Parallel Execution Examples
 
 ### Launch all contract tests (Phase 3.2):
+
 ```bash
 # Task T016: Contract test POST /api/onboard
 # Task T017: Contract test POST /api/generate
@@ -318,6 +322,7 @@ This is a **monorepo web application** with the following structure:
 ```
 
 ### Launch all model creation (Phase 3.3):
+
 ```bash
 # Task T031: Create ProjectContext model
 # Task T032: Create Agent model
@@ -330,6 +335,7 @@ This is a **monorepo web application** with the following structure:
 ```
 
 ### Launch all agent implementations (Phase 3.7):
+
 ```bash
 # Task T065: Implement LeadEngineerAgent
 # Task T066: Implement SpecInterpreterAgent
