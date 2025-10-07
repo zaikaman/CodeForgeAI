@@ -1,0 +1,186 @@
+.auth-callback {
+  position: relative;
+  background: var(--bg-primary);
+}
+
+.callback-container {
+  width: 90%;
+  max-width: 500px;
+  animation: slideIn 0.5s ease-out;
+}
+
+/* Processing State */
+.processing-state {
+  animation: fadeIn 0.5s ease-in;
+}
+
+.ascii-spinner {
+  font-size: 0.8rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Success State */
+.success-state {
+  animation: successPulse 0.5s ease-in;
+}
+
+@keyframes successPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.ascii-check {
+  font-size: 0.8rem;
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Error State */
+.error-state {
+  animation: glitch 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.ascii-error {
+  font-size: 0.8rem;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.error-details {
+  font-size: var(--font-size-sm);
+}
+
+/* Status Message */
+.status-message {
+  font-size: var(--font-size-lg);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Loading Dots */
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.loading-dots span {
+  font-size: var(--font-size-2xl);
+  animation: dot-pulse 1.5s infinite;
+}
+
+.loading-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+/* Progress Bar */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border: var(--border-width) solid var(--border-primary);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  transition: width 1s ease-out;
+}
+
+.success-fill {
+  background: var(--terminal-primary);
+  box-shadow: var(--glow-medium);
+  animation: progressFill 1.5s ease-out forwards;
+}
+
+@keyframes progressFill {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+/* System Info */
+.system-info {
+  border-top: 1px solid var(--border-secondary);
+  padding-top: var(--spacing-md);
+}
+
+.info-divider {
+  font-size: var(--font-size-xs);
+  opacity: 0.5;
+}
+
+.info-lines {
+  font-size: var(--font-size-xs);
+  text-align: left;
+}
+
+.info-lines div {
+  padding: var(--spacing-xs) 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .callback-container {
+    width: 95%;
+  }
+
+  .ascii-spinner,
+  .ascii-check,
+  .ascii-error {
+    font-size: 0.6rem;
+  }
+
+  .status-message {
+    font-size: var(--font-size-base);
+  }
+}
+
+/* Animations */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

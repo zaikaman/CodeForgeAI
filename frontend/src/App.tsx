@@ -1,85 +1,117 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { useUIStore } from './stores/uiStore'
 
-/**
- * Example App Component
- * Demonstrates how to use AuthProvider, ProtectedRoute, and PublicRoute
- * 
- * This is a starter template - replace with your actual components
- */
+// Pages
+import { HomePage } from './pages/HomePage'
+import { LoginPage } from './pages/auth/LoginPage'
+import { SignupPage } from './pages/auth/SignupPage'
+import { AuthCallback } from './pages/auth/AuthCallback'
+import { DashboardPage } from './pages/DashboardPage'
+import { GeneratePage } from './pages/GeneratePage'
+import { ReviewPage } from './pages/ReviewPage'
+import { HistoryPage } from './pages/HistoryPage'
+import { SettingsPage } from './pages/SettingsPage'
 
-// Placeholder components - replace with your actual pages
-function LoginPage() {
-  return <div>Login Page - TODO</div>;
-}
+// Styles
+import './styles/theme.css'
+import './App.css'
 
-function SignUpPage() {
-  return <div>Sign Up Page - TODO</div>;
-}
+// Toast Container Component
+const ToastContainer: React.FC = () => {
+  const { toasts, removeToast } = useUIStore()
 
-function DashboardPage() {
-  return <div>Dashboard Page - TODO</div>;
-}
-
-function ProjectsPage() {
-  return <div>Projects Page - TODO</div>;
-}
-
-function NotFoundPage() {
-  return <div>404 - Page Not Found</div>;
+  return (
+    <div className="toast-container">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`toast toast-${toast.type} terminal-window`}
+          onClick={() => removeToast(toast.id)}
+        >
+          <div className="terminal-content">
+            <div className="toast-content">
+              <div className="toast-icon">
+                {toast.type === 'success' && '✓'}
+                {toast.type === 'error' && '✗'}
+                {toast.type === 'warning' && '⚠'}
+                {toast.type === 'info' && 'ℹ'}
+              </div>
+              <div className="toast-message">{toast.message}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <AuthProvider>
-        <Routes>
-          {/* Public routes - redirect to dashboard if authenticated */}
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            }
-          />
-          <Route
-            path="/signup"
-            element={
-              <PublicRoute>
-                <SignUpPage />
-              </PublicRoute>
-            }
-          />
+        <div className="app crt-screen">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
 
-          {/* Protected routes - require authentication */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/projects"
-            element={
-              <ProtectedRoute>
-                <ProjectsPage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/generate"
+              element={
+                <ProtectedRoute>
+                  <GeneratePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/review"
+              element={
+                <ProtectedRoute>
+                  <ReviewPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/history"
+              element={
+                <ProtectedRoute>
+                  <HistoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Redirect root to dashboard */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Catch all - redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
 
-          {/* 404 page */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+          {/* Global Toast Notifications */}
+          <ToastContainer />
+        </div>
       </AuthProvider>
-    </BrowserRouter>
-  );
+    </Router>
+  )
 }
 
-export default App;
+export default App

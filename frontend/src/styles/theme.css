@@ -1,0 +1,647 @@
+/* CodeForge AI - Retro Terminal Theme */
+/* Inspired by vintage CRT monitors, hacker terminals, and cyberpunk aesthetics */
+
+:root {
+  /* Primary Colors - Terminal Green Phosphor */
+  --terminal-bg: #0a0e0f;
+  --terminal-primary: #00ff41;
+  --terminal-secondary: #00cc33;
+  --terminal-accent: #33ff66;
+  --terminal-dim: #00aa2a;
+  --terminal-dark: #006619;
+
+  /* Alternative Amber Mode */
+  --amber-primary: #ffb000;
+  --amber-secondary: #ff9500;
+  --amber-accent: #ffc933;
+
+  /* Text Colors */
+  --text-primary: var(--terminal-primary);
+  --text-secondary: var(--terminal-secondary);
+  --text-muted: var(--terminal-dim);
+  --text-error: #ff3333;
+  --text-warning: var(--amber-primary);
+  --text-success: var(--terminal-accent);
+
+  /* Background Layers */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0e0f;
+  --bg-tertiary: #141a1c;
+  --bg-elevated: #1a2224;
+  --bg-overlay: rgba(0, 0, 0, 0.9);
+
+  /* Border & UI Elements */
+  --border-primary: var(--terminal-primary);
+  --border-secondary: var(--terminal-dim);
+  --border-width: 2px;
+  --border-radius: 4px;
+
+  /* Glow Effects */
+  --glow-small: 0 0 5px var(--terminal-primary);
+  --glow-medium: 0 0 10px var(--terminal-primary), 0 0 20px var(--terminal-primary);
+  --glow-large: 0 0 10px var(--terminal-primary), 0 0 20px var(--terminal-primary), 0 0 30px var(--terminal-primary);
+  --glow-text: 0 0 3px var(--terminal-primary);
+
+  /* Typography */
+  --font-mono: 'Courier New', 'Consolas', 'Monaco', monospace;
+  --font-retro: 'VT323', 'Courier New', monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 3rem;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Animations */
+  --transition-fast: 0.1s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
+
+  /* Z-Index Layers */
+  --z-base: 1;
+  --z-elevated: 10;
+  --z-overlay: 100;
+  --z-modal: 1000;
+  --z-scanlines: 9999;
+}
+
+/* Global Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--terminal-primary);
+  color: var(--bg-primary);
+  text-shadow: none;
+}
+
+::-moz-selection {
+  background-color: var(--terminal-primary);
+  color: var(--bg-primary);
+  text-shadow: none;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-left: var(--border-width) solid var(--border-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--terminal-dim);
+  border: 2px solid var(--bg-secondary);
+  box-shadow: var(--glow-small);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--terminal-primary);
+  box-shadow: var(--glow-medium);
+}
+
+/* CRT Screen Effect */
+.crt-screen {
+  position: relative;
+  overflow: hidden;
+}
+
+.crt-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+  z-index: var(--z-scanlines);
+  pointer-events: none;
+  animation: scanlines 8s linear infinite;
+}
+
+.crt-screen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(18, 16, 16, 0.1);
+  opacity: 0;
+  z-index: var(--z-scanlines);
+  pointer-events: none;
+  animation: flicker 0.15s infinite;
+}
+
+/* Scanline Animation */
+@keyframes scanlines {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 100%;
+  }
+}
+
+/* Flicker Effect */
+@keyframes flicker {
+  0% {
+    opacity: 0.27861;
+  }
+  5% {
+    opacity: 0.34769;
+  }
+  10% {
+    opacity: 0.23604;
+  }
+  15% {
+    opacity: 0.90626;
+  }
+  20% {
+    opacity: 0.18128;
+  }
+  25% {
+    opacity: 0.83891;
+  }
+  30% {
+    opacity: 0.65583;
+  }
+  35% {
+    opacity: 0.67807;
+  }
+  40% {
+    opacity: 0.26559;
+  }
+  45% {
+    opacity: 0.84693;
+  }
+  50% {
+    opacity: 0.96019;
+  }
+  55% {
+    opacity: 0.08594;
+  }
+  60% {
+    opacity: 0.20313;
+  }
+  65% {
+    opacity: 0.71988;
+  }
+  70% {
+    opacity: 0.53455;
+  }
+  75% {
+    opacity: 0.37288;
+  }
+  80% {
+    opacity: 0.71428;
+  }
+  85% {
+    opacity: 0.70419;
+  }
+  90% {
+    opacity: 0.7003;
+  }
+  95% {
+    opacity: 0.36108;
+  }
+  100% {
+    opacity: 0.24387;
+  }
+}
+
+/* Phosphor Glow Effect */
+.phosphor-glow {
+  text-shadow: var(--glow-text);
+  animation: phosphor-pulse 2s ease-in-out infinite;
+}
+
+@keyframes phosphor-pulse {
+  0%,
+  100% {
+    text-shadow: var(--glow-text);
+  }
+  50% {
+    text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary);
+  }
+}
+
+/* Typing Animation */
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink-caret {
+  from,
+  to {
+    border-color: transparent;
+  }
+  50% {
+    border-color: var(--terminal-primary);
+  }
+}
+
+.typing-effect {
+  overflow: hidden;
+  border-right: 2px solid var(--terminal-primary);
+  white-space: nowrap;
+  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+/* Terminal Window */
+.terminal-window {
+  background: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-primary);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glow-medium), inset 0 0 50px rgba(0, 255, 65, 0.05);
+  overflow: hidden;
+}
+
+.terminal-header {
+  background: var(--bg-tertiary);
+  border-bottom: var(--border-width) solid var(--border-primary);
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.terminal-button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--terminal-dim);
+}
+
+.terminal-button.close {
+  background: #ff3333;
+  box-shadow: 0 0 5px #ff3333;
+}
+
+.terminal-button.minimize {
+  background: var(--amber-primary);
+  box-shadow: 0 0 5px var(--amber-primary);
+}
+
+.terminal-button.maximize {
+  background: var(--terminal-primary);
+  box-shadow: 0 0 5px var(--terminal-primary);
+}
+
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-shadow: var(--glow-text);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.terminal-content {
+  padding: var(--spacing-md);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
+/* ASCII Border */
+.ascii-border {
+  border: var(--border-width) solid var(--border-primary);
+  position: relative;
+}
+
+.ascii-border::before {
+  content: '┌─────────────────────────┐';
+  position: absolute;
+  top: -1.2em;
+  left: 0;
+  right: 0;
+  color: var(--border-primary);
+  font-family: var(--font-mono);
+  white-space: pre;
+}
+
+.ascii-border::after {
+  content: '└─────────────────────────┘';
+  position: absolute;
+  bottom: -1.2em;
+  left: 0;
+  right: 0;
+  color: var(--border-primary);
+  font-family: var(--font-mono);
+  white-space: pre;
+}
+
+/* Pixel Art Loading */
+@keyframes pixel-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.pixel-loader {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--terminal-dim);
+  border-top-color: var(--terminal-primary);
+  border-radius: 0;
+  animation: pixel-spin 1s linear infinite;
+  box-shadow: var(--glow-small);
+  image-rendering: pixelated;
+}
+
+/* Matrix Rain Effect */
+@keyframes matrix-rain {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+/* Glitch Effect */
+@keyframes glitch {
+  0% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    transform: translate(-2px, -2px);
+  }
+  60% {
+    transform: translate(2px, 2px);
+  }
+  80% {
+    transform: translate(2px, -2px);
+  }
+  100% {
+    transform: translate(0);
+  }
+}
+
+.glitch {
+  animation: glitch 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+}
+
+/* Button Styles */
+.btn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: var(--border-width) solid var(--border-primary);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: var(--glow-small);
+}
+
+.btn:hover {
+  background: var(--bg-elevated);
+  box-shadow: var(--glow-medium);
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: var(--glow-small);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--terminal-dark);
+  border-color: var(--terminal-primary);
+  color: var(--terminal-primary);
+}
+
+.btn-danger {
+  background: rgba(255, 51, 51, 0.1);
+  border-color: #ff3333;
+  color: #ff3333;
+}
+
+/* Input Styles */
+.input {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-secondary);
+  padding: var(--spacing-sm) var(--spacing-md);
+  width: 100%;
+  transition: all var(--transition-base);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--border-primary);
+  box-shadow: var(--glow-medium);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Card Styles */
+.card {
+  background: var(--bg-secondary);
+  border: var(--border-width) solid var(--border-primary);
+  box-shadow: var(--glow-small);
+  padding: var(--spacing-lg);
+}
+
+.card:hover {
+  box-shadow: var(--glow-medium);
+}
+
+/* Badge Styles */
+.badge {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  border: 1px solid var(--border-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: var(--glow-small);
+}
+
+.badge-success {
+  border-color: var(--text-success);
+  color: var(--text-success);
+}
+
+.badge-warning {
+  border-color: var(--text-warning);
+  color: var(--text-warning);
+}
+
+.badge-error {
+  border-color: var(--text-error);
+  color: var(--text-error);
+}
+
+/* Utility Classes */
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-error {
+  color: var(--text-error);
+}
+
+.text-success {
+  color: var(--text-success);
+}
+
+.text-warning {
+  color: var(--text-warning);
+}
+
+.mt-sm {
+  margin-top: var(--spacing-sm);
+}
+
+.mt-md {
+  margin-top: var(--spacing-md);
+}
+
+.mt-lg {
+  margin-top: var(--spacing-lg);
+}
+
+.mb-sm {
+  margin-bottom: var(--spacing-sm);
+}
+
+.mb-md {
+  margin-bottom: var(--spacing-md);
+}
+
+.mb-lg {
+  margin-bottom: var(--spacing-lg);
+}
+
+.p-sm {
+  padding: var(--spacing-sm);
+}
+
+.p-md {
+  padding: var(--spacing-md);
+}
+
+.p-lg {
+  padding: var(--spacing-lg);
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-sm {
+  gap: var(--spacing-sm);
+}
+
+.gap-md {
+  gap: var(--spacing-md);
+}
+
+.gap-lg {
+  gap: var(--spacing-lg);
+}
+
+.full-height {
+  height: 100vh;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+}
+
+/* Amber Theme Override */
+body.theme-amber {
+  --terminal-primary: var(--amber-primary);
+  --terminal-secondary: var(--amber-secondary);
+  --terminal-accent: var(--amber-accent);
+  --terminal-dim: #cc7a00;
+  --terminal-dark: #995c00;
+}

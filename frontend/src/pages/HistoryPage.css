@@ -1,0 +1,235 @@
+/* History Page Styles */
+
+.history-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+/* Stats Bar */
+.history-stats {
+  background: var(--bg-secondary);
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-around;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+/* Empty State */
+.empty-history {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-ascii {
+  font-size: 0.7rem;
+  line-height: 1.3;
+  margin: 0 0 var(--spacing-lg) 0;
+  text-align: center;
+}
+
+/* History Grid */
+.history-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: var(--spacing-lg);
+  min-height: 0;
+}
+
+/* Timeline */
+.history-list {
+  background: var(--bg-secondary);
+  overflow-y: auto;
+}
+
+.section-title {
+  font-size: var(--font-size-base);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.timeline-item {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--border-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.timeline-item:hover {
+  background: var(--bg-elevated);
+  border-left-color: var(--border-primary);
+  transform: translateX(4px);
+}
+
+.timeline-item.active {
+  background: var(--bg-elevated);
+  border-left-color: var(--terminal-primary);
+  box-shadow: var(--glow-medium);
+}
+
+.timeline-marker {
+  flex-shrink: 0;
+}
+
+.timeline-icon {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline-title {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Details Panel */
+.history-details {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.details-header {
+  background: var(--bg-secondary);
+}
+
+.details-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.details-title {
+  font-size: var(--font-size-lg);
+  font-family: var(--font-mono);
+  margin: 0 0 var(--spacing-xs) 0;
+  text-transform: uppercase;
+}
+
+.details-status {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: bold;
+}
+
+.details-content {
+  flex: 1;
+  background: var(--bg-secondary);
+  overflow-y: auto;
+}
+
+.details-section {
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.details-section:last-child {
+  border-bottom: none;
+}
+
+.details-section-title {
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  margin: 0 0 var(--spacing-sm) 0;
+  text-transform: uppercase;
+}
+
+.details-text {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-xs);
+  background: var(--bg-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.no-selection {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .history-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .history-list {
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .history-page {
+    padding: var(--spacing-sm);
+  }
+
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}

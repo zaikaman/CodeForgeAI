@@ -226,40 +226,40 @@ This is a **web-first monorepo application** with the following structure:
 
 ### Authentication
 
-- [ ] **T105** [P] Create LoginPage in `frontend/src/pages/auth/LoginPage.tsx` (email/password, OAuth buttons)
-- [ ] **T106** [P] Create SignupPage in `frontend/src/pages/auth/SignupPage.tsx` (email/password registration)
-- [ ] **T107** [P] Create AuthCallback in `frontend/src/pages/auth/AuthCallback.tsx` (handle OAuth redirect)
+- [x] **T105** [P] Create LoginPage in `frontend/src/pages/auth/LoginPage.tsx` (email/password, OAuth buttons)
+- [x] **T106** [P] Create SignupPage in `frontend/src/pages/auth/SignupPage.tsx` (email/password registration)
+- [x] **T107** [P] Create AuthCallback in `frontend/src/pages/auth/AuthCallback.tsx` (handle OAuth redirect)
 
 ### Components
 
-- [ ] **T108** [P] Implement CodeEditor component in `frontend/src/components/CodeEditor.tsx` (Monaco editor wrapper, syntax highlighting)
-- [ ] **T109** [P] Implement DiffViewer component in `frontend/src/components/DiffViewer.tsx` (react-diff-viewer, side-by-side)
-- [ ] **T110** [P] Implement AgentChat component in `frontend/src/components/AgentChat.tsx` (streaming agent thoughts, WebSocket)
-- [ ] **T111** [P] Implement GenerationForm component in `frontend/src/components/GenerationForm.tsx` (prompt input, options, submit)
-- [ ] **T112** [P] Implement ReviewPanel component in `frontend/src/components/ReviewPanel.tsx` (findings list, severity badges)
-- [ ] **T113** [P] Implement StatusIndicator component in `frontend/src/components/StatusIndicator.tsx` (loading, success, error states)
-- [ ] **T114** [P] Implement ProjectList component in `frontend/src/components/ProjectList.tsx` (grid/list view, search, filter)
+- [x] **T108** [P] Implement CodeEditor component in `frontend/src/components/CodeEditor.tsx` (Monaco editor wrapper, syntax highlighting)
+- [x] **T109** [P] Implement DiffViewer component in `frontend/src/components/DiffViewer.tsx` (react-diff-viewer, side-by-side)
+- [x] **T110** [P] Implement AgentChat component in `frontend/src/components/AgentChat.tsx` (streaming agent thoughts, WebSocket)
+- [x] **T111** [P] Implement GenerationForm component in `frontend/src/components/GenerationForm.tsx` (prompt input, options, submit)
+- [x] **T112** [P] Implement ReviewPanel component in `frontend/src/components/ReviewPanel.tsx` (findings list, severity badges)
+- [x] **T113** [P] Implement StatusIndicator component in `frontend/src/components/StatusIndicator.tsx` (loading, success, error states)
+- [x] **T114** [P] Implement ProjectList component in `frontend/src/components/ProjectList.tsx` (grid/list view, search, filter)
 
 ### Pages
 
-- [ ] **T115** [P] Create HomePage in `frontend/src/pages/HomePage.tsx` (landing page, features, get started button)
-- [ ] **T116** [P] Create DashboardPage in `frontend/src/pages/DashboardPage.tsx` (user projects, recent activity)
-- [ ] **T117** [P] Create GeneratePage in `frontend/src/pages/GeneratePage.tsx` (GenerationForm + CodeEditor + AgentChat)
-- [ ] **T118** [P] Create ReviewPage in `frontend/src/pages/ReviewPage.tsx` (file upload + ReviewPanel)
-- [ ] **T119** [P] Create HistoryPage in `frontend/src/pages/HistoryPage.tsx` (list past generations, details)
-- [ ] **T120** [P] Create SettingsPage in `frontend/src/pages/SettingsPage.tsx` (user preferences, API keys)
+- [x] **T115** [P] Create HomePage in `frontend/src/pages/HomePage.tsx` (landing page, features, get started button)
+- [x] **T116** [P] Create DashboardPage in `frontend/src/pages/DashboardPage.tsx` (user projects, recent activity)
+- [x] **T117** [P] Create GeneratePage in `frontend/src/pages/GeneratePage.tsx` (GenerationForm + CodeEditor + AgentChat)
+- [x] **T118** [P] Create ReviewPage in `frontend/src/pages/ReviewPage.tsx` (file upload + ReviewPanel)
+- [x] **T119** [P] Create HistoryPage in `frontend/src/pages/HistoryPage.tsx` (list past generations, details)
+- [x] **T120** [P] Create SettingsPage in `frontend/src/pages/SettingsPage.tsx` (user preferences, API keys)
 
 ### Services & State
 
-- [ ] **T121** Implement API client in `frontend/src/services/apiClient.ts` (Axios wrapper, error handling, auth headers)
-- [ ] **T122** Implement WebSocket client in `frontend/src/services/websocketClient.ts` (Socket.io client, reconnection)
-- [ ] **T123** [P] Create useGeneration hook in `frontend/src/hooks/useGeneration.ts` (call generate API, manage state)
-- [ ] **T124** [P] Create useReview hook in `frontend/src/hooks/useReview.ts` (call review API)
-- [ ] **T125** [P] Create useWebSocket hook in `frontend/src/hooks/useWebSocket.ts` (WebSocket connection, messages)
-- [ ] **T126** [P] Create useProjects hook in `frontend/src/hooks/useProjects.ts` (fetch/create projects)
-- [ ] **T127** Setup Zustand store in `frontend/src/stores/generationStore.ts` (generation state, history)
-- [ ] **T128** Setup UI store in `frontend/src/stores/uiStore.ts` (loading, errors, modals)
-- [ ] **T129** Create App component in `frontend/src/App.tsx` (router, layout, pages, auth provider)
+- [x] **T121** Implement API client in `frontend/src/services/apiClient.ts` (Axios wrapper, error handling, auth headers)
+- [x] **T122** Implement WebSocket client in `frontend/src/services/websocketClient.ts` (Socket.io client, reconnection)
+- [x] **T123** [P] Create useGeneration hook in `frontend/src/hooks/useGeneration.ts` (call generate API, manage state)
+- [x] **T124** [P] Create useReview hook in `frontend/src/hooks/useReview.ts` (call review API)
+- [x] **T125** [P] Create useWebSocket hook in `frontend/src/hooks/useWebSocket.ts` (WebSocket connection, messages)
+- [x] **T126** [P] Create useProjects hook in `frontend/src/hooks/useProjects.ts` (fetch/create projects)
+- [x] **T127** Setup Zustand store in `frontend/src/stores/generationStore.ts` (generation state, history)
+- [x] **T128** Setup UI store in `frontend/src/stores/uiStore.ts` (loading, errors, modals)
+- [x] **T129** Create App component in `frontend/src/App.tsx` (router, layout, pages, auth provider)
 
 ---
 
