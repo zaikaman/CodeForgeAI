@@ -46,6 +46,7 @@ describe("OpenAiLlm", () => {
 			"gpt-3.5-.*",
 			"gpt-4.*",
 			"gpt-4o.*",
+			"gpt-5.*",
 			"o1-.*",
 			"o3-.*",
 		]);
