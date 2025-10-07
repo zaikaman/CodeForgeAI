@@ -1,12 +1,15 @@
 -- CodeForge AI Initial Database Schema
 -- This migration creates the core tables for the application
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Enable pgcrypto extension for gen_random_uuid()
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Enable vector extension for embeddings (pgvector)
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Projects table
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,
@@ -22,7 +25,7 @@ CREATE TABLE projects (
 
 -- Agents table
 CREATE TABLE agents (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     type TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
@@ -39,7 +42,7 @@ CREATE TABLE agents (
 
 -- Generation history table
 CREATE TABLE generation_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     request_id UUID NOT NULL,
@@ -60,7 +63,7 @@ CREATE TABLE generation_history (
 
 -- Embeddings table (stores vector embeddings for RAG)
 CREATE TABLE embeddings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     file_path TEXT NOT NULL,
     chunk_index INTEGER NOT NULL,
@@ -71,12 +74,9 @@ CREATE TABLE embeddings (
     UNIQUE(project_id, file_path, chunk_index)
 );
 
--- Enable vector extension for embeddings (requires pgvector)
-CREATE EXTENSION IF NOT EXISTS vector;
-
 -- Code outputs table
 CREATE TABLE code_outputs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     request_id UUID NOT NULL,
     history_id UUID REFERENCES generation_history(id) ON DELETE CASCADE,
     type TEXT NOT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE code_outputs (
 
 -- Review reports table
 CREATE TABLE review_reports (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     target_file TEXT,
     findings JSONB NOT NULL DEFAULT '[]',
@@ -111,7 +111,7 @@ CREATE TABLE review_reports (
 
 -- Enhancement proposals table
 CREATE TABLE enhancement_proposals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -139,7 +139,7 @@ CREATE INDEX idx_review_reports_project_id ON review_reports(project_id);
 CREATE INDEX idx_enhancement_proposals_project_id ON enhancement_proposals(project_id);
 CREATE INDEX idx_enhancement_proposals_status ON enhancement_proposals(status);
 
--- Add vector similarity search index
+-- Add vector similarity search index (pgvector ivfflat)
 CREATE INDEX idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops);
 
 -- Function to update updated_at timestamp
