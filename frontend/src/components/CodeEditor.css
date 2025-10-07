@@ -184,7 +184,7 @@
   }
 }
 
-/* Animation for editor mount */
+/* Animation for editor mount - Disabled */
 @keyframes editorFadeIn {
   from {
     opacity: 0;
@@ -195,7 +195,7 @@
 }
 
 .editor-container {
-  animation: editorFadeIn 0.3s ease-in;
+  /* animation: editorFadeIn 0.3s ease-in; - REMOVED */
 }
 
 /* Minimap customization */

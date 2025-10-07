@@ -133,7 +133,7 @@
 .project-card {
   background: var(--bg-tertiary);
   transition: all var(--transition-base);
-  animation: fadeIn 0.3s ease-out;
+  /* animation: fadeIn 0.3s ease-out; - REMOVED */
 }
 
 .project-card:hover {
@@ -207,7 +207,7 @@
 
 .status-dot.status-active {
   color: var(--text-success);
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 8s infinite; /* 3 quick pulses in first 10%, then 90% pause */
 }
 
 .status-dot.status-archived {

@@ -136,7 +136,7 @@
 
 .global-loading .loading-spinner {
   font-size: 3rem;
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 8s infinite; /* 3 quick pulses in first 10%, then 90% pause */
 }
 
 .global-loading .loading-text {

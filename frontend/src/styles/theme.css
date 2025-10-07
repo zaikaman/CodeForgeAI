@@ -133,7 +133,7 @@ body {
   box-shadow: var(--glow-medium);
 }
 
-/* CRT Screen Effect */
+/* CRT Screen Effect - Slower */
 .crt-screen {
   position: relative;
   overflow: hidden;
@@ -154,7 +154,7 @@ body {
   background-size: 100% 4px;
   z-index: var(--z-scanlines);
   pointer-events: none;
-  animation: scanlines 8s linear infinite;
+  animation: scanlines 16s linear infinite; /* Slower: 8s -> 16s */
 }
 
 .crt-screen::after {
@@ -168,7 +168,7 @@ body {
   opacity: 0;
   z-index: var(--z-scanlines);
   pointer-events: none;
-  animation: flicker 0.15s infinite;
+  animation: flicker 8s infinite; /* 3 quick flickers in first 30%, then 70% pause */
 }
 
 /* Scanline Animation */
@@ -181,87 +181,49 @@ body {
   }
 }
 
-/* Flicker Effect */
+/* Flicker Effect - 3 Quick Flickers Then Long Pause */
 @keyframes flicker {
-  0% {
-    opacity: 0.27861;
-  }
-  5% {
-    opacity: 0.34769;
-  }
-  10% {
-    opacity: 0.23604;
-  }
-  15% {
-    opacity: 0.90626;
-  }
-  20% {
-    opacity: 0.18128;
-  }
-  25% {
-    opacity: 0.83891;
-  }
-  30% {
-    opacity: 0.65583;
-  }
-  35% {
-    opacity: 0.67807;
-  }
-  40% {
-    opacity: 0.26559;
-  }
-  45% {
-    opacity: 0.84693;
-  }
-  50% {
-    opacity: 0.96019;
-  }
-  55% {
-    opacity: 0.08594;
-  }
-  60% {
-    opacity: 0.20313;
-  }
-  65% {
-    opacity: 0.71988;
-  }
-  70% {
-    opacity: 0.53455;
-  }
-  75% {
-    opacity: 0.37288;
-  }
-  80% {
-    opacity: 0.71428;
-  }
-  85% {
-    opacity: 0.70419;
-  }
-  90% {
-    opacity: 0.7003;
-  }
-  95% {
-    opacity: 0.36108;
-  }
-  100% {
-    opacity: 0.24387;
-  }
+  0% { opacity: 0.27861; }
+  2% { opacity: 0.34769; }
+  4% { opacity: 0.23604; }
+  6% { opacity: 0.90626; }
+  8% { opacity: 0.18128; }
+  10% { opacity: 0.83891; }
+  12% { opacity: 0.65583; }
+  14% { opacity: 0.67807; }
+  16% { opacity: 0.26559; }
+  18% { opacity: 0.84693; }
+  20% { opacity: 0.96019; }
+  22% { opacity: 0.08594; }
+  24% { opacity: 0.20313; }
+  26% { opacity: 0.71988; }
+  28% { opacity: 0.53455; }
+  30% { opacity: 0.37288; }
+  /* Long pause - no flicker from 30% to 100% */
+  30%, 100% { opacity: 0; }
 }
 
-/* Phosphor Glow Effect */
+/* Phosphor Glow Effect - 3 Pulses Then Pause */
 .phosphor-glow {
   text-shadow: var(--glow-text);
-  animation: phosphor-pulse 2s ease-in-out infinite;
+  animation: phosphor-pulse 8s infinite; /* 3 quick pulses in first 10%, then 90% pause */
 }
 
 @keyframes phosphor-pulse {
-  0%,
-  100% {
-    text-shadow: var(--glow-text);
-  }
-  50% {
-    text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary);
-  }
+  /* First pulse */
+  0%, 2% { text-shadow: var(--glow-text); }
+  1% { text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary); }
+  
+  /* Second pulse */
+  4%, 6% { text-shadow: var(--glow-text); }
+  5% { text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary); }
+  
+  /* Third pulse */
+  8%, 10% { text-shadow: var(--glow-text); }
+  9% { text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary); }
+  
+  /* Long pause */
+  10%, 100% { text-shadow: var(--glow-text); }
 }
 
 /* Typing Animation */
@@ -288,7 +250,7 @@ body {
   overflow: hidden;
   border-right: 2px solid var(--terminal-primary);
   white-space: nowrap;
-  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+  /* animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite; - REMOVED */
 }
 
 /* Terminal Window */
@@ -376,16 +338,28 @@ body {
   white-space: pre;
 }
 
-/* Pixel Art Loading */
+/* Pixel Art Loading - 3 Spins Then Pause */
 @keyframes pixel-spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  /* First spin */
+  0% { transform: rotate(0deg); }
+  2% { transform: rotate(120deg); }
+  3% { transform: rotate(0deg); }
+  
+  /* Second spin */  
+  5% { transform: rotate(0deg); }
+  7% { transform: rotate(120deg); }
+  8% { transform: rotate(0deg); }
+  
+  /* Third spin */
+  10% { transform: rotate(0deg); }
+  12% { transform: rotate(120deg); }
+  13% { transform: rotate(0deg); }
+  
+  /* Long pause */
+  13%, 100% { transform: rotate(0deg); }
 }
 
+/* Pixel Art Loading - Slower */
 .pixel-loader {
   display: inline-block;
   width: 16px;
@@ -393,7 +367,7 @@ body {
   border: 2px solid var(--terminal-dim);
   border-top-color: var(--terminal-primary);
   border-radius: 0;
-  animation: pixel-spin 1s linear infinite;
+  animation: pixel-spin 8s linear infinite; /* 3 quick spins in first 10%, then 90% pause */
   box-shadow: var(--glow-small);
   image-rendering: pixelated;
 }
@@ -408,30 +382,30 @@ body {
   }
 }
 
-/* Glitch Effect */
+/* Glitch Effect - 3 Quick Glitches Then Long Pause */
 @keyframes glitch {
-  0% {
-    transform: translate(0);
-  }
-  20% {
-    transform: translate(-2px, 2px);
-  }
-  40% {
-    transform: translate(-2px, -2px);
-  }
-  60% {
-    transform: translate(2px, 2px);
-  }
-  80% {
-    transform: translate(2px, -2px);
-  }
-  100% {
-    transform: translate(0);
-  }
+  /* First glitch */
+  0% { transform: translate(0); }
+  1% { transform: translate(-2px, 2px); }
+  2% { transform: translate(0); }
+  
+  /* Second glitch */
+  4% { transform: translate(0); }
+  5% { transform: translate(2px, -2px); }
+  6% { transform: translate(0); }
+  
+  /* Third glitch */
+  8% { transform: translate(0); }
+  9% { transform: translate(-2px, -2px); }
+  10% { transform: translate(0); }
+  
+  /* Long pause - no glitch from 10% to 100% */
+  10%, 100% { transform: translate(0); }
 }
 
+/* Glitch Effect - Much Less Frequent */
 .glitch {
-  animation: glitch 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+  animation: glitch 8s infinite; /* 3 quick glitches in first 10%, then 90% pause */
 }
 
 /* Button Styles */

@@ -179,17 +179,17 @@
 }
 
 .generate-panel {
-  animation: slideIn 0.3s ease-out;
+  /* animation: slideIn 0.3s ease-out; - REMOVED */
 }
 
 .form-panel {
-  animation-delay: 0s;
+  /* animation-delay: 0s; - REMOVED */
 }
 
 .editor-panel {
-  animation-delay: 0.1s;
+  /* animation-delay: 0.1s; - REMOVED */
 }
 
 .chat-panel {
-  animation-delay: 0.2s;
+  /* animation-delay: 0.2s; - REMOVED */
 }

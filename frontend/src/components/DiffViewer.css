@@ -318,7 +318,7 @@
   }
 }
 
-/* Animation */
+/* Animation - Disabled */
 @keyframes diffFadeIn {
   from {
     opacity: 0;
@@ -329,7 +329,7 @@
 }
 
 .diff-container {
-  animation: diffFadeIn 0.3s ease-in;
+  /* animation: diffFadeIn 0.3s ease-in; - REMOVED */
 }
 
 /* Hover effects on diff lines */

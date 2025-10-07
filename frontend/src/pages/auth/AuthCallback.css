@@ -16,7 +16,7 @@
 
 .ascii-spinner {
   font-size: 0.8rem;
-  animation: pulse 2s ease-in-out infinite;
+  animation: pulse 8s infinite; /* 3 quick pulses in first 10%, then 90% pause */
 }
 
 /* Success State */
