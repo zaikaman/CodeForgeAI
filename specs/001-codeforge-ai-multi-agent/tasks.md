@@ -125,28 +125,28 @@ This is a **web-first monorepo application** with the following structure:
 
 ### Code Manipulation Tools
 
-- [ ] **T054** [P] Implement codeParseTool in `backend/src/tools/code/codeParseTool.ts` (ts-morph AST parsing, extract functions/classes)
-- [ ] **T055** [P] Implement codeScaffoldTool in `backend/src/tools/code/codeScaffoldTool.ts` (generate boilerplate from template)
-- [ ] **T056** [P] Implement astQueryTool in `backend/src/tools/code/astQueryTool.ts` (query AST for symbols, imports, exports)
-- [ ] **T057** [P] Implement patternMatcherTool in `backend/src/tools/code/patternMatcherTool.ts` (find code patterns for refactoring)
-- [ ] **T058** [P] Implement commentInserterTool in `backend/src/tools/code/commentInserterTool.ts` (add TSDoc comments)
+- [x] **T054** [P] Implement codeParseTool in `backend/src/tools/code/codeParseTool.ts` (ts-morph AST parsing, extract functions/classes)
+- [x] **T055** [P] Implement codeScaffoldTool in `backend/src/tools/code/codeScaffoldTool.ts` (generate boilerplate from template)
+- [x] **T056** [P] Implement astQueryTool in `backend/src/tools/code/astQueryTool.ts` (query AST for symbols, imports, exports)
+- [x] **T057** [P] Implement patternMatcherTool in `backend/src/tools/code/patternMatcherTool.ts` (find code patterns for refactoring)
+- [x] **T058** [P] Implement commentInserterTool in `backend/src/tools/code/commentInserterTool.ts` (add TSDoc comments)
 
 ### Testing Tools
 
-- [ ] **T059** [P] Implement testGenTool in `backend/src/tools/testing/testGenTool.ts` (generate Jest tests from function signature)
-- [ ] **T060** [P] Implement testExecutorTool in `backend/src/tools/testing/testExecutorTool.ts` (run Jest programmatically, return results)
+- [x] **T059** [P] Implement testGenTool in `backend/src/tools/testing/testGenTool.ts` (generate Jest tests from function signature)
+- [x] **T060** [P] Implement testExecutorTool in `backend/src/tools/testing/testExecutorTool.ts` (run Jest programmatically, return results)
 
 ### Analysis Tools
 
-- [ ] **T061** [P] Implement complexityCalculator in `backend/src/tools/analysis/complexityCalculator.ts` (cyclomatic complexity via ts-morph)
-- [ ] **T062** [P] Implement promptParserTool in `backend/src/tools/analysis/promptParserTool.ts` (extract intent, entities from NL)
+- [x] **T061** [P] Implement complexityCalculator in `backend/src/tools/analysis/complexityCalculator.ts` (cyclomatic complexity via ts-morph)
+- [x] **T062** [P] Implement promptParserTool in `backend/src/tools/analysis/promptParserTool.ts` (extract intent, entities from NL)
 
 ### Integration Tools
 
-- [ ] **T063** [P] Implement githubMcpTool in `backend/src/tools/integrations/githubMcpTool.ts` (Octokit wrapper, repo info, PR creation)
-- [ ] **T064** [P] Implement sonarqubeMcpTool in `backend/src/tools/integrations/sonarqubeMcpTool.ts` (SonarQube API, code quality metrics)
+- [x] **T063** [P] Implement githubMcpTool in `backend/src/tools/integrations/githubMcpTool.ts` (Octokit wrapper, repo info, PR creation)
+- [x] **T064** [P] Implement sonarqubeMcpTool in `backend/src/tools/integrations/sonarqubeMcpTool.ts` (SonarQube API, code quality metrics)
 
-- [ ] **T065** Add tool registry in `backend/src/tools/index.ts` (export all tools, tool discovery)
+- [x] **T065** Add tool registry in `backend/src/tools/index.ts` (export all tools, tool discovery)
 
 ---
 
