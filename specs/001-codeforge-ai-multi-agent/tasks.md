@@ -265,12 +265,12 @@ This is a **web-first monorepo application** with the following structure:
 
 ## Phase 3.11: Shared Package
 
-- [ ] **T130** [P] Export shared types in `shared/src/types/Agent.ts` (Agent, AgentType)
-- [ ] **T131** [P] Export shared types in `shared/src/types/Request.ts` (GenerationRequest, ReviewRequest)
-- [ ] **T132** [P] Export shared types in `shared/src/types/Response.ts` (CodeOutput, ReviewReport)
-- [ ] **T133** [P] Export shared types in `shared/src/types/Config.ts` (env vars, options)
-- [ ] **T134** [P] Export shared constants in `shared/src/constants/prompts.ts` (agent system prompts)
-- [ ] **T135** Create shared index in `shared/src/index.ts` (re-export all)
+- [x] **T130** [P] Export shared types in `shared/src/types/Agent.ts` (Agent, AgentType)
+- [x] **T131** [P] Export shared types in `shared/src/types/Request.ts` (GenerationRequest, ReviewRequest)
+- [x] **T132** [P] Export shared types in `shared/src/types/Response.ts` (CodeOutput, ReviewReport)
+- [x] **T133** [P] Export shared types in `shared/src/types/Config.ts` (env vars, options)
+- [x] **T134** [P] Export shared constants in `shared/src/constants/prompts.ts` (agent system prompts)
+- [x] **T135** Create shared index in `shared/src/index.ts` (re-export all)
 
 ---
 
