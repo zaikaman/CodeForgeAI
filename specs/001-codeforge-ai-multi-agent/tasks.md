@@ -7,11 +7,12 @@
 
 ## Path Conventions
 
-This is a **web-only monorepo application** with the following structure:
+This is a **web-first monorepo application** with the following structure:
 
 - `backend/src/` - Express API (Vercel serverless functions), agents, services
 - `frontend/src/` - React SPA with Vite
 - `shared/src/` - Shared TypeScript types
+- `cli/src/` - CLI tool (optional, Phase 3.14 bonus feature)
 - `adk-ts/` - Local ADK-TS clone (already present)
 
 **Architecture**:
@@ -22,6 +23,7 @@ This is a **web-only monorepo application** with the following structure:
 - **Authentication**: Supabase Auth (email/password, OAuth)
 - **Storage**: Supabase Storage (for project files, embeddings)
 - **Deployment**: Vercel (frontend + backend)
+- **CLI**: Optional Commander.js tool (calls web API, comes after web app is complete)
 
 ---
 
@@ -302,6 +304,40 @@ This is a **web-only monorepo application** with the following structure:
 
 ---
 
+## Phase 3.14: CLI Tool (Bonus Feature)
+
+**Note**: This phase is optional and comes AFTER the web application is fully complete and deployed.
+
+### CLI Setup
+
+- [ ] **T156** Create CLI package in `cli/` workspace with Commander.js
+- [ ] **T157** Setup CLI TypeScript config in `cli/tsconfig.json`
+- [ ] **T158** Create CLI entry point in `cli/src/index.ts` (commands, version, help)
+- [ ] **T159** Implement API client in `cli/src/utils/apiClient.ts` (calls web API with auth token)
+
+### CLI Commands
+
+- [ ] **T160** Implement `codeforge login` command in `cli/src/commands/login.ts` (save auth token)
+- [ ] **T161** Implement `codeforge logout` command in `cli/src/commands/logout.ts` (clear token)
+- [ ] **T162** Implement `codeforge onboard` command in `cli/src/commands/onboard.ts` (scan repo, call API)
+- [ ] **T163** Implement `codeforge generate` command in `cli/src/commands/generate.ts` (prompt, options, save output)
+- [ ] **T164** Implement `codeforge review` command in `cli/src/commands/review.ts` (read file, display findings)
+- [ ] **T165** Implement `codeforge enhance` command in `cli/src/commands/enhance.ts` (proposals, apply diffs)
+- [ ] **T166** Implement `codeforge projects` command in `cli/src/commands/projects.ts` (list projects)
+- [ ] **T167** Implement `codeforge history` command in `cli/src/commands/history.ts` (generation history)
+
+### CLI Features
+
+- [ ] **T168** Add progress bars with `ora` for long-running operations
+- [ ] **T169** Add colored output with `chalk` for better UX
+- [ ] **T170** Add interactive prompts with `inquirer` for missing options
+- [ ] **T171** Add config file support in `~/.codeforge/config.json`
+- [ ] **T172** Create CLI binary with `pkg` for distribution
+- [ ] **T173** Write CLI documentation in `docs/cli.md`
+- [ ] **T174** Publish CLI to npm as `@codeforge/cli`
+
+---
+
 ## Dependencies
 
 **Critical Path**:
@@ -317,6 +353,7 @@ This is a **web-only monorepo application** with the following structure:
 9. API (T090-T104) → Frontend (T105-T129)
 10. Implementation (T029-T135) → Integration Tests (T136-T142)
 11. Everything → Documentation (T143-T155)
+12. **(Optional)** Complete web app → CLI Tool (T156-T174)
 
 **Parallel Opportunities**:
 
@@ -326,6 +363,7 @@ This is a **web-only monorepo application** with the following structure:
 - All Phase 3.7 agent implementations can be done in parallel [P]
 - All Phase 3.10 frontend components/pages can be built in parallel [P]
 - All Phase 3.13 documentation tasks can be done in parallel [P]
+- All Phase 3.14 CLI commands can be implemented in parallel [P]
 
 ---
 
@@ -379,17 +417,18 @@ This is a **web-only monorepo application** with the following structure:
 - [x] Each task specifies exact file path
 - [x] No task modifies same file as another [P] task
 - [x] Supabase integration tasks included (T038-T053)
-- [x] CLI and VS Code extension tasks removed
-- [x] Total task count: 155 tasks (web-only architecture)
+- [x] CLI tasks added as bonus feature at end (T156-T174)
+- [x] Total task count: 174 tasks (155 web-only + 19 CLI bonus)
 
 ---
 
 ## Notes
 
-- **Architecture**: Web-only application with Supabase (no CLI, no VS Code extension)
+- **Architecture**: Web-first application with Supabase, optional CLI tool at end
 - **Database**: Supabase PostgreSQL with real-time, RLS, and storage
 - **Authentication**: Supabase Auth (email/password + OAuth)
 - **Deployment**: Vercel (frontend static + backend serverless functions)
+- **CLI**: Bonus feature (Phase 3.14) - comes AFTER web app is complete
 - **TDD Enforcement**: Phase 3.2 tests MUST fail before implementing Phase 3.3+
 - **Parallel Execution**: Tasks marked [P] can run simultaneously (different files, no dependencies)
 - **Commit Strategy**: Commit after each task completion
@@ -401,8 +440,12 @@ This is a **web-only monorepo application** with the following structure:
 
 ---
 
-**Total Tasks**: 155  
-**Estimated Duration**: 4-5 weeks (solo developer, full-time)  
-**Critical Path**: Setup → Tests → Models → Supabase → Tools → Agents → Workflows → API → UI → Integration → Docs
+**Total Tasks**: 174 (155 core + 19 CLI bonus)  
+**Estimated Duration**:
 
-**Ready for execution with new web-only + Supabase architecture!** 🚀
+- Core web app: 4-5 weeks (solo developer, full-time)
+- CLI tool: +3-4 days (optional, after web app complete)
+
+**Critical Path**: Setup → Tests → Models → Supabase → Tools → Agents → Workflows → API → UI → Integration → Docs → **(Optional) CLI**
+
+**Ready for execution with web-first + Supabase architecture, CLI as bonus!** 🚀
