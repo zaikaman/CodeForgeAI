@@ -8,7 +8,6 @@ module.exports = {
       './backend/tsconfig.json',
       './frontend/tsconfig.json',
       './frontend/tsconfig.node.json',
-      './vscode-extension/tsconfig.json',
       './shared/tsconfig.json'
     ]
   },

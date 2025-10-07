@@ -6,7 +6,6 @@
   "workspaces": [
     "backend",
     "frontend",
-    "vscode-extension",
     "shared"
   ],
   "scripts": {
