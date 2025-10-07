@@ -168,20 +168,20 @@ This is a **web-first monorepo application** with the following structure:
 
 ### Agent Implementations
 
-- [ ] **T075** [P] Implement LeadEngineerAgent in `backend/src/agents/base/LeadEngineerAgent.ts` (orchestrator, AgentBuilder.withModel('gpt-5-nano'), system prompt)
-- [ ] **T076** [P] Implement SpecInterpreterAgent in `backend/src/agents/specialized/SpecInterpreterAgent.ts` (parse NL specs, extract requirements)
-- [ ] **T077** [P] Implement CodeGeneratorAgent in `backend/src/agents/specialized/CodeGeneratorAgent.ts` (generate code from requirements, use codeParseTool)
-- [ ] **T078** [P] Implement BugHunterAgent in `backend/src/agents/specialized/BugHunterAgent.ts` (find bugs, security issues)
-- [ ] **T079** [P] Implement RefactorGuruAgent in `backend/src/agents/specialized/RefactorGuruAgent.ts` (suggest refactorings, use patternMatcherTool)
-- [ ] **T080** [P] Implement SecuritySentinelAgent in `backend/src/agents/specialized/SecuritySentinelAgent.ts` (security analysis, vulnerability detection)
-- [ ] **T081** [P] Implement PerformanceProfilerAgent in `backend/src/agents/specialized/PerformanceProfilerAgent.ts` (performance analysis, optimization suggestions)
-- [ ] **T082** [P] Implement TestCrafterAgent in `backend/src/agents/specialized/TestCrafterAgent.ts` (generate tests, use testGenTool)
-- [ ] **T083** [P] Implement DocWeaverAgent in `backend/src/agents/specialized/DocWeaverAgent.ts` (generate documentation, use commentInserterTool)
+- [x] **T075** [P] Implement LeadEngineerAgent in `backend/src/agents/base/LeadEngineerAgent.ts` (orchestrator, AgentBuilder.withModel('gpt-5-nano'), system prompt)
+- [x] **T076** [P] Implement SpecInterpreterAgent in `backend/src/agents/specialized/SpecInterpreterAgent.ts` (parse NL specs, extract requirements)
+- [x] **T077** [P] Implement CodeGeneratorAgent in `backend/src/agents/specialized/CodeGeneratorAgent.ts` (generate code from requirements, use codeParseTool)
+- [x] **T078** [P] Implement BugHunterAgent in `backend/src/agents/specialized/BugHunterAgent.ts` (find bugs, security issues)
+- [x] **T079** [P] Implement RefactorGuruAgent in `backend/src/agents/specialized/RefactorGuruAgent.ts` (suggest refactorings, use patternMatcherTool)
+- [x] **T080** [P] Implement SecuritySentinelAgent in `backend/src/agents/specialized/SecuritySentinelAgent.ts` (security analysis, vulnerability detection)
+- [x] **T081** [P] Implement PerformanceProfilerAgent in `backend/src/agents/specialized/PerformanceProfilerAgent.ts` (performance analysis, optimization suggestions)
+- [x] **T082** [P] Implement TestCrafterAgent in `backend/src/agents/specialized/TestCrafterAgent.ts` (generate tests, use testGenTool)
+- [x] **T083** [P] Implement DocWeaverAgent in `backend/src/agents/specialized/DocWeaverAgent.ts` (generate documentation, use commentInserterTool)
 
 ### Agent Infrastructure
 
-- [ ] **T084** Implement DebateMediator in `backend/src/agents/resolvers/DebateMediator.ts` (resolve agent disagreements, voting mechanism)
-- [ ] **T085** Implement AgentFactory in `backend/src/agents/base/AgentFactory.ts` (create agents with config, register tools)
+- [x] **T084** Implement DebateMediator in `backend/src/agents/resolvers/DebateMediator.ts` (resolve agent disagreements, voting mechanism)
+- [x] **T085** Implement AgentFactory in `backend/src/agents/base/AgentFactory.ts` (create agents with config, register tools)
 
 ---
 
