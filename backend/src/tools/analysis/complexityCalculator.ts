@@ -1,4 +1,4 @@
-import { Project, SourceFile, Node, SyntaxKind } from 'ts-morph'
+import { Project, Node, SyntaxKind } from 'ts-morph'
 
 /**
  * Complexity Calculator Tool
@@ -67,7 +67,7 @@ export function calculateCyclomaticComplexity(node: Node): number {
         complexity++
         break
 
-      case SyntaxKind.BinaryExpression:
+      case SyntaxKind.BinaryExpression: {
         const binExpr = descendant.asKind(SyntaxKind.BinaryExpression)
         if (binExpr) {
           const operator = binExpr.getOperatorToken().getKind()
@@ -80,10 +80,51 @@ export function calculateCyclomaticComplexity(node: Node): number {
           }
         }
         break
+      }
     }
   })
 
   return complexity
+}
+
+function isRecursiveCall(node: Node): boolean {
+  if (Node.isCallExpression(node)) {
+    const expression = node.getExpression()
+    if (Node.isIdentifier(expression)) {
+      const functionNode = node.getFirstAncestorByKind(
+        SyntaxKind.FunctionDeclaration
+      )
+      if (functionNode && expression.getText() === functionNode.getName()) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+function isLogicalBinaryExpression(node: Node): boolean {
+  if (Node.isBinaryExpression(node)) {
+    const operator = node.getOperatorToken().getKind()
+    return (
+      operator === SyntaxKind.AmpersandAmpersandToken ||
+      operator === SyntaxKind.BarBarToken
+    )
+  }
+  return false
+}
+
+function isControlFlowStructure(kind: SyntaxKind): boolean {
+  return (
+    kind === SyntaxKind.IfStatement ||
+    kind === SyntaxKind.ForStatement ||
+    kind === SyntaxKind.ForInStatement ||
+    kind === SyntaxKind.ForOfStatement ||
+    kind === SyntaxKind.WhileStatement ||
+    kind === SyntaxKind.DoStatement ||
+    kind === SyntaxKind.CatchClause ||
+    kind === SyntaxKind.ConditionalExpression ||
+    kind === SyntaxKind.SwitchStatement
+  )
 }
 
 /**
@@ -91,59 +132,22 @@ export function calculateCyclomaticComplexity(node: Node): number {
  */
 export function calculateCognitiveComplexity(node: Node): number {
   let complexity = 0
-  let nestingLevel = 0
+  const nestingLevel = 0
 
   function traverse(currentNode: Node, currentNesting: number): void {
     const kind = currentNode.getKind()
 
-    // Increment for control flow structures
-    if (
-      kind === SyntaxKind.IfStatement ||
-      kind === SyntaxKind.ForStatement ||
-      kind === SyntaxKind.ForInStatement ||
-      kind === SyntaxKind.ForOfStatement ||
-      kind === SyntaxKind.WhileStatement ||
-      kind === SyntaxKind.DoStatement ||
-      kind === SyntaxKind.CatchClause ||
-      kind === SyntaxKind.ConditionalExpression ||
-      kind === SyntaxKind.SwitchStatement
-    ) {
+    if (isControlFlowStructure(kind)) {
       complexity += 1 + currentNesting
       currentNesting++
     }
 
-    // Binary expressions (&&, ||)
-    if (kind === SyntaxKind.BinaryExpression) {
-      const binExpr = currentNode.asKind(SyntaxKind.BinaryExpression)
-      if (binExpr) {
-        const operator = binExpr.getOperatorToken().getKind()
-        if (
-          operator === SyntaxKind.AmpersandAmpersandToken ||
-          operator === SyntaxKind.BarBarToken
-        ) {
-          complexity++
-        }
-      }
+    if (isLogicalBinaryExpression(currentNode)) {
+      complexity++
     }
 
-    // Recursion adds complexity
-    if (kind === SyntaxKind.CallExpression) {
-      const callExpr = currentNode.asKind(SyntaxKind.CallExpression)
-      if (callExpr) {
-        const expression = callExpr.getExpression()
-        // Check if calling itself (recursion)
-        if (Node.isIdentifier(expression)) {
-          const functionNode = currentNode.getFirstAncestorByKind(
-            SyntaxKind.FunctionDeclaration
-          )
-          if (
-            functionNode &&
-            expression.getText() === functionNode.getName()
-          ) {
-            complexity++
-          }
-        }
-      }
+    if (isRecursiveCall(currentNode)) {
+      complexity++
     }
 
     currentNode.forEachChild(child => traverse(child, currentNesting))
@@ -211,6 +215,31 @@ export function calculateMaintainabilityIndex(
   return Math.round(normalized * 100) / 100
 }
 
+function isOperand(kind: SyntaxKind): boolean {
+  return (
+    kind === SyntaxKind.Identifier ||
+    kind === SyntaxKind.NumericLiteral ||
+    kind === SyntaxKind.StringLiteral
+  )
+}
+
+function isOperator(kind: SyntaxKind): boolean {
+  return (
+    kind === SyntaxKind.PlusToken ||
+    kind === SyntaxKind.MinusToken ||
+    kind === SyntaxKind.AsteriskToken ||
+    kind === SyntaxKind.SlashToken ||
+    kind === SyntaxKind.PercentToken ||
+    kind === SyntaxKind.AmpersandAmpersandToken ||
+    kind === SyntaxKind.BarBarToken ||
+    kind === SyntaxKind.EqualsEqualsToken ||
+    kind === SyntaxKind.ExclamationEqualsToken ||
+    kind === SyntaxKind.LessThanToken ||
+    kind === SyntaxKind.GreaterThanToken ||
+    kind === SyntaxKind.EqualsToken
+  )
+}
+
 /**
  * Calculate Halstead metrics
  */
@@ -223,32 +252,13 @@ export function calculateHalsteadMetrics(node: Node): HalsteadMetrics {
   node.forEachDescendant(descendant => {
     const kind = descendant.getKind()
 
-    // Count operators
-    if (
-      kind === SyntaxKind.PlusToken ||
-      kind === SyntaxKind.MinusToken ||
-      kind === SyntaxKind.AsteriskToken ||
-      kind === SyntaxKind.SlashToken ||
-      kind === SyntaxKind.PercentToken ||
-      kind === SyntaxKind.AmpersandAmpersandToken ||
-      kind === SyntaxKind.BarBarToken ||
-      kind === SyntaxKind.EqualsEqualsToken ||
-      kind === SyntaxKind.ExclamationEqualsToken ||
-      kind === SyntaxKind.LessThanToken ||
-      kind === SyntaxKind.GreaterThanToken ||
-      kind === SyntaxKind.EqualsToken
-    ) {
+    if (isOperator(kind)) {
       const text = descendant.getText()
       operators.add(text)
       totalOperators++
     }
 
-    // Count operands (identifiers, literals)
-    if (
-      kind === SyntaxKind.Identifier ||
-      kind === SyntaxKind.NumericLiteral ||
-      kind === SyntaxKind.StringLiteral
-    ) {
+    if (isOperand(kind)) {
       const text = descendant.getText()
       operands.add(text)
       totalOperands++
@@ -280,11 +290,11 @@ export function calculateHalsteadMetrics(node: Node): HalsteadMetrics {
 /**
  * Calculate complexity for a function
  */
-export async function analyzeFunctionComplexity(
+export function analyzeFunctionComplexity(
   code: string,
   functionName: string,
   filePath: string = 'temp.ts'
-): Promise<FunctionComplexity> {
+): FunctionComplexity {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -320,10 +330,10 @@ export async function analyzeFunctionComplexity(
 /**
  * Calculate complexity for entire file
  */
-export async function analyzeFileComplexity(
+export function analyzeFileComplexity(
   code: string,
   filePath: string = 'temp.ts'
-): Promise<FileComplexity> {
+): FileComplexity {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 

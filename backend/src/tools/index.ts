@@ -195,7 +195,7 @@ export function listAllTools(): Array<{
   category: string
   capabilities: string[]
 }> {
-  return Object.entries(TOOL_METADATA).map(([key, metadata]) => ({
+  return Object.entries(TOOL_METADATA).map(([_key, metadata]) => ({
     name: metadata.name,
     description: metadata.description,
     category: metadata.category,

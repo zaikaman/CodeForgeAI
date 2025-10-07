@@ -1,4 +1,4 @@
-import { Project, SourceFile, Node, SyntaxKind } from 'ts-morph'
+import { Project, Node, VariableDeclarationKind } from 'ts-morph'
 
 /**
  * Pattern Matcher Tool
@@ -274,7 +274,7 @@ export async function findDuplicateCode(
   })
 
   // Find duplicates
-  codeBlocks.forEach((blocks, text) => {
+    codeBlocks.forEach(blocks => {
     if (blocks.length > 1) {
       blocks.forEach(block => {
         patterns.push({
@@ -340,7 +340,7 @@ function isInConstDeclaration(node: Node): boolean {
       if (
         varStmt &&
         Node.isVariableStatement(varStmt) &&
-        varStmt.getDeclarationKind() === 2
+                varStmt.getDeclarationKind() === VariableDeclarationKind.Const
       ) {
         // VariableDeclarationKind.Const = 2
         return true

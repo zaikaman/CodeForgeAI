@@ -15,11 +15,11 @@ export interface TestOptions {
 /**
  * Generate test for a function
  */
-export async function generateFunctionTest(
+export function generateFunctionTest(
   func: ParsedFunction,
   options: TestOptions = {}
-): Promise<string> {
-  const { framework = 'jest', includeSetup = true, includeEdgeCases = true } = options
+): string {
+  const { framework: _framework = 'jest', includeSetup = true, includeEdgeCases = true } = options
 
   const { name, parameters, returnType, isAsync } = func
 
@@ -82,11 +82,11 @@ export async function generateFunctionTest(
 /**
  * Generate test for a class
  */
-export async function generateClassTest(
+export function generateClassTest(
   cls: ParsedClass,
   options: TestOptions = {}
-): Promise<string> {
-  const { framework = 'jest', includeSetup = true, includeMocks = true } = options
+): string {
+  const { framework: _framework = 'jest', includeSetup = true, includeMocks: _includeMocks = true } = options
 
   const { name, methods, properties } = cls
 

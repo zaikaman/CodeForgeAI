@@ -1,4 +1,4 @@
-import { Project, SourceFile, SyntaxKind, Node } from 'ts-morph'
+import { Project, SourceFile, Node } from 'ts-morph'
 
 /**
  * Code Parse Tool
@@ -67,10 +67,10 @@ export interface ParseResult {
 /**
  * Parse TypeScript/JavaScript code and extract structural information
  */
-export async function parseCode(
+export function parseCode(
   code: string,
   filePath: string = 'temp.ts'
-): Promise<ParseResult> {
+): ParseResult {
   const errors: string[] = []
 
   try {
@@ -339,17 +339,17 @@ function extractExports(sourceFile: SourceFile): ParsedExport[] {
 /**
  * Find a specific symbol (function, class, etc.) in the code
  */
-export async function findSymbol(
+export function findSymbol(
   code: string,
   symbolName: string,
   filePath: string = 'temp.ts'
-): Promise<{
+): {
   found: boolean
   kind?: string
   line?: number
   details?: ParsedFunction | ParsedClass | ParsedInterface
-}> {
-  const parseResult = await parseCode(code, filePath)
+} {
+  const parseResult = parseCode(code, filePath)
 
   // Search in functions
   const func = parseResult.functions.find(f => f.name === symbolName)

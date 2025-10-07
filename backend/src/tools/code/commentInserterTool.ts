@@ -1,4 +1,4 @@
-import { Project, SourceFile, Node, FunctionDeclaration, ClassDeclaration, MethodDeclaration } from 'ts-morph'
+import { Project, FunctionDeclaration, ClassDeclaration, MethodDeclaration } from 'ts-morph'
 
 /**
  * Comment Inserter Tool
@@ -109,12 +109,12 @@ function generateClassComment(
 /**
  * Insert TSDoc comment above a function
  */
-export async function addFunctionComment(
+export function addFunctionComment(
   code: string,
   functionName: string,
   options: CommentOptions = {},
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -139,12 +139,12 @@ export async function addFunctionComment(
 /**
  * Insert TSDoc comment above a class
  */
-export async function addClassComment(
+export function addClassComment(
   code: string,
   className: string,
   options: CommentOptions = {},
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -169,12 +169,12 @@ export async function addClassComment(
 /**
  * Insert TSDoc comment above all methods in a class
  */
-export async function addMethodComments(
+export function addMethodComments(
   code: string,
   className: string,
   options: CommentOptions = {},
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -198,11 +198,11 @@ export async function addMethodComments(
 /**
  * Insert TSDoc comments for all functions in code
  */
-export async function addAllFunctionComments(
+export function addAllFunctionComments(
   code: string,
   options: CommentOptions = {},
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -221,11 +221,11 @@ export async function addAllFunctionComments(
 /**
  * Insert TSDoc comments for all classes and their methods
  */
-export async function addAllClassComments(
+export function addAllClassComments(
   code: string,
   options: CommentOptions = {},
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -253,11 +253,11 @@ export async function addAllClassComments(
 /**
  * Insert TSDoc comments for all exports
  */
-export async function addExportComments(
+export function addExportComments(
   code: string,
   options: CommentOptions = {},
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -366,7 +366,7 @@ export function addFileHeader(
 /**
  * Update existing JSDoc comment
  */
-export async function updateFunctionComment(
+export function updateFunctionComment(
   code: string,
   functionName: string,
   updates: {
@@ -375,7 +375,7 @@ export async function updateFunctionComment(
     returnDescription?: string
   },
   filePath: string = 'temp.ts'
-): Promise<string> {
+): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 

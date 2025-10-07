@@ -1,6 +1,6 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import * as path from 'path'
+
 
 const execAsync = promisify(exec)
 
@@ -106,7 +106,7 @@ export async function runTests(
     const command = args.join(' ')
 
     // Execute Jest
-    const { stdout, stderr } = await execAsync(command, {
+    const { stdout, stderr: _stderr } = await execAsync(command, {
       timeout,
       env: {
         ...process.env,

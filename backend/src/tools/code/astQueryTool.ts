@@ -1,4 +1,4 @@
-import { Project, SourceFile, SyntaxKind, Node } from 'ts-morph'
+import { Project, SyntaxKind, Node } from 'ts-morph'
 
 /**
  * AST Query Tool
@@ -24,11 +24,11 @@ export interface QueryOptions {
 /**
  * Query all function calls in code
  */
-export async function findFunctionCalls(
+export function findFunctionCalls(
   code: string,
   functionName?: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -64,11 +64,11 @@ export async function findFunctionCalls(
 /**
  * Find all imports of a specific module
  */
-export async function findImportsFrom(
+export function findImportsFrom(
   code: string,
   moduleName: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -105,10 +105,10 @@ export async function findImportsFrom(
 /**
  * Find all exports from code
  */
-export async function findAllExports(
+export function findAllExports(
   code: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -178,11 +178,11 @@ export async function findAllExports(
 /**
  * Find all variable declarations
  */
-export async function findVariableDeclarations(
+export function findVariableDeclarations(
   code: string,
   variableName?: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -209,12 +209,12 @@ export async function findVariableDeclarations(
 /**
  * Find all class methods matching a name
  */
-export async function findClassMethods(
+export function findClassMethods(
   code: string,
   className?: string,
   methodName?: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -247,10 +247,10 @@ export async function findClassMethods(
 /**
  * Find all async functions
  */
-export async function findAsyncFunctions(
+export function findAsyncFunctions(
   code: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -307,13 +307,10 @@ export async function findAsyncFunctions(
 /**
  * Find all TODO/FIXME comments
  */
-export async function findTodoComments(
+export function findTodoComments(
   code: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
-  const project = new Project({ useInMemoryFileSystem: true })
-  const sourceFile = project.createSourceFile(filePath, code)
-
+): SymbolInfo[] {
   const todos: SymbolInfo[] = []
   const lines = code.split('\n')
 
@@ -337,11 +334,11 @@ export async function findTodoComments(
 /**
  * Find all type references to a specific type
  */
-export async function findTypeReferences(
+export function findTypeReferences(
   code: string,
   typeName: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -369,12 +366,12 @@ export async function findTypeReferences(
 /**
  * Find all property access expressions (e.g., obj.prop)
  */
-export async function findPropertyAccess(
+export function findPropertyAccess(
   code: string,
   objectName?: string,
   propertyName?: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -408,12 +405,12 @@ export async function findPropertyAccess(
 /**
  * Get symbol at specific line and column
  */
-export async function getSymbolAtPosition(
+export function getSymbolAtPosition(
   code: string,
   line: number,
   column: number,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo | null> {
+): SymbolInfo | null {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
@@ -435,10 +432,10 @@ export async function getSymbolAtPosition(
 /**
  * Find all unused imports
  */
-export async function findUnusedImports(
+export function findUnusedImports(
   code: string,
   filePath: string = 'temp.ts'
-): Promise<SymbolInfo[]> {
+): SymbolInfo[] {
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 

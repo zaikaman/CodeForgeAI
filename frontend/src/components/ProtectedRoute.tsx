@@ -70,7 +70,7 @@ export function PublicRoute({
 
   // Redirect to dashboard if already authenticated
   if (user) {
-    const from = (location.state as any)?.from?.pathname || redirectTo;
+    const from = (location.state)?.from?.pathname || redirectTo;
     return <Navigate to={from} replace />;
   }
 

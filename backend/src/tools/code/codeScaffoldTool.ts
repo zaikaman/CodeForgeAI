@@ -402,9 +402,9 @@ describe('${entityName}', () => {
 /**
  * Main scaffold function
  */
-export async function scaffoldCode(
+export function scaffoldCode(
   options: ScaffoldOptions
-): Promise<string> {
+): string {
   switch (options.type) {
     case 'function':
       return scaffoldFunction(options)
@@ -431,14 +431,14 @@ export async function scaffoldCode(
       return scaffoldTest(options)
 
     default:
-      throw new Error(`Unknown scaffold type: ${options.type}`)
+      throw new Error(`Unknown scaffold type: ${options.type as string}`)
   }
 }
 
 /**
  * Generate multiple related files (e.g., service + repository + test)
  */
-export async function scaffoldModule(
+export function scaffoldModule(
   moduleName: string,
   options: {
     includeService?: boolean
@@ -446,7 +446,7 @@ export async function scaffoldModule(
     includeController?: boolean
     includeTests?: boolean
   } = {}
-): Promise<Record<string, string>> {
+): Record<string, string> {
   const {
     includeService = true,
     includeRepository = true,
@@ -457,7 +457,7 @@ export async function scaffoldModule(
   const files: Record<string, string> = {}
 
   if (includeRepository) {
-    files[`${moduleName}Repository.ts`] = await scaffoldCode({
+    files[`${moduleName}Repository.ts`] = scaffoldCode({
       type: 'repository',
       name: `${moduleName}Repository`,
       description: `Repository for ${moduleName} entity`,
@@ -465,7 +465,7 @@ export async function scaffoldModule(
   }
 
   if (includeService) {
-    files[`${moduleName}Service.ts`] = await scaffoldCode({
+    files[`${moduleName}Service.ts`] = scaffoldCode({
       type: 'service',
       name: `${moduleName}Service`,
       description: `Service for ${moduleName} business logic`,
@@ -480,7 +480,7 @@ export async function scaffoldModule(
   }
 
   if (includeController) {
-    files[`${moduleName}Controller.ts`] = await scaffoldCode({
+    files[`${moduleName}Controller.ts`] = scaffoldCode({
       type: 'controller',
       name: `${moduleName}Controller`,
       description: `Controller for ${moduleName} endpoints`,
@@ -488,7 +488,7 @@ export async function scaffoldModule(
   }
 
   if (includeTests) {
-    files[`${moduleName}.test.ts`] = await scaffoldCode({
+    files[`${moduleName}.test.ts`] = scaffoldCode({
       type: 'test',
       name: `${moduleName}Test`,
       description: `Tests for ${moduleName}`,
