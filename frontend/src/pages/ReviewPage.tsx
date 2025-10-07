@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { CodeEditor } from '../../components/CodeEditor'
-import { ReviewPanel } from '../../components/ReviewPanel'
-import { useReview } from '../../hooks/useReview'
-import '../../styles/theme.css'
+import { CodeEditor } from '../components/CodeEditor'
+import { ReviewPanel } from '../components/ReviewPanel'
+import { useReview } from '../hooks/useReview'
+import '../styles/theme.css'
 import './ReviewPage.css'
 
 export const ReviewPage: React.FC = () => {

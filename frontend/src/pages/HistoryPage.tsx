@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { useGenerationStore } from '../../stores/generationStore'
-import { CodePreview } from '../../components/CodeEditor'
+import { useGenerationStore } from '../stores/generationStore'
+import { CodePreview } from '../components/CodeEditor'
 import { Link } from 'react-router-dom'
-import '../../styles/theme.css'
+import '../styles/theme.css'
 import './HistoryPage.css'
 
 export const HistoryPage: React.FC = () => {

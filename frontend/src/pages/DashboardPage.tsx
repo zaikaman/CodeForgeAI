@@ -1,11 +1,11 @@
 import React from 'react'
-import { ProjectList } from '../../components/ProjectList'
-import { ProjectListCompact } from '../../components/ProjectList'
-import { AgentChatCompact } from '../../components/AgentChat'
-import { useProjects } from '../../hooks/useProjects'
-import { useGenerationStore } from '../../stores/generationStore'
+import { ProjectList } from '../components/ProjectList'
+import { ProjectListCompact } from '../components/ProjectList'
+import { AgentChatCompact } from '../components/AgentChat'
+import { useProjects } from '../hooks/useProjects'
+import { useGenerationStore } from '../stores/generationStore'
 import { Link } from 'react-router-dom'
-import '../../styles/theme.css'
+import '../styles/theme.css'
 import './DashboardPage.css'
 
 export const DashboardPage: React.FC = () => {

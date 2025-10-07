@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { useAuth } from '../../hooks/useAuth'
-import { useUIStore } from '../../stores/uiStore'
-import '../../styles/theme.css'
+import { useAuth } from '../hooks/useAuth'
+import { useUIStore } from '../stores/uiStore'
+import '../styles/theme.css'
 import './SettingsPage.css'
 
 export const SettingsPage: React.FC = () => {

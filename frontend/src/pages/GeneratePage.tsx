@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
-import { GenerationForm, GenerationOptions } from '../../components/GenerationForm'
-import { CodeEditor } from '../../components/CodeEditor'
-import { AgentChat } from '../../components/AgentChat'
-import { SystemStatus } from '../../components/StatusIndicator'
-import { useGeneration } from '../../hooks/useGeneration'
-import { useWebSocket } from '../../hooks/useWebSocket'
-import '../../styles/theme.css'
+import { GenerationForm, GenerationOptions } from '../components/GenerationForm'
+import { CodeEditor } from '../components/CodeEditor'
+import { AgentChat } from '../components/AgentChat'
+import { SystemStatus } from '../components/StatusIndicator'
+import { useGeneration } from '../hooks/useGeneration'
+import { useWebSocket } from '../hooks/useWebSocket'
+import '../styles/theme.css'
 import './GeneratePage.css'
 
 export const GeneratePage: React.FC = () => {
