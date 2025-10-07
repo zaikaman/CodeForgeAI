@@ -93,31 +93,31 @@ This is a **web-first monorepo application** with the following structure:
 
 ### Database Setup
 
-- [ ] **T038** Create Supabase project and get credentials (URL, anon key, service key)
-- [ ] **T039** Create database schema in `supabase/migrations/001_initial_schema.sql` (projects, agents, generation_history, embeddings tables)
-- [ ] **T040** Setup Row Level Security (RLS) policies in `supabase/migrations/002_rls_policies.sql` (user isolation, read/write rules)
-- [ ] **T041** Create Supabase storage buckets in `supabase/migrations/003_storage_buckets.sql` (project-files, embeddings)
+- [x] **T038** Create Supabase project and get credentials (URL, anon key, service key)
+- [x] **T039** Create database schema in `supabase/migrations/001_initial_schema.sql` (projects, agents, generation_history, embeddings tables)
+- [x] **T040** Setup Row Level Security (RLS) policies in `supabase/migrations/002_rls_policies.sql` (user isolation, read/write rules)
+- [x] **T041** Create Supabase storage buckets in `supabase/migrations/003_storage_buckets.sql` (project-files, embeddings)
 
 ### Authentication
 
-- [ ] **T042** Setup Supabase Auth config (email/password, OAuth providers)
-- [ ] **T043** Create user profiles table in `supabase/migrations/004_user_profiles.sql` (extended user data)
-- [ ] **T044** Implement auth middleware in `backend/src/api/middleware/supabaseAuth.ts` (JWT validation)
+- [x] **T042** Setup Supabase Auth config (email/password, OAuth providers)
+- [x] **T043** Create user profiles table in `supabase/migrations/004_user_profiles.sql` (extended user data)
+- [x] **T044** Implement auth middleware in `backend/src/api/middleware/supabaseAuth.ts` (JWT validation)
 
 ### Backend Client
 
-- [ ] **T045** Implement SupabaseClient in `backend/src/storage/SupabaseClient.ts` (service role client, CRUD operations)
-- [ ] **T046** Implement ProjectRepository in `backend/src/storage/repositories/ProjectRepository.ts` (CRUD for projects table)
-- [ ] **T047** Implement GenerationHistoryRepository in `backend/src/storage/repositories/GenerationHistoryRepository.ts` (CRUD for history)
-- [ ] **T048** Implement EmbeddingRepository in `backend/src/storage/repositories/EmbeddingRepository.ts` (store/query vector embeddings)
-- [ ] **T049** Create repository index in `backend/src/storage/repositories/index.ts` (export all repositories)
+- [x] **T045** Implement SupabaseClient in `backend/src/storage/SupabaseClient.ts` (service role client, CRUD operations)
+- [x] **T046** Implement ProjectRepository in `backend/src/storage/repositories/ProjectRepository.ts` (CRUD for projects table)
+- [x] **T047** Implement GenerationHistoryRepository in `backend/src/storage/repositories/GenerationHistoryRepository.ts` (CRUD for history)
+- [x] **T048** Implement EmbeddingRepository in `backend/src/storage/repositories/EmbeddingRepository.ts` (store/query vector embeddings)
+- [x] **T049** Create repository index in `backend/src/storage/repositories/index.ts` (export all repositories)
 
 ### Frontend Client
 
-- [ ] **T050** Implement Supabase client in `frontend/src/lib/supabase.ts` (browser client with auth)
-- [ ] **T051** Create auth context in `frontend/src/contexts/AuthContext.tsx` (login, logout, user state)
-- [ ] **T052** Implement useAuth hook in `frontend/src/hooks/useAuth.ts` (access auth context)
-- [ ] **T053** Create protected route wrapper in `frontend/src/components/ProtectedRoute.tsx` (require auth)
+- [x] **T050** Implement Supabase client in `frontend/src/lib/supabase.ts` (browser client with auth)
+- [x] **T051** Create auth context in `frontend/src/contexts/AuthContext.tsx` (login, logout, user state)
+- [x] **T052** Implement useAuth hook in `frontend/src/hooks/useAuth.ts` (access auth context)
+- [x] **T053** Create protected route wrapper in `frontend/src/components/ProtectedRoute.tsx` (require auth)
 
 ---
 
