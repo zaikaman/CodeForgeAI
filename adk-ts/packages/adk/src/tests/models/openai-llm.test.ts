@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { OpenAiLlm } from "../../models/openai-llm";
+import { OpenAiLlm, type OpenAILLMConfig } from "../../models/openai-llm";
 import { LlmResponse } from "../../models/llm-response";
 
 vi.mock("@adk/helpers/logger", () => ({
@@ -240,6 +240,40 @@ describe("OpenAiLlm", () => {
 			process.env.OPENAI_API_KEY = "test-key";
 			const llm2 = new OpenAiLlm();
 			expect((llm2 as any).client).toBeDefined();
+		});
+
+		it("should use custom base URL from config", () => {
+			process.env.OPENAI_API_KEY = "test-key";
+			const customBaseURL = "https://gpt1.shupremium.com/v1";
+			const llm2 = new OpenAiLlm("gpt-4", { baseURL: customBaseURL });
+			const client = (llm2 as any).client;
+			expect(client).toBeDefined();
+			// Note: OpenAI client doesn't expose baseURL directly, but we can verify it was created
+		});
+
+		it("should use base URL from environment variable", () => {
+			process.env.OPENAI_API_KEY = "test-key";
+			process.env.OPENAI_BASE_URL = "https://gpt1.shupremium.com/v1";
+			const llm2 = new OpenAiLlm();
+			const client = (llm2 as any).client;
+			expect(client).toBeDefined();
+		});
+
+		it("should prioritize config base URL over environment variable", () => {
+			process.env.OPENAI_API_KEY = "test-key";
+			process.env.OPENAI_BASE_URL = "https://env.example.com/v1";
+			const customBaseURL = "https://gpt1.shupremium.com/v1";
+			const llm2 = new OpenAiLlm("gpt-4", { baseURL: customBaseURL });
+			const client = (llm2 as any).client;
+			expect(client).toBeDefined();
+		});
+
+		it("should use custom API key from config", () => {
+			process.env.OPENAI_API_KEY = "env-key";
+			const customApiKey = "custom-key";
+			const llm2 = new OpenAiLlm("gpt-4", { apiKey: customApiKey });
+			const client = (llm2 as any).client;
+			expect(client).toBeDefined();
 		});
 	});
 

@@ -6,6 +6,7 @@
 export { ProjectRepository } from './ProjectRepository';
 export { GenerationHistoryRepository } from './GenerationHistoryRepository';
 export { EmbeddingRepository } from './EmbeddingRepository';
+export { UserSettingsRepository } from './UserSettingsRepository';
 
 // Re-export types
 export type { DatabaseProject } from './ProjectRepository';
@@ -15,3 +16,4 @@ export type {
   EmbeddingInput,
   EmbeddingWithSimilarity,
 } from './EmbeddingRepository';
+export type { UserSettings } from './UserSettingsRepository';

@@ -108,12 +108,12 @@ frontend/src/
 │   │   ├── AuthCallback.tsx      ✅
 │   │   └── AuthCallback.css      ✅
 │   ├── HomePage.tsx              ✅
-│   ├── HomePage.css              ⬜ (CSS needed)
-│   ├── DashboardPage.tsx         ⬜ TODO
-│   ├── GeneratePage.tsx          ⬜ TODO
-│   ├── ReviewPage.tsx            ⬜ TODO
-│   ├── HistoryPage.tsx           ⬜ TODO
-│   └── SettingsPage.tsx          ⬜ TODO
+│   ├── HomePage.css              ✅
+│   ├── DashboardPage.tsx         ✅
+│   ├── GeneratePage.tsx          ✅
+│   ├── ReviewPage.tsx            ✅
+│   ├── HistoryPage.tsx           ✅
+│   └── SettingsPage.tsx          ✅
 │
 ├── components/
 │   ├── StatusIndicator.tsx       ✅
@@ -145,7 +145,7 @@ frontend/src/
 │   ├── useWebSocket.ts           ✅
 │   └── useProjects.ts            ✅
 │
-└── App.tsx                       ⬜ TODO
+└── App.tsx                       ✅
 ```
 
 ---

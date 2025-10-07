@@ -87,6 +87,18 @@ export interface EnhanceResponse {
   message: string
 }
 
+export interface UserSettings {
+  userId: string
+  apiKey?: string
+  hasApiKey?: boolean
+  crtEffects?: boolean
+  phosphorGlow?: boolean
+  autoScrollChat?: boolean
+  soundEffects?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
 class ApiClient {
   private client: AxiosInstance
   private baseURL: string
@@ -233,6 +245,43 @@ class ApiClient {
   // Get generation by ID
   async getGeneration(generationId: string): Promise<ApiResponse<any>> {
     const response = await this.client.get(`/api/history/${generationId}`)
+    return response.data
+  }
+
+  // Settings endpoints
+
+  // Get user settings
+  async getSettings(): Promise<ApiResponse<UserSettings>> {
+    const response = await this.client.get('/api/settings')
+    return response.data
+  }
+
+  // Update API key
+  async updateApiKey(apiKey: string): Promise<ApiResponse> {
+    const response = await this.client.put('/api/settings/api-key', { apiKey })
+    return response.data
+  }
+
+  // Update preferences
+  async updatePreferences(preferences: {
+    crtEffects?: boolean
+    phosphorGlow?: boolean
+    autoScrollChat?: boolean
+    soundEffects?: boolean
+  }): Promise<ApiResponse> {
+    const response = await this.client.put('/api/settings/preferences', preferences)
+    return response.data
+  }
+
+  // Delete API key
+  async deleteApiKey(): Promise<ApiResponse> {
+    const response = await this.client.delete('/api/settings/api-key')
+    return response.data
+  }
+
+  // Delete all settings
+  async deleteSettings(): Promise<ApiResponse> {
+    const response = await this.client.delete('/api/settings')
     return response.data
   }
 

@@ -290,8 +290,9 @@ export function addExportComments(
   sourceFile.getTypeAliases().forEach(typeAlias => {
     if (typeAlias.isExported() && typeAlias.getJsDocs().length === 0) {
       const typeName = typeAlias.getName()
-      const comment = `/**\n * ${typeName}\n *\n * TODO: Add type description\n */`
-      typeAlias.insertText(0, comment + '\n')
+      typeAlias.addJsDoc({
+        description: `${typeName}\n\nTODO: Add type description`
+      })
     }
   })
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useUIStore } from '../stores/uiStore'
+import apiClient from '../services/apiClient'
 import '../styles/theme.css'
 import './SettingsPage.css'
 
@@ -8,6 +9,40 @@ export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuth()
   const { theme, setTheme, showToast } = useUIStore()
   const [apiKey, setApiKey] = useState('')
+  const [hasApiKey, setHasApiKey] = useState(false)
+  const [preferences, setPreferences] = useState({
+    crtEffects: true,
+    phosphorGlow: true,
+    autoScrollChat: true,
+    soundEffects: false,
+  })
+  const [loading, setLoading] = useState(true)
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true)
+      const response = await apiClient.getSettings()
+
+      if (response.data) {
+        setHasApiKey(response.data.hasApiKey || false)
+        setPreferences({
+          crtEffects: response.data.crtEffects ?? true,
+          phosphorGlow: response.data.phosphorGlow ?? true,
+          autoScrollChat: response.data.autoScrollChat ?? true,
+          soundEffects: response.data.soundEffects ?? false,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleThemeToggle = () => {
     const newTheme = theme === 'green' ? 'amber' : 'green'
@@ -15,16 +50,65 @@ export const SettingsPage: React.FC = () => {
     showToast('success', `Theme changed to ${newTheme.toUpperCase()}`)
   }
 
-  const handleSaveApiKey = () => {
+  const handleSaveApiKey = async () => {
     if (!apiKey.trim()) return
-    // TODO: Save to backend
-    showToast('success', 'API key saved successfully')
+
+    try {
+      await apiClient.updateApiKey(apiKey)
+      setHasApiKey(true)
+      setApiKey('')
+      showToast('success', 'API key saved successfully')
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to save API key')
+    }
+  }
+
+  const handlePreferenceChange = async (key: keyof typeof preferences) => {
+    const newPreferences = {
+      ...preferences,
+      [key]: !preferences[key],
+    }
+
+    setPreferences(newPreferences)
+
+    try {
+      await apiClient.updatePreferences({ [key]: newPreferences[key] })
+      showToast('success', 'Preferences updated')
+    } catch (error: any) {
+      // Revert on error
+      setPreferences(preferences)
+      showToast('error', error.message || 'Failed to update preferences')
+    }
+  }
+
+  const handleClearData = async () => {
+    if (confirm('Clear all cached data? This cannot be undone.')) {
+      try {
+        await apiClient.deleteSettings()
+        showToast('success', 'Data cleared successfully')
+        loadSettings()
+      } catch (error: any) {
+        showToast('error', error.message || 'Failed to clear data')
+      }
+    }
   }
 
   const handleLogout = async () => {
     if (confirm('Log out of CodeForge AI?')) {
       await logout()
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="settings-page crt-screen">
+        <div className="terminal-window">
+          <div className="terminal-content">
+            <p className="text-muted">&gt; Loading settings...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -121,11 +205,12 @@ export const SettingsPage: React.FC = () => {
                   className="input"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-..."
+                  placeholder={hasApiKey ? '••••••••••••••' : 'sk-...'}
                 />
               </div>
               <div className="setting-hint text-muted mt-sm">
                 &gt; Required for code generation. Keys are encrypted.
+                {hasApiKey && ' (Current key saved)'}
               </div>
             </div>
 
@@ -147,7 +232,11 @@ export const SettingsPage: React.FC = () => {
                   <div className="preference-desc text-muted">Scanlines and flicker animation</div>
                 </div>
                 <label className="preference-toggle">
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    checked={preferences.crtEffects}
+                    onChange={() => handlePreferenceChange('crtEffects')}
+                  />
                   <span className="toggle-slider"></span>
                 </label>
               </div>
@@ -158,7 +247,11 @@ export const SettingsPage: React.FC = () => {
                   <div className="preference-desc text-muted">Text glow effects</div>
                 </div>
                 <label className="preference-toggle">
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    checked={preferences.phosphorGlow}
+                    onChange={() => handlePreferenceChange('phosphorGlow')}
+                  />
                   <span className="toggle-slider"></span>
                 </label>
               </div>
@@ -169,7 +262,11 @@ export const SettingsPage: React.FC = () => {
                   <div className="preference-desc text-muted">Automatically scroll agent messages</div>
                 </div>
                 <label className="preference-toggle">
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    checked={preferences.autoScrollChat}
+                    onChange={() => handlePreferenceChange('autoScrollChat')}
+                  />
                   <span className="toggle-slider"></span>
                 </label>
               </div>
@@ -180,7 +277,11 @@ export const SettingsPage: React.FC = () => {
                   <div className="preference-desc text-muted">Terminal sound effects</div>
                 </div>
                 <label className="preference-toggle">
-                  <input type="checkbox" />
+                  <input
+                    type="checkbox"
+                    checked={preferences.soundEffects}
+                    onChange={() => handlePreferenceChange('soundEffects')}
+                  />
                   <span className="toggle-slider"></span>
                 </label>
               </div>
@@ -201,7 +302,7 @@ export const SettingsPage: React.FC = () => {
                     Remove all generation history and cached data
                   </div>
                 </div>
-                <button className="btn btn-danger mt-sm">
+                <button className="btn btn-danger mt-sm" onClick={handleClearData}>
                   CLEAR DATA
                 </button>
               </div>

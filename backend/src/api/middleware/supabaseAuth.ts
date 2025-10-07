@@ -179,6 +179,11 @@ export function requireOwnership(
 }
 
 /**
+ * Alias for supabaseAuth for consistent naming
+ */
+export const requireAuth = supabaseAuth
+
+/**
  * Middleware to extract user from service role operations
  * For backend operations that need to act on behalf of a user
  */

@@ -76,6 +76,39 @@ GOOGLE_API_KEY=your_google_api_key
 
 The library uses `dotenv` to load these variables automatically if `dotenv.config()` is called in your application.
 
+### OpenAI Base URL Override
+
+The library supports overriding the OpenAI API base URL for custom endpoints or proxy configurations. This can be configured through environment variables or programmatically:
+
+#### Environment Variable
+
+```env
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://gpt1.shupremium.com/v1
+```
+
+#### Programmatic Configuration
+
+```typescript
+import { OpenAiLlm } from '@iqai/adk';
+
+// Option 1: Using constructor config
+const llm = new OpenAiLlm("gpt-4", {
+  baseURL: "https://gpt1.shupremium.com/v1",
+  apiKey: "your_custom_api_key" // Optional: override API key as well
+});
+
+// Option 2: Using AgentBuilder with custom LLM
+const response = await AgentBuilder
+  .create("custom_endpoint_agent")
+  .withLLM(new OpenAiLlm("gpt-4", { 
+    baseURL: "https://gpt1.shupremium.com/v1" 
+  }))
+  .ask("What is the capital of France?");
+```
+
+> **Note**: When both environment variable and constructor config are provided, the constructor config takes precedence.
+
 ## 📖 Basic Usage
 
 Here's a fundamental example of creating and running an agent:

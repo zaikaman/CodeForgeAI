@@ -7,17 +7,33 @@ import { LlmResponse } from "./llm-response";
 type OpenAIRole = "user" | "assistant" | "system";
 
 /**
+ * Configuration options for OpenAI LLM
+ */
+export interface OpenAILLMConfig {
+	/**
+	 * Custom base URL for OpenAI API (e.g., for proxy or alternative endpoints)
+	 */
+	baseURL?: string;
+	/**
+	 * API key for authentication
+	 */
+	apiKey?: string;
+}
+
+/**
  * OpenAI LLM implementation using GPT models
  * Enhanced with comprehensive debug logging similar to Google LLM
  */
 export class OpenAiLlm extends BaseLlm {
 	private _client?: OpenAI;
+	private _config?: OpenAILLMConfig;
 
 	/**
 	 * Constructor for OpenAI LLM
 	 */
-	constructor(model = "gpt-4o-mini") {
+	constructor(model = "gpt-4o-mini", config?: OpenAILLMConfig) {
 		super(model);
+		this._config = config;
 	}
 
 	/**
@@ -621,7 +637,8 @@ export class OpenAiLlm extends BaseLlm {
 	 */
 	private get client(): OpenAI {
 		if (!this._client) {
-			const apiKey = process.env.OPENAI_API_KEY;
+			// Get API key from config or environment
+			const apiKey = this._config?.apiKey || process.env.OPENAI_API_KEY;
 
 			if (!apiKey) {
 				throw new Error(
@@ -629,9 +646,19 @@ export class OpenAiLlm extends BaseLlm {
 				);
 			}
 
-			this._client = new OpenAI({
+			// Get base URL from config or environment variable
+			const baseURL = this._config?.baseURL || process.env.OPENAI_BASE_URL;
+
+			const clientConfig: { apiKey: string; baseURL?: string } = {
 				apiKey,
-			});
+			};
+
+			// Only set baseURL if provided
+			if (baseURL) {
+				clientConfig.baseURL = baseURL;
+			}
+
+			this._client = new OpenAI(clientConfig);
 		}
 		return this._client;
 	}
