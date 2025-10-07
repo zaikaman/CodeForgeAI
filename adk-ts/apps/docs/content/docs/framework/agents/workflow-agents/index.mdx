@@ -1,0 +1,89 @@
+---
+title: Workflow Agents
+description: Orchestrate multiple agents with predictable execution patterns
+---
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+This section introduces workflow agents – specialized agents that control the execution flow of their sub‑agents.
+
+Workflow agents are specialized components in ADK designed purely for orchestrating the execution flow of sub‑agents. Their primary role is to manage how and when other agents run, defining the control flow of a process.
+
+Unlike LLM Agents, which use Large Language Models for dynamic reasoning and decision‑making, Workflow Agents operate based on predefined logic. They determine the execution sequence according to their type (e.g., sequential, parallel, loop) without consulting an LLM for the orchestration itself. This results in deterministic and predictable execution patterns.
+
+## Workflow Types
+
+<Cards>
+  <Card
+    title="Sequential Agent"
+    description="Execute agents one after another in a specific order"
+    href="/docs/framework/agents/workflow-agents/sequential-agents"
+  />
+
+  <Card
+    title="Parallel Agent"
+    description="Run multiple agents simultaneously for faster processing"
+    href="/docs/framework/agents/workflow-agents/parallel-agents"
+  />
+
+  <Card
+    title="Loop Agent"
+    description="Repeat agent execution until conditions are met"
+    href="/docs/framework/agents/workflow-agents/loop-agents"
+  />
+</Cards>
+
+## Why Use Workflow Agents?
+
+Workflow agents are essential when you need explicit control over how a series of tasks or agents are executed. They provide:
+
+- Predictability: Execution order and pattern are guaranteed by the workflow type
+- Reliability: Ensures tasks run in the required order or pattern consistently
+- Structure: Build complex processes by composing agents within clear control structures
+
+While the workflow agent manages the control flow deterministically, the sub‑agents it orchestrates can be any agent type (including `LlmAgent`). This lets you combine structured process control with flexible, LLM‑powered task execution.
+
+## Quick Example
+
+Here's a simple example of a sequential workflow that uses a writer agent followed by an editor agent:
+
+```typescript
+import { LlmAgent, SequentialAgent } from '@iqai/adk';
+
+// 1) Define sub-agents
+const writerAgent = new LlmAgent({
+  name: 'writer',
+  description: 'Creative writer',
+  model: 'gemini-2.5-flash',
+  instruction: 'Write a short story based on the user prompt.'
+});
+
+const editorAgent = new LlmAgent({
+  name: 'editor',
+  description: 'Grammar and style editor',
+  model: 'gemini-2.5-flash',
+  instruction: 'Review the story for grammar and style, then provide a final version.'
+});
+
+// 2) Create the sequential workflow
+const storyPipeline = new SequentialAgent({
+  name: 'story_pipeline',
+  description: 'Writer then editor',
+  subAgents: [writerAgent, editorAgent]
+});
+```
+
+## When to Use Workflow Agents
+
+Workflow agents are ideal for:
+
+- **Predictable pipelines** - When you need guaranteed execution order
+- **Data processing workflows** - Multi-step data transformation and analysis
+- **Quality assurance** - Review and validation workflows
+- **Performance optimization** - Parallel processing of independent tasks
+- **Iterative improvement** - Repeated refinement until criteria are met
+
+In practice, workflow agents give you deterministic control, simple composition (nesting), and performance tuning (parallelization and loops). Use Sequential when steps depend on prior results, Parallel when tasks are independent and can run concurrently, and Loop for iterative improvement or retry logic. Common patterns include research pipelines, content review (fact‑check + grammar), iterative refinement, and distributed processing. Agents share session state to hand off data between steps, and results can be aggregated downstream as needed.
+
+Explore the types: [Sequential Agents](/docs/framework/agents/workflow-agents/sequential-agents), [Parallel Agents](/docs/framework/agents/workflow-agents/parallel-agents), [Loop Agents](/docs/framework/agents/workflow-agents/loop-agents).
