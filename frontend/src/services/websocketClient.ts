@@ -25,7 +25,7 @@ class WebSocketClient {
 
   constructor() {
     // Use Vercel serverless WebSocket URL or local dev
-    this.url = process.env.REACT_APP_WS_URL || 'http://localhost:3001'
+    this.url = import.meta.env.VITE_WS_URL || 'http://localhost:3001'
   }
 
   /**

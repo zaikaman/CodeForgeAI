@@ -8,30 +8,26 @@ dotenv.config({ path: '../../.env' });
 const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
-  console.log(`🚀 CodeForge AI Backend Server Starting...
-`);
-  console.log(`📡 Server running on: http://localhost:${PORT}`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/api/status`);
   console.log(`
-✨ Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('📝 Press Ctrl+C to stop
-');
+🚀 CodeForge AI Backend Server Starting...
+📡 Server running on: http://localhost:${PORT}
+🏥 Health check: http://localhost:${PORT}/api/status
+✨ Environment: ${process.env.NODE_ENV || 'development'}
+📝 Press Ctrl+C to stop
+`);
 
   // Test database connection on startup
   checkSupabaseConnection()
     .then(isConnected => {
       if (isConnected) {
-        console.log('✅ Supabase connection verified
-');
+        console.log('✅ Supabase connection verified.');
       } else {
-        console.warn('⚠️  Could not connect to Supabase
-');
+        console.warn('⚠️  Could not connect to Supabase.');
       }
     })
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ Supabase connection error:', message, '
-');
+      console.error('❌ Supabase connection error:', message);
     });
 });
 
