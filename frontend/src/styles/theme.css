@@ -133,13 +133,49 @@ body {
   box-shadow: var(--glow-medium);
 }
 
-/* CRT Screen Effect - Slower */
+/* CRT Screen Effect - DISABLED FOR MOST PAGES */
 .crt-screen {
   position: relative;
   overflow: hidden;
 }
 
+/* Scanlines and flicker animations - COMMENTED OUT to reduce glitchy movement */
+/*
 .crt-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+  z-index: var(--z-scanlines);
+  pointer-events: none;
+  animation: scanlines 16s linear infinite;
+}
+
+.crt-screen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(18, 16, 16, 0.1);
+  opacity: 0;
+  z-index: var(--z-scanlines);
+  pointer-events: none;
+  animation: flicker 8s infinite;
+}
+*/
+
+/* CRT Screen Effect - ENABLED ONLY FOR AUTH PAGES */
+.crt-screen.auth-page::before {
   content: '';
   position: absolute;
   top: 0;
@@ -157,7 +193,7 @@ body {
   animation: scanlines 16s linear infinite; /* Slower: 8s -> 16s */
 }
 
-.crt-screen::after {
+.crt-screen.auth-page::after {
   content: '';
   position: absolute;
   top: 0;
@@ -203,8 +239,14 @@ body {
   30%, 100% { opacity: 0; }
 }
 
-/* Phosphor Glow Effect - 3 Pulses Then Pause */
+/* Phosphor Glow Effect - DISABLED FOR MOST PAGES */
 .phosphor-glow {
+  text-shadow: var(--glow-text);
+  /* animation: phosphor-pulse 8s infinite; - COMMENTED OUT */
+}
+
+/* Phosphor Glow Effect - ENABLED ONLY FOR AUTH PAGES */
+.phosphor-glow.auth-page {
   text-shadow: var(--glow-text);
   animation: phosphor-pulse 8s infinite; /* 3 quick pulses in first 10%, then 90% pause */
 }
@@ -403,8 +445,15 @@ body {
   10%, 100% { transform: translate(0); }
 }
 
-/* Glitch Effect - Much Less Frequent */
+/* Glitch Effect - DISABLED FOR MOST PAGES */
+/* Original glitch effect - commented out to reduce constant movement
 .glitch {
+  animation: glitch 8s infinite;
+}
+*/
+
+/* Glitch Effect - ENABLED ONLY FOR AUTH PAGES */
+.glitch.auth-page {
   animation: glitch 8s infinite; /* 3 quick glitches in first 10%, then 90% pause */
 }
 

@@ -53,7 +53,7 @@ export const ReviewPage: React.FC = () => {
   }
 
   return (
-    <div className="review-page crt-screen">
+    <div className="review-page">
       {/* Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">

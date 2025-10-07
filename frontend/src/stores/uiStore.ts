@@ -188,10 +188,11 @@ if (typeof window !== 'undefined') {
   }
 
   // Save theme changes to localStorage
-  useUIStore.subscribe(
-    (state) => state.theme,
-    (theme) => {
-      localStorage.setItem('codeforge-theme', theme)
+  let previousTheme = useUIStore.getState().theme
+  useUIStore.subscribe((state) => {
+    if (state.theme !== previousTheme) {
+      localStorage.setItem('codeforge-theme', state.theme)
+      previousTheme = state.theme
     }
-  )
+  })
 }

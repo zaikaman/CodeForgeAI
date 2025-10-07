@@ -11,7 +11,7 @@ export const SignupPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [initSequence, setInitSequence] = useState(true)
-  const { signup, loginWithGithub, user } = useAuth()
+  const { signUp, signInWithGithub, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export const SignupPage: React.FC = () => {
     setLoading(true)
 
     try {
-      await signup(email, password)
+      await signUp({ email, password })
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.')
@@ -59,7 +59,7 @@ export const SignupPage: React.FC = () => {
     setLoading(true)
 
     try {
-      await loginWithGithub()
+      await signInWithGithub()
     } catch (err: any) {
       setError(err.message || 'OAuth registration failed.')
       setLoading(false)
@@ -68,7 +68,7 @@ export const SignupPage: React.FC = () => {
 
   if (initSequence) {
     return (
-      <div className="signup-page crt-screen full-height flex items-center justify-center">
+      <div className="signup-page crt-screen auth-page full-height flex items-center justify-center">
         <div className="init-sequence">
           <div className="init-line phosphor-glow">╔══════════════════════════════════════╗</div>
           <div className="init-line phosphor-glow">║  USER REGISTRATION PROTOCOL ACTIVE  ║</div>
@@ -86,7 +86,7 @@ export const SignupPage: React.FC = () => {
   }
 
   return (
-    <div className="signup-page crt-screen full-height">
+    <div className="signup-page crt-screen auth-page full-height">
       <div className="matrix-bg"></div>
 
       <div className="flex items-center justify-center full-height">

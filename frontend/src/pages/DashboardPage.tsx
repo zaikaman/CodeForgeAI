@@ -23,7 +23,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="dashboard-page crt-screen">
+    <div className="dashboard-page">
       {/* Header */}
       <div className="dashboard-header terminal-window">
         <div className="terminal-header">

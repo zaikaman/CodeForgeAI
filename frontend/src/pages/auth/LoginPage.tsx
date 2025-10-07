@@ -10,7 +10,7 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [bootSequence, setBootSequence] = useState(true)
-  const { login, loginWithGithub, user } = useAuth()
+  const { signIn, signInWithGithub, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export const LoginPage: React.FC = () => {
     setLoading(true)
 
     try {
-      await login(email, password)
+      await signIn({ email, password })
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Access denied.')
@@ -47,7 +47,7 @@ export const LoginPage: React.FC = () => {
     setLoading(true)
 
     try {
-      await loginWithGithub()
+      await signInWithGithub()
     } catch (err: any) {
       setError(err.message || 'OAuth authentication failed.')
       setLoading(false)
@@ -56,7 +56,7 @@ export const LoginPage: React.FC = () => {
 
   if (bootSequence) {
     return (
-      <div className="login-page crt-screen full-height flex items-center justify-center">
+      <div className="login-page crt-screen auth-page full-height flex items-center justify-center">
         <div className="boot-sequence">
           <div className="boot-line phosphor-glow">╔══════════════════════════════════════╗</div>
           <div className="boot-line phosphor-glow">║   CODEFORGE AI AUTHENTICATION SYS   ║</div>
@@ -77,7 +77,7 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="login-page crt-screen full-height">
+    <div className="login-page crt-screen auth-page full-height">
       {/* Background Matrix Effect */}
       <div className="matrix-bg"></div>
 

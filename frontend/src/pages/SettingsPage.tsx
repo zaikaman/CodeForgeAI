@@ -6,7 +6,7 @@ import '../styles/theme.css'
 import './SettingsPage.css'
 
 export const SettingsPage: React.FC = () => {
-  const { user, logout } = useAuth()
+  const { user, signOut } = useAuth()
   const { theme, setTheme, showToast } = useUIStore()
   const [apiKey, setApiKey] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
@@ -95,13 +95,13 @@ export const SettingsPage: React.FC = () => {
 
   const handleLogout = async () => {
     if (confirm('Log out of CodeForge AI?')) {
-      await logout()
+      await signOut()
     }
   }
 
   if (loading) {
     return (
-      <div className="settings-page crt-screen">
+      <div className="settings-page">
         <div className="terminal-window">
           <div className="terminal-content">
             <p className="text-muted">&gt; Loading settings...</p>
@@ -112,7 +112,7 @@ export const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="settings-page crt-screen">
+    <div className="settings-page">
       {/* Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">

@@ -15,9 +15,9 @@ export const HomePage: React.FC = () => {
 
   if (!bootComplete) {
     return (
-      <div className="home-page crt-screen full-height flex items-center justify-center">
+      <div className="home-page crt-screen auth-page full-height flex items-center justify-center">
         <div className="boot-sequence">
-          <pre className="boot-ascii phosphor-glow">
+          <pre className="boot-ascii phosphor-glow auth-page">
 {`╔══════════════════════════════════════╗
 ║   CODEFORGE AI SYSTEM LOADING...    ║
 ╚══════════════════════════════════════╝`}
@@ -31,11 +31,11 @@ export const HomePage: React.FC = () => {
   }
 
   return (
-    <div className="home-page crt-screen">
+    <div className="home-page crt-screen auth-page">
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-grid">
-          <div className="ascii-title phosphor-glow">
+          <div className="ascii-title phosphor-glow auth-page">
             <pre>
 {`
    ██████╗ ██████╗ ██████╗ ███████╗███████╗ ██████╗ ██████╗  ██████╗ ███████╗
@@ -56,7 +56,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="hero-content">
-            <h1 className="hero-title phosphor-glow typing-effect">
+            <h1 className="hero-title phosphor-glow auth-page typing-effect">
               AUTONOMOUS CODE GENERATION SYSTEM
             </h1>
             <p className="hero-subtitle">
@@ -78,15 +78,15 @@ export const HomePage: React.FC = () => {
 
             <div className="hero-stats mt-xl">
               <div className="stat-box">
-                <div className="stat-value phosphor-glow">9</div>
+                <div className="stat-value phosphor-glow auth-page">9</div>
                 <div className="stat-label">SPECIALIZED AGENTS</div>
               </div>
               <div className="stat-box">
-                <div className="stat-value phosphor-glow">100%</div>
+                <div className="stat-value phosphor-glow auth-page">100%</div>
                 <div className="stat-label">CODE COVERAGE</div>
               </div>
               <div className="stat-box">
-                <div className="stat-value phosphor-glow">&lt;30s</div>
+                <div className="stat-value phosphor-glow auth-page">&lt;30s</div>
                 <div className="stat-label">AVG GENERATION TIME</div>
               </div>
             </div>
@@ -97,7 +97,7 @@ export const HomePage: React.FC = () => {
       {/* Features Section */}
       <section className="features-section">
         <div className="section-header">
-          <h2 className="section-title phosphor-glow">
+          <h2 className="section-title phosphor-glow auth-page">
             ╔══════════════════════════════════════╗
             <br />
             ║        SYSTEM CAPABILITIES          ║
@@ -108,7 +108,7 @@ export const HomePage: React.FC = () => {
 
         <div className="features-grid">
           <div className="feature-card terminal-window">
-            <div className="feature-icon phosphor-glow">▣</div>
+            <div className="feature-icon phosphor-glow auth-page">▣</div>
             <h3 className="feature-title">CODE GENERATION</h3>
             <p className="feature-description">
               Natural language to production-ready code. Our agents understand context, follow best
@@ -123,7 +123,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="feature-card terminal-window">
-            <div className="feature-icon phosphor-glow">◈</div>
+            <div className="feature-icon phosphor-glow auth-page">◈</div>
             <h3 className="feature-title">SECURITY ANALYSIS</h3>
             <p className="feature-description">
               Real-time security scanning with our SecuritySentinel agent. Detect vulnerabilities,
@@ -137,7 +137,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="feature-card terminal-window">
-            <div className="feature-icon phosphor-glow">◎</div>
+            <div className="feature-icon phosphor-glow auth-page">◎</div>
             <h3 className="feature-title">TEST GENERATION</h3>
             <p className="feature-description">
               Comprehensive test suites generated automatically. Unit tests, integration tests, and
@@ -151,7 +151,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="feature-card terminal-window">
-            <div className="feature-icon phosphor-glow">◉</div>
+            <div className="feature-icon phosphor-glow auth-page">◉</div>
             <h3 className="feature-title">PERFORMANCE OPTIMIZATION</h3>
             <p className="feature-description">
               Identify bottlenecks and optimization opportunities. Our PerformanceProfiler agent
@@ -164,7 +164,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="feature-card terminal-window">
-            <div className="feature-icon phosphor-glow">▼</div>
+            <div className="feature-icon phosphor-glow auth-page">▼</div>
             <h3 className="feature-title">CODE REFACTORING</h3>
             <p className="feature-description">
               Modernize legacy code with intelligent refactoring. The RefactorGuru agent applies
@@ -177,7 +177,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="feature-card terminal-window">
-            <div className="feature-icon phosphor-glow">◐</div>
+            <div className="feature-icon phosphor-glow auth-page">◐</div>
             <h3 className="feature-title">DOCUMENTATION</h3>
             <p className="feature-description">
               Comprehensive documentation generated from code. TSDoc, JSDoc, and inline comments
@@ -201,7 +201,7 @@ export const HomePage: React.FC = () => {
             <div className="terminal-title">SYSTEM READY</div>
           </div>
           <div className="terminal-content">
-            <pre className="cta-ascii phosphor-glow">
+            <pre className="cta-ascii phosphor-glow auth-page">
 {`    ╔═══════════════════════════════════════════════════╗
     ║                                                   ║
     ║   ►  SYSTEM STATUS: ONLINE                        ║
@@ -212,7 +212,7 @@ export const HomePage: React.FC = () => {
     ╚═══════════════════════════════════════════════════╝`}
             </pre>
             <div className="cta-content">
-              <h3 className="cta-title phosphor-glow">BEGIN CODE GENERATION PROTOCOL</h3>
+              <h3 className="cta-title phosphor-glow auth-page">BEGIN CODE GENERATION PROTOCOL</h3>
               <p className="cta-text">
                 Join developers using AI-powered code generation. No credit card required.
               </p>

@@ -35,7 +35,7 @@ export const GeneratePage: React.FC = () => {
   }
 
   return (
-    <div className="generate-page crt-screen">
+    <div className="generate-page">
       {/* Page Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">

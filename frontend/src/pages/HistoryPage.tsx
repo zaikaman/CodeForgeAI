@@ -46,7 +46,7 @@ export const HistoryPage: React.FC = () => {
   }
 
   return (
-    <div className="history-page crt-screen">
+    <div className="history-page">
       {/* Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">

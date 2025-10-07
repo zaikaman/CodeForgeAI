@@ -76,7 +76,7 @@ export const AuthCallback: React.FC = () => {
   }, [navigate])
 
   return (
-    <div className="auth-callback crt-screen full-height flex items-center justify-center">
+    <div className="auth-callback crt-screen auth-page full-height flex items-center justify-center">
       <div className="callback-container">
         <div className="terminal-window">
           <div className="terminal-header">

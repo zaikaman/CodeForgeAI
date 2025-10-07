@@ -106,7 +106,7 @@ class ApiClient {
   constructor() {
     // Use Vercel serverless function URL or local dev
     this.baseURL =
-      import.meta.env.VITE_API_URL || 'http://localhost:3001'
+      import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
     this.client = axios.create({
       baseURL: this.baseURL,

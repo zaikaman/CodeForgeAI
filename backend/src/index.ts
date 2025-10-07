@@ -2,10 +2,10 @@ import dotenv from 'dotenv';
 import { server } from './api/server';
 import { checkSupabaseConnection } from './storage/SupabaseClient';
 
-// Load environment variables from .env file at the root of the project
-dotenv.config({ path: '../../.env' });
+// Load environment variables from .env file
+dotenv.config();
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
   console.log(`
