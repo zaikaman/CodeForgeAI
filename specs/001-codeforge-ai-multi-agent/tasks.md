@@ -198,27 +198,27 @@ This is a **web-first monorepo application** with the following structure:
 
 ### Middleware
 
-- [ ] **T090** Implement auth middleware in `backend/src/api/middleware/auth.ts` (Supabase JWT validation)
-- [ ] **T091** Implement validation middleware in `backend/src/api/middleware/validation.ts` (Zod schema validation)
-- [ ] **T092** Implement error handler middleware in `backend/src/api/middleware/errorHandler.ts` (catch errors, format responses)
-- [ ] **T093** Implement rate limiter in `backend/src/api/middleware/rateLimiter.ts` (express-rate-limit)
+- [x] **T090** Implement auth middleware in `backend/src/api/middleware/auth.ts` (Supabase JWT validation)
+- [x] **T091** Implement validation middleware in `backend/src/api/middleware/validation.ts` (Zod schema validation)
+- [x] **T092** Implement error handler middleware in `backend/src/api/middleware/errorHandler.ts` (catch errors, format responses)
+- [x] **T093** Implement rate limiter in `backend/src/api/middleware/rateLimiter.ts` (express-rate-limit)
 
 ### Routes
 
-- [ ] **T094** Implement POST /api/onboard in `backend/src/api/routes/onboard.ts` (ProjectContextService, progress WebSocket, save to Supabase)
-- [ ] **T095** Implement POST /api/generate in `backend/src/api/routes/generate.ts` (GenerateWorkflow, streaming response, save history to Supabase)
-- [ ] **T096** Implement POST /api/review in `backend/src/api/routes/review.ts` (ReviewWorkflow, return findings)
-- [ ] **T097** Implement POST /api/enhance in `backend/src/api/routes/enhance.ts` (EnhanceWorkflow, generate diffs)
-- [ ] **T098** Implement GET /api/status in `backend/src/api/routes/status.ts` (health check, agent status, Supabase connection)
-- [ ] **T099** Implement GET /api/projects in `backend/src/api/routes/projects.ts` (list user projects from Supabase)
-- [ ] **T100** Implement GET /api/history in `backend/src/api/routes/history.ts` (get generation history from Supabase)
+- [x] **T094** Implement POST /api/onboard in `backend/src/api/routes/onboard.ts` (ProjectContextService, progress WebSocket, save to Supabase)
+- [x] **T095** Implement POST /api/generate in `backend/src/api/routes/generate.ts` (GenerateWorkflow, streaming response, save history to Supabase)
+- [x] **T096** Implement POST /api/review in `backend/src/api/routes/review.ts` (ReviewWorkflow, return findings)
+- [x] **T097** Implement POST /api/enhance in `backend/src/api/routes/enhance.ts` (EnhanceWorkflow, generate diffs)
+- [x] **T098** Implement GET /api/status in `backend/src/api/routes/status.ts` (health check, agent status, Supabase connection)
+- [x] **T099** Implement GET /api/projects in `backend/src/api/routes/projects.ts` (list user projects from Supabase)
+- [x] **T100** Implement GET /api/history in `backend/src/api/routes/history.ts` (get generation history from Supabase)
 
 ### Server Setup
 
-- [ ] **T101** Setup Socket.io in `backend/src/api/server.ts` (WebSocket server for streaming)
-- [ ] **T102** Create Express app in `backend/src/api/server.ts` (CORS, JSON parser, routes, middleware, error handler)
-- [ ] **T103** Add server startup script in `backend/src/index.ts` (load env, initialize Supabase client, start server)
-- [ ] **T104** Configure Vercel serverless functions in `api/` directory (proxy to Express app)
+- [x] **T101** Setup Socket.io in `backend/src/api/server.ts` (WebSocket server for streaming)
+- [x] **T102** Create Express app in `backend/src/api/server.ts` (CORS, JSON parser, routes, middleware, error handler)
+- [x] **T103** Add server startup script in `backend/src/index.ts` (load env, initialize Supabase client, start server)
+- [x] **T104** Configure Vercel serverless functions in `api/` directory (proxy to Express app)
 
 ---
 
