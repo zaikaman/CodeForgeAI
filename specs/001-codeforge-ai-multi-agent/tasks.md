@@ -187,10 +187,10 @@ This is a **web-first monorepo application** with the following structure:
 
 ## Phase 3.8: Workflows (ADK-TS Orchestration)
 
-- [ ] **T086** Implement CodeForgeWorkflow in `backend/src/workflows/CodeForgeWorkflow.ts` (hierarchical workflow, LeadAgent → specialized agents)
-- [ ] **T087** Implement GenerateWorkflow in `backend/src/workflows/GenerateWorkflow.ts` (SpecInterpreter → CodeGenerator → TestCrafter → review)
-- [ ] **T088** Implement ReviewWorkflow in `backend/src/workflows/ReviewWorkflow.ts` (parallel agent review → DebateMediator → consensus)
-- [ ] **T089** Implement EnhanceWorkflow in `backend/src/workflows/EnhanceWorkflow.ts` (RefactorGuru → SecuritySentinel → PerformanceProfiler)
+- [x] **T086** Implement CodeForgeWorkflow in `backend/src/workflows/CodeForgeWorkflow.ts` (hierarchical workflow, LeadAgent → specialized agents)
+- [x] **T087** Implement GenerateWorkflow in `backend/src/workflows/GenerateWorkflow.ts` (SpecInterpreter → CodeGenerator → TestCrafter → review)
+- [x] **T088** Implement ReviewWorkflow in `backend/src/workflows/ReviewWorkflow.ts` (parallel agent review → DebateMediator → consensus)
+- [x] **T089** Implement EnhanceWorkflow in `backend/src/workflows/EnhanceWorkflow.ts` (RefactorGuru → SecuritySentinel → PerformanceProfiler)
 
 ---
 
