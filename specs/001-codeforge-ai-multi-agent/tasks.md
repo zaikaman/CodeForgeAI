@@ -152,15 +152,15 @@ This is a **web-first monorepo application** with the following structure:
 
 ## Phase 3.6: Services (Business Logic)
 
-- [ ] **T066** Implement ProjectContextService in `backend/src/services/ProjectContextService.ts` (onboard repo, scan files, build file structure)
-- [ ] **T067** Implement EmbeddingService in `backend/src/services/EmbeddingService.ts` (@xenova/transformers integration, all-MiniLM-L6-v2 model)
-- [ ] **T068** Implement VectorMemoryManager in `backend/src/services/VectorMemoryManager.ts` (ADK-TS VectorMemoryService wrapper, store/query embeddings with Supabase)
-- [ ] **T069** Implement CodeFormatterService in `backend/src/services/CodeFormatterService.ts` (Prettier wrapper, format code)
-- [ ] **T070** Implement DiffGeneratorService in `backend/src/services/DiffGeneratorService.ts` (jsdiff integration, generate diffs)
-- [ ] **T071** Implement ValidationService in `backend/src/services/ValidationService.ts` (Zod validators, syntax checking)
-- [ ] **T072** Add error handling to all services (try/catch, structured errors)
-- [ ] **T073** Add logging to all services in `backend/src/utils/logger.ts` (winston or pino, structured logs)
-- [ ] **T074** Setup telemetry in `backend/src/utils/telemetry.ts` (OpenTelemetry, trace agent calls)
+- [x] **T066** Implement ProjectContextService in `backend/src/services/ProjectContextService.ts` (onboard repo, scan files, build file structure)
+- [x] **T067** Implement EmbeddingService in `backend/src/services/EmbeddingService.ts` (@xenova/transformers integration, all-MiniLM-L6-v2 model)
+- [x] **T068** Implement VectorMemoryManager in `backend/src/services/VectorMemoryManager.ts` (ADK-TS VectorMemoryService wrapper, store/query embeddings with Supabase)
+- [x] **T069** Implement CodeFormatterService in `backend/src/services/CodeFormatterService.ts` (Prettier wrapper, format code)
+- [x] **T070** Implement DiffGeneratorService in `backend/src/services/DiffGeneratorService.ts` (jsdiff integration, generate diffs)
+- [x] **T071** Implement ValidationService in `backend/src/services/ValidationService.ts` (Zod validators, syntax checking)
+- [x] **T072** Add error handling to all services (try/catch, structured errors)
+- [x] **T073** Add logging to all services in `backend/src/utils/logger.ts` (winston or pino, structured logs)
+- [x] **T074** Setup telemetry in `backend/src/utils/telemetry.ts` (OpenTelemetry, trace agent calls)
 
 ---
 
