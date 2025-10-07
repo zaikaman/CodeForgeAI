@@ -1,6 +1,12 @@
 {
   "permissions": {
-    "allow": ["Bash(mkdir:*)", "Bash(git add:*)", "Bash(git commit:*)", "Bash(git stash:*)"],
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git stash:*)",
+      "Bash(npm install:*)"
+    ],
     "deny": [],
     "ask": []
   }
