@@ -157,6 +157,12 @@
   font-weight: bold;
 }
 
+.details-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
 .details-content {
   flex: 1;
   background: var(--bg-secondary);

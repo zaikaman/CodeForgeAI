@@ -11,6 +11,7 @@ import { SignupPage } from './pages/auth/SignupPage'
 import { AuthCallback } from './pages/auth/AuthCallback'
 import { DashboardPage } from './pages/DashboardPage'
 import { GeneratePage } from './pages/GeneratePage'
+import { GenerateSessionPage } from './pages/GenerateSessionPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -74,6 +75,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <GeneratePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/generate/:id"
+              element={
+                <ProtectedRoute>
+                  <GenerateSessionPage />
                 </ProtectedRoute>
               }
             />

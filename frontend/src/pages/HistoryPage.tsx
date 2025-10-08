@@ -2,15 +2,20 @@ import React, { useState } from 'react'
 import { Layout } from '../components/Layout'
 import { useGenerationStore } from '../stores/generationStore'
 import { CodePreview } from '../components/CodeEditor'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import '../styles/theme.css'
 import './HistoryPage.css'
 
 export const HistoryPage: React.FC = () => {
+  const navigate = useNavigate()
   const { history, removeFromHistory, clearHistory } = useGenerationStore()
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const selectedGeneration = history.find((h) => h.id === selectedId)
+
+  const handleViewGeneration = (id: string) => {
+    navigate(`/generate/${id}`)
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -136,6 +141,8 @@ export const HistoryPage: React.FC = () => {
                     key={gen.id}
                     className={`timeline-item ${selectedId === gen.id ? 'active' : ''}`}
                     onClick={() => setSelectedId(gen.id)}
+                    onDoubleClick={() => gen.status === 'completed' && handleViewGeneration(gen.id)}
+                    title={gen.status === 'completed' ? 'Double-click to view generation' : ''}
                   >
                     <div className="timeline-marker">
                       <span className={`timeline-icon ${getStatusColor(gen.status)}`}>
@@ -175,15 +182,25 @@ export const HistoryPage: React.FC = () => {
                           {getStatusIcon(selectedGeneration.status)} {selectedGeneration.status.toUpperCase()}
                         </div>
                       </div>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => {
-                          removeFromHistory(selectedGeneration.id)
-                          setSelectedId(null)
-                        }}
-                      >
-                        DELETE
-                      </button>
+                      <div className="details-actions">
+                        {selectedGeneration.status === 'completed' && (
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleViewGeneration(selectedGeneration.id)}
+                          >
+                            ► VIEW GENERATION
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => {
+                            removeFromHistory(selectedGeneration.id)
+                            setSelectedId(null)
+                          }}
+                        >
+                          DELETE
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
