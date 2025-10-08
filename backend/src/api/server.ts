@@ -16,6 +16,7 @@ import projectsRouter from './routes/projects';
 import historyRouter from './routes/history';
 import settingsRouter from './routes/settings';
 import previewRouter from './routes/preview';
+import chatRouter from './routes/chat';
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +42,7 @@ app.use('/api', projectsRouter);
 app.use('/api', historyRouter);
 app.use('/api', settingsRouter);
 app.use('/api', previewRouter);
+app.use('/api', chatRouter);
 
 // Socket.io connection
 io.on('connection', (socket) => {

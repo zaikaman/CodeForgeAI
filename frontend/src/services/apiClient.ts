@@ -85,6 +85,27 @@ export interface EnhanceResponse {
   message: string
 }
 
+export interface ChatRequest {
+  generationId: string
+  message: string
+  currentFiles: Array<{
+    path: string
+    content: string
+  }>
+  language: string
+}
+
+export interface ChatResponse {
+  files: Array<{
+    path: string
+    content: string
+  }>
+  agentThought: {
+    agent: string
+    thought: string
+  }
+}
+
 export interface UserSettings {
   userId: string
   apiKey?: string
@@ -298,6 +319,12 @@ class ApiClient {
   // Delete all settings
   async deleteSettings(): Promise<ApiResponse> {
     const response = await this.client.delete('/api/settings')
+    return response.data
+  }
+
+  // Chat with AI to modify generation
+  async chat(request: ChatRequest): Promise<ApiResponse<ChatResponse>> {
+    const response = await this.client.post('/api/chat', request)
     return response.data
   }
 

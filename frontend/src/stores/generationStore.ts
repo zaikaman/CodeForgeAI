@@ -37,6 +37,9 @@ interface GenerationState {
   clearHistory: () => void
   removeFromHistory: (generationId: string) => void
   getGenerationById: (generationId: string) => GenerationHistoryEntry | undefined
+  updateGenerationFiles: (generationId: string, files: Array<{ path: string; content: string }>) => void
+  setIsGenerating: (isGenerating: boolean) => void
+  addMessageToGeneration: (generationId: string, message: AgentMessage) => void
 }
 
 export const useGenerationStore = create<GenerationState>()(
@@ -90,15 +93,38 @@ export const useGenerationStore = create<GenerationState>()(
 
       // Add agent message
       addAgentMessage: (message: AgentMessage) => {
-        set((state) => ({
-          agentMessages: [...state.agentMessages, message],
-          currentGeneration: state.currentGeneration
+        set((state) => {
+          const newAgentMessages = [...state.agentMessages, message];
+          
+          // Update current generation if it exists
+          const updatedCurrentGeneration = state.currentGeneration
             ? {
                 ...state.currentGeneration,
                 agentMessages: [...state.currentGeneration.agentMessages, message],
               }
-            : null,
-        }))
+            : null;
+
+          // Also update in history if current generation exists there
+          let updatedHistory = state.history;
+          if (state.currentGeneration) {
+            const historyIndex = state.history.findIndex(
+              (entry) => entry.id === state.currentGeneration!.id
+            );
+            if (historyIndex !== -1) {
+              updatedHistory = [...state.history];
+              updatedHistory[historyIndex] = {
+                ...updatedHistory[historyIndex],
+                agentMessages: [...updatedHistory[historyIndex].agentMessages, message],
+              };
+            }
+          }
+
+          return {
+            agentMessages: newAgentMessages,
+            currentGeneration: updatedCurrentGeneration,
+            history: updatedHistory,
+          };
+        });
       },
 
       // Complete generation
@@ -125,22 +151,24 @@ export const useGenerationStore = create<GenerationState>()(
           })
 
           // Save to Supabase asynchronously (don't block state update)
-          supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user) {
-              supabase.from('generations').insert([
-                {
-                  id: completedGeneration.id,
-                  prompt: completedGeneration.prompt,
-                  files: completedGeneration.response?.files,
-                  user_id: user.id,
-                },
-              ]).catch(() => {
-                // Silently fail - don't block UI
-              });
+          void (async () => {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                await supabase.from('generations').insert([
+                  {
+                    id: completedGeneration.id,
+                    prompt: completedGeneration.prompt,
+                    files: completedGeneration.response?.files,
+                    user_id: user.id,
+                  },
+                ]);
+              }
+            } catch (error) {
+              // Silently fail - don't block UI
+              console.error('Failed to save generation to Supabase:', error);
             }
-          }).catch(() => {
-            // Silently fail - don't block UI
-          });
+          })();
         }
       },
 
@@ -200,6 +228,89 @@ export const useGenerationStore = create<GenerationState>()(
         }
 
         return history.find((entry) => entry.id === generationId)
+      },
+
+      // Update generation files (for chat modifications)
+      updateGenerationFiles: (generationId: string, files: Array<{ path: string; content: string }>) => {
+        const { currentGeneration, history } = get()
+
+        // Update current generation if it matches
+        if (currentGeneration?.id === generationId && currentGeneration.response) {
+          const updatedGeneration = {
+            ...currentGeneration,
+            response: {
+              ...currentGeneration.response,
+              files,
+            },
+          }
+
+          set({
+            currentGeneration: updatedGeneration,
+          })
+
+          // Also update in history if it exists there
+          const historyIndex = history.findIndex((entry) => entry.id === generationId)
+          if (historyIndex !== -1) {
+            const updatedHistory = [...history]
+            updatedHistory[historyIndex] = updatedGeneration
+            set({ history: updatedHistory })
+          }
+        } else {
+          // Update in history only
+          const historyIndex = history.findIndex((entry) => entry.id === generationId)
+          if (historyIndex !== -1 && history[historyIndex].response) {
+            const updatedHistory = [...history]
+            updatedHistory[historyIndex] = {
+              ...updatedHistory[historyIndex],
+              response: {
+                ...updatedHistory[historyIndex].response!,
+                files,
+              },
+            }
+            set({ history: updatedHistory })
+          }
+        }
+      },
+
+      // Set isGenerating state
+      setIsGenerating: (isGenerating: boolean) => {
+        set({ isGenerating })
+      },
+
+      // Add message to specific generation
+      addMessageToGeneration: (generationId: string, message: AgentMessage) => {
+        set((state) => {
+          // Update current generation if it matches
+          let updatedCurrentGeneration = state.currentGeneration;
+          if (state.currentGeneration?.id === generationId) {
+            updatedCurrentGeneration = {
+              ...state.currentGeneration,
+              agentMessages: [...state.currentGeneration.agentMessages, message],
+            };
+          }
+
+          // Update in history
+          const historyIndex = state.history.findIndex((entry) => entry.id === generationId);
+          let updatedHistory = state.history;
+          if (historyIndex !== -1) {
+            updatedHistory = [...state.history];
+            updatedHistory[historyIndex] = {
+              ...updatedHistory[historyIndex],
+              agentMessages: [...updatedHistory[historyIndex].agentMessages, message],
+            };
+          }
+
+          // Also update agentMessages if this is the current generation
+          const updatedAgentMessages = state.currentGeneration?.id === generationId
+            ? [...state.agentMessages, message]
+            : state.agentMessages;
+
+          return {
+            currentGeneration: updatedCurrentGeneration,
+            history: updatedHistory,
+            agentMessages: updatedAgentMessages,
+          };
+        });
       },
     }),
     {

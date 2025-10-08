@@ -5,6 +5,7 @@ import { AgentChat, AgentMessage } from '../components/AgentChat';
 import { CodeEditor } from '../components/CodeEditor';
 import { FileTree } from '../components/FileTree';
 import { useGenerationStore } from '../stores/generationStore';
+import apiClient from '../services/apiClient';
 import '../styles/theme.css';
 import './GenerateSessionPage.css';
 
@@ -15,26 +16,30 @@ export const GenerateSessionPage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('source');
   const [chatInput, setChatInput] = useState('');
-  const [generation, setGeneration] = useState<any>(null);
   
-  const { currentGeneration, isGenerating, agentMessages, getGenerationById } = useGenerationStore();
+  const store = useGenerationStore();
+  const { 
+    currentGeneration, 
+    isGenerating, 
+    getGenerationById, 
+    updateGenerationFiles, 
+    addMessageToGeneration,
+    setIsGenerating,
+    history
+  } = store;
 
-  // Load generation from current or history
+  // Get the current generation from store
+  const generation = React.useMemo(() => {
+    if (!id) return null;
+    return currentGeneration?.id === id ? currentGeneration : getGenerationById(id);
+  }, [id, currentGeneration, history, getGenerationById]);
+
+  // Redirect if generation not found
   useEffect(() => {
-    if (id) {
-      if (currentGeneration?.id === id) {
-        setGeneration(currentGeneration);
-      } else {
-        const historicalGeneration = getGenerationById(id);
-        if (historicalGeneration) {
-          setGeneration(historicalGeneration);
-        } else {
-          // Generation not found, redirect to generate page
-          navigate('/generate');
-        }
-      }
+    if (id && !generation) {
+      navigate('/generate');
     }
-  }, [id, currentGeneration, getGenerationById, navigate]);
+  }, [id, generation, navigate]);
 
   // Auto-select first file when generation completes
   useEffect(() => {
@@ -81,13 +86,78 @@ export const GenerateSessionPage: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || !generation || !id) return;
 
-    // TODO: Implement chat message sending to AI
-    console.log('Sending message:', chatInput);
+    const userMessage = chatInput.trim();
     
-    // Clear input
+    // Clear input immediately
     setChatInput('');
+
+    // Add user message to chat immediately
+    const userAgentMessage: AgentMessage = {
+      id: `msg_${Date.now()}_user`,
+      agent: 'User',
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date(),
+    };
+    addMessageToGeneration(id, userAgentMessage);
+
+    // Set generating state
+    setIsGenerating(true);
+
+    try {
+      // Call chat API
+      const apiRes = await apiClient.chat({
+        generationId: id,
+        message: userMessage,
+        currentFiles: generation.response?.files || [],
+        language: generation.response?.language || 'typescript',
+      });
+
+      if (!apiRes.success || !apiRes.data) {
+        throw new Error(apiRes.error || 'Chat request failed');
+      }
+
+      const data = apiRes.data;
+
+      // Add agent response message
+      const agentResponseMessage: AgentMessage = {
+        id: `msg_${Date.now()}_agent`,
+        agent: data.agentThought.agent,
+        role: 'agent',
+        content: data.agentThought.thought,
+        timestamp: new Date(),
+      };
+      addMessageToGeneration(id, agentResponseMessage);
+
+      // Update files in the generation
+      updateGenerationFiles(id, data.files);
+
+      // If the currently selected file was updated, refresh it
+      if (selectedFile) {
+        const updatedFile = data.files.find(
+          (f: any) => f.path === selectedFile.path
+        );
+        if (updatedFile) {
+          setSelectedFile(updatedFile);
+        }
+      }
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      
+      // Add error message to chat
+      const errorMessage: AgentMessage = {
+        id: `msg_${Date.now()}_error`,
+        agent: 'System',
+        role: 'system',
+        content: `Error: ${error.message || 'Failed to process your request. Please try again.'}`,
+        timestamp: new Date(),
+      };
+      addMessageToGeneration(id, errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (!generation) {
@@ -100,7 +170,7 @@ export const GenerateSessionPage: React.FC = () => {
         {/* Left Panel - Chat (1/4 width) */}
         <div className="chat-panel">
           <AgentChat 
-            messages={generation?.agentMessages || agentMessages} 
+            messages={generation?.agentMessages || []} 
             isStreaming={isGenerating && currentGeneration?.id === id} 
             agentStatus={(isGenerating && currentGeneration?.id === id) ? 'PROCESSING' : 'STANDBY'} 
           />
