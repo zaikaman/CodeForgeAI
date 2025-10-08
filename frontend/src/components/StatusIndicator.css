@@ -37,7 +37,7 @@
 }
 
 .status-loading {
-  color: var(--terminal-primary);
+  color: var(--blue-primary);
 }
 
 .status-success {
@@ -50,6 +50,10 @@
 
 .status-warning {
   color: var(--text-warning);
+}
+
+.status-info {
+  color: var(--text-info);
 }
 
 /* Status Animations - 3 Pulses Then Pause */
@@ -152,8 +156,8 @@
 .pixel-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--terminal-dim);
-  border-top-color: var(--terminal-primary);
+  border: 3px solid var(--blue-dim);
+  border-top-color: var(--blue-primary);
   border-radius: 0;
   animation: pixel-spin 8s linear infinite; /* 3 quick spins in first 10%, then 90% pause */
   box-shadow: var(--glow-small);
@@ -193,7 +197,7 @@
 
 .spinner-dots span {
   font-size: var(--font-size-xl);
-  color: var(--terminal-primary);
+  color: var(--blue-primary);
   animation: dot-pulse 8s infinite; /* 3 quick pulses pattern */
 }
 
@@ -255,7 +259,7 @@
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--terminal-primary);
+  background: linear-gradient(90deg, var(--blue-primary), var(--terminal-primary));
   box-shadow: var(--glow-medium);
   transition: width 0.3s ease;
   position: relative;

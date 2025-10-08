@@ -1,9 +1,6 @@
 /* History Page Styles */
 
 .history-page {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  padding: var(--spacing-lg);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);

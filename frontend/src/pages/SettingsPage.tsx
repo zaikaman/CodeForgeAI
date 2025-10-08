@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Layout } from '../components/Layout'
 import { useAuth } from '../hooks/useAuth'
 import { useUIStore } from '../stores/uiStore'
 import apiClient from '../services/apiClient'
@@ -6,7 +7,7 @@ import '../styles/theme.css'
 import './SettingsPage.css'
 
 export const SettingsPage: React.FC = () => {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const { theme, setTheme, showToast } = useUIStore()
   const [apiKey, setApiKey] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
@@ -93,26 +94,23 @@ export const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleLogout = async () => {
-    if (confirm('Log out of CodeForge AI?')) {
-      await signOut()
-    }
-  }
-
   if (loading) {
     return (
-      <div className="settings-page">
-        <div className="terminal-window">
-          <div className="terminal-content">
-            <p className="text-muted">&gt; Loading settings...</p>
+      <Layout>
+        <div className="settings-page">
+          <div className="terminal-window">
+            <div className="terminal-content">
+              <p className="text-muted">&gt; Loading settings...</p>
+            </div>
           </div>
         </div>
-      </div>
+      </Layout>
     )
   }
 
   return (
-    <div className="settings-page">
+    <Layout>
+      <div className="settings-page">
       {/* Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">
@@ -142,12 +140,7 @@ export const SettingsPage: React.FC = () => {
               <div className="setting-label text-muted">&gt; USER ID:</div>
               <div className="setting-value text-primary">{user?.id || 'N/A'}</div>
             </div>
-
-            <div className="setting-group mt-lg">
-              <button className="btn btn-danger" onClick={handleLogout}>
-                ► TERMINATE SESSION
-              </button>
-            </div>
+          </div>
           </div>
         </div>
 
@@ -322,6 +315,6 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   )
 }

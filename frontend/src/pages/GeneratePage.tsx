@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Layout } from '../components/Layout'
 import { GenerationForm, GenerationOptions } from '../components/GenerationForm'
 import { CodeEditor } from '../components/CodeEditor'
 import { AgentChat } from '../components/AgentChat'
@@ -35,7 +36,8 @@ export const GeneratePage: React.FC = () => {
   }
 
   return (
-    <div className="generate-page">
+    <Layout>
+      <div className="generate-page">
       {/* Page Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">
@@ -174,6 +176,7 @@ export const GeneratePage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   )
 }

@@ -1,9 +1,6 @@
 /* Dashboard Page Styles */
 
 .dashboard-page {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  padding: var(--spacing-lg);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
@@ -19,6 +16,7 @@
   margin: 0 0 var(--spacing-sm) 0;
   text-transform: uppercase;
   letter-spacing: 2px;
+  color: var(--white-primary);
 }
 
 .dashboard-subtitle {
@@ -48,6 +46,18 @@
 .stat-icon {
   font-size: 2rem;
   margin-bottom: var(--spacing-sm);
+}
+
+.stat-icon.blue {
+  color: var(--blue-primary);
+}
+
+.stat-icon.green {
+  color: var(--terminal-primary);
+}
+
+.stat-icon.white {
+  color: var(--white-primary);
 }
 
 .stat-value {

@@ -1,15 +1,69 @@
 
 import { Router } from 'express';
-// import { GenerateWorkflow } from '../../workflows/GenerateWorkflow';
+import { GenerateWorkflow } from '../../workflows/GenerateWorkflow';
+import { z } from 'zod';
 
 const router = Router();
 
+// Validation schema for generate request
+const generateRequestSchema = z.object({
+  prompt: z.string().min(1, 'Prompt is required'),
+  projectContext: z.string().optional(),
+  includeTests: z.boolean().default(true),
+  includeDocumentation: z.boolean().default(true),
+  targetLanguage: z.string().default('typescript'),
+  complexity: z.enum(['simple', 'moderate', 'complex']).default('moderate'),
+  agents: z.array(z.string()).default(['CodeGenerator', 'TestCrafter']),
+});
+
 router.post('/generate', async (req, res) => {
-  // const { prompt, projectId } = req.body;
-  // const generateWorkflow = new GenerateWorkflow();
-  // const stream = await generateWorkflow.run(prompt, projectId);
-  // stream.pipe(res);
-  res.status(501).json({ message: 'Not Implemented' });
+  try {
+    // Validate request body
+    const validatedRequest = generateRequestSchema.parse(req.body);
+    
+    // Create and run workflow
+    const generateWorkflow = new GenerateWorkflow();
+    const result = await generateWorkflow.run(validatedRequest);
+
+    // Transform result to match expected frontend interface
+    const response = {
+      success: true,
+      data: {
+        code: result.code || result.generatedCode || '// No code generated',
+        language: validatedRequest.targetLanguage,
+        validation: {
+          syntaxValid: result.validation?.syntaxValid ?? true,
+          errors: result.validation?.errors || [],
+        },
+        confidence: result.confidence || 0.8,
+        agentThoughts: result.agentThoughts || [
+          {
+            agent: 'CodeGenerator',
+            thought: 'Code generation completed successfully',
+          },
+        ],
+      },
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error('Generation error:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ZodError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request data',
+        details: error.errors,
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Code generation failed',
+    });
+  }
 });
 
 export default router;

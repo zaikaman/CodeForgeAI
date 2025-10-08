@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Layout } from '../components/Layout'
 import { useGenerationStore } from '../stores/generationStore'
 import { CodePreview } from '../components/CodeEditor'
 import { Link } from 'react-router-dom'
@@ -46,7 +47,8 @@ export const HistoryPage: React.FC = () => {
   }
 
   return (
-    <div className="history-page">
+    <Layout>
+      <div className="history-page">
       {/* Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">
@@ -263,6 +265,7 @@ export const HistoryPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   )
 }

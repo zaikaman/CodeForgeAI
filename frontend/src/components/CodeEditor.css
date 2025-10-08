@@ -43,18 +43,18 @@
 }
 
 .editor-container .monaco-editor .line-numbers {
-  color: var(--terminal-dim) !important;
+  color: var(--white-dim) !important;
   font-family: var(--font-mono) !important;
 }
 
 .editor-container .monaco-editor .current-line ~ .line-numbers {
-  color: var(--terminal-primary) !important;
+  color: var(--blue-primary) !important;
   text-shadow: var(--glow-text);
 }
 
 /* Scrollbar styling for Monaco */
 .editor-container .monaco-scrollable-element > .scrollbar > .slider {
-  background: var(--terminal-dim) !important;
+  background: var(--blue-dim) !important;
   border-radius: 0 !important;
 }
 

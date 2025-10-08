@@ -1,4 +1,5 @@
 import React from 'react'
+import { Layout } from '../components/Layout'
 import { ProjectList } from '../components/ProjectList'
 import { ProjectListCompact } from '../components/ProjectList'
 import { AgentChatCompact } from '../components/AgentChat'
@@ -23,20 +24,21 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="dashboard-page">
-      {/* Header */}
-      <div className="dashboard-header terminal-window">
-        <div className="terminal-header">
-          <div className="terminal-button close"></div>
-          <div className="terminal-button minimize"></div>
-          <div className="terminal-button maximize"></div>
-          <div className="terminal-title">OPERATOR DASHBOARD</div>
+    <Layout>
+      <div className="dashboard-page">
+        {/* Header */}
+        <div className="dashboard-header terminal-window">
+          <div className="terminal-header">
+            <div className="terminal-button close"></div>
+            <div className="terminal-button minimize"></div>
+            <div className="terminal-button maximize"></div>
+            <div className="terminal-title">OPERATOR DASHBOARD</div>
+          </div>
+          <div className="terminal-content">
+            <h1 className="dashboard-title phosphor-glow">◆ SYSTEM OVERVIEW</h1>
+            <p className="dashboard-subtitle">&gt; Mission control for AI-powered development</p>
+          </div>
         </div>
-        <div className="terminal-content">
-          <h1 className="dashboard-title phosphor-glow">◆ SYSTEM OVERVIEW</h1>
-          <p className="dashboard-subtitle">&gt; Mission control for AI-powered development</p>
-        </div>
-      </div>
 
       {/* Stats Grid */}
       <div className="stats-grid">
@@ -131,6 +133,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   )
 }

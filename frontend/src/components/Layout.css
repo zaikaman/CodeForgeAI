@@ -1,0 +1,27 @@
+/* Layout Component Styles */
+
+.app-layout {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.layout-main {
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .layout-main {
+    padding: 0 var(--spacing-md) var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .layout-main {
+    padding: 0 var(--spacing-sm) var(--spacing-sm);
+  }
+}

@@ -75,9 +75,9 @@
 }
 
 .toggle-btn.active {
-  background: var(--terminal-dark);
-  border-color: var(--terminal-primary);
-  color: var(--terminal-primary);
+  background: var(--blue-dark);
+  border-color: var(--blue-primary);
+  color: var(--white-primary);
   box-shadow: var(--glow-medium);
 }
 
@@ -169,7 +169,7 @@
 
 .project-icon {
   font-size: 2em;
-  color: var(--terminal-primary);
+  color: var(--blue-primary);
   flex-shrink: 0;
 }
 
@@ -181,7 +181,7 @@
   margin: 0 0 var(--spacing-xs) 0;
   font-size: var(--font-size-lg);
   font-family: var(--font-mono);
-  color: var(--terminal-primary);
+  color: var(--white-primary);
   text-transform: uppercase;
   letter-spacing: 1px;
 }

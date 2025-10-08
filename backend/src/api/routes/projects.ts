@@ -15,6 +15,7 @@ router.get('/projects', supabaseAuth, async (req: AuthenticatedRequest, res: Res
   try {
     if (!req.userId) {
       res.status(401).json({ 
+        success: false,
         error: 'Unauthorized',
         message: 'User ID not found in request' 
       });
@@ -23,10 +24,15 @@ router.get('/projects', supabaseAuth, async (req: AuthenticatedRequest, res: Res
 
     const projects = await projectRepository.findByUserId(req.userId);
     
-    res.json(projects);
+    res.json({
+      success: true,
+      data: projects,
+      message: 'Projects fetched successfully'
+    });
   } catch (error) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Internal Server Error',
       message: 'Failed to fetch projects' 
     });
@@ -41,6 +47,7 @@ router.get('/projects/:id', supabaseAuth, async (req: AuthenticatedRequest, res:
   try {
     if (!req.userId) {
       res.status(401).json({ 
+        success: false,
         error: 'Unauthorized',
         message: 'User ID not found in request' 
       });
@@ -52,6 +59,7 @@ router.get('/projects/:id', supabaseAuth, async (req: AuthenticatedRequest, res:
 
     if (!project) {
       res.status(404).json({ 
+        success: false,
         error: 'Not Found',
         message: 'Project not found' 
       });
@@ -65,16 +73,22 @@ router.get('/projects/:id', supabaseAuth, async (req: AuthenticatedRequest, res:
 
     if (!userOwnsProject) {
       res.status(403).json({ 
+        success: false,
         error: 'Forbidden',
         message: 'You do not have permission to access this project' 
       });
       return;
     }
 
-    res.json(project);
+    res.json({
+      success: true,
+      data: project,
+      message: 'Project fetched successfully'
+    });
   } catch (error) {
     console.error('Error fetching project:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Internal Server Error',
       message: 'Failed to fetch project' 
     });

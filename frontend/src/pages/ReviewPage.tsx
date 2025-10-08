@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Layout } from '../components/Layout'
 import { CodeEditor } from '../components/CodeEditor'
 import { ReviewPanel } from '../components/ReviewPanel'
 import { useReview } from '../hooks/useReview'
@@ -53,7 +54,8 @@ export const ReviewPage: React.FC = () => {
   }
 
   return (
-    <div className="review-page">
+    <Layout>
+      <div className="review-page">
       {/* Header */}
       <div className="page-header terminal-window">
         <div className="terminal-header">
@@ -131,6 +133,7 @@ export const ReviewPage: React.FC = () => {
           />
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   )
 }

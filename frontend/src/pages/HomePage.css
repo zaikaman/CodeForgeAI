@@ -29,7 +29,7 @@
 .boot-bar {
   height: 100%;
   width: 100%; /* Changed from 0 to 100% */
-  background: var(--terminal-primary);
+  background: linear-gradient(90deg, var(--blue-primary), var(--terminal-primary));
   box-shadow: var(--glow-medium);
   /* animation: bootLoad 1.5s ease-out forwards; - REMOVED */
 }
@@ -74,11 +74,12 @@
   font-family: var(--font-mono);
   margin-bottom: var(--spacing-lg);
   letter-spacing: 2px;
+  color: var(--white-primary);
 }
 
 .typing-effect {
   overflow: hidden;
-  border-right: 3px solid var(--terminal-primary);
+  border-right: 3px solid var(--blue-primary);
   white-space: nowrap;
   margin: 0 auto;
   /* animation: typing 3s steps(40, end), blink 0.75s step-end infinite; - REMOVED */
@@ -178,6 +179,18 @@
 .feature-icon {
   font-size: 3rem;
   margin-bottom: var(--spacing-md);
+}
+
+.feature-icon.blue {
+  color: var(--blue-primary);
+}
+
+.feature-icon.green {
+  color: var(--terminal-primary);
+}
+
+.feature-icon.white {
+  color: var(--white-primary);
 }
 
 .feature-title {
