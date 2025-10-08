@@ -267,9 +267,50 @@
   overflow: hidden;
 }
 
-.preview-view .btn {
+.preview-actions {
+  display: flex;
+  gap: 0.75rem;
   margin-bottom: 1rem;
-  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.preview-actions .btn {
+  padding: 0.75rem 1.5rem;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
+
+.preview-actions .btn-primary {
+  background: rgba(0, 255, 0, 0.1);
+  border: 2px solid rgba(0, 255, 0, 0.5);
+  color: #00ff00;
+}
+
+.preview-actions .btn-primary:hover:not(:disabled) {
+  background: rgba(0, 255, 0, 0.2);
+  border-color: #00ff00;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+}
+
+.preview-actions .btn-secondary {
+  background: rgba(79, 195, 247, 0.1);
+  border: 2px solid rgba(79, 195, 247, 0.5);
+  color: var(--blue-accent);
+}
+
+.preview-actions .btn-secondary:hover:not(:disabled) {
+  background: rgba(79, 195, 247, 0.2);
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 15px rgba(79, 195, 247, 0.5);
+  color: var(--white-primary);
+}
+
+.preview-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .preview-view iframe {

@@ -59,8 +59,8 @@ export const GenerateSessionPage: React.FC = () => {
                                   !hasGeneratedInitialPreview;
 
     if (shouldGeneratePreview) {
-      // Generate preview automatically on initial load
-      handlePreview();
+      // Generate preview automatically on initial load (will use cached if exists)
+      handlePreview(false); // false = don't force regenerate
     }
   }, [generation?.response?.files, hasGeneratedInitialPreview]);
 
@@ -68,7 +68,7 @@ export const GenerateSessionPage: React.FC = () => {
     setSelectedFile(file);
   };
 
-  const handlePreview = async () => {
+  const handlePreview = async (forceRegenerate: boolean = false) => {
     if (generation && generation.response?.files && !isGeneratingPreview) {
       setIsGeneratingPreview(true);
       try {
@@ -79,7 +79,8 @@ export const GenerateSessionPage: React.FC = () => {
           },
           body: JSON.stringify({ 
             generationId: generation.id,
-            files: generation.response.files 
+            files: generation.response.files,
+            forceRegenerate: forceRegenerate
           }),
         });
 
@@ -94,6 +95,11 @@ export const GenerateSessionPage: React.FC = () => {
           if (!hasGeneratedInitialPreview) {
             setHasGeneratedInitialPreview(true);
             setActiveTab('preview');
+          }
+          
+          // Log if using cached preview
+          if (data.data.cached) {
+            console.log('Using cached preview URL');
           }
         } else {
           console.error('previewUrl not found in response:', data);
@@ -154,7 +160,7 @@ export const GenerateSessionPage: React.FC = () => {
 
       const data = apiRes.data;
 
-      // Generate preview with new files FIRST
+      // Generate preview with new files FIRST (force regenerate since code changed)
       setIsGeneratingPreview(true);
       try {
         const previewResponse = await fetch('/api/preview', {
@@ -164,7 +170,8 @@ export const GenerateSessionPage: React.FC = () => {
           },
           body: JSON.stringify({ 
             generationId: id,
-            files: data.files 
+            files: data.files,
+            forceRegenerate: true // Force regenerate because code changed
           }),
         });
 
@@ -343,13 +350,24 @@ export const GenerateSessionPage: React.FC = () => {
 
           {activeTab === 'preview' && (
             <div className="preview-view">
-              <button 
-                onClick={handlePreview} 
-                disabled={!generation || isGenerating || isGeneratingPreview}
-                className="btn btn-primary"
-              >
-                {isGeneratingPreview ? 'GENERATING...' : 'REGENERATE PREVIEW'}
-              </button>
+              <div className="preview-actions">
+                <button 
+                  onClick={() => handlePreview(true)} 
+                  disabled={!generation || isGenerating || isGeneratingPreview}
+                  className="btn btn-primary"
+                >
+                  {isGeneratingPreview ? 'GENERATING...' : 'REGENERATE PREVIEW'}
+                </button>
+                {previewUrl && (
+                  <button 
+                    onClick={() => window.open(previewUrl, '_blank')}
+                    className="btn btn-secondary"
+                    disabled={isGeneratingPreview}
+                  >
+                    VIEW PAGE ↗
+                  </button>
+                )}
+              </div>
               {previewUrl ? (
                 <iframe src={previewUrl} title="Preview" />
               ) : (
