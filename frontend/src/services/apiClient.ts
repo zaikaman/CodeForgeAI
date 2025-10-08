@@ -34,13 +34,11 @@ export interface GenerateRequest {
 }
 
 export interface GenerateResponse {
-  code: string
+  files: Array<{
+    path: string
+    content: string
+  }>
   language: string
-  validation: {
-    syntaxValid: boolean
-    errors: string[]
-  }
-  confidence: number
   agentThoughts: Array<{
     agent: string
     thought: string
@@ -110,7 +108,7 @@ class ApiClient {
 
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 60000, // 60 seconds for long-running operations
+      timeout: 180000, // 180 seconds (3 minutes) for long-running LLM operations
       headers: {
         'Content-Type': 'application/json',
       },
@@ -119,15 +117,20 @@ class ApiClient {
     // Request interceptor - add auth token
     this.client.interceptors.request.use(
       async (config) => {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
 
-        if (session?.access_token) {
-          config.headers.Authorization = `Bearer ${session.access_token}`
+          if (session?.access_token) {
+            config.headers.Authorization = `Bearer ${session.access_token}`
+          }
+
+          return config
+        } catch (error) {
+          // Don't throw - allow request to proceed without auth
+          return config
         }
-
-        return config
       },
       (error) => {
         return Promise.reject(error)
@@ -144,6 +147,18 @@ class ApiClient {
   }
 
   private handleError(error: AxiosError): Promise<never> {
+    console.error('🔥 [apiClient] Error details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response,
+      request: error.request ? 'Request was made' : 'No request',
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL,
+      }
+    })
+
     if (error.response) {
       // Server responded with error status
       const status = error.response.status
@@ -178,7 +193,8 @@ class ApiClient {
       })
     } else if (error.request) {
       // Request made but no response received
-      console.error('Network error - no response from server')
+      console.error('❌ [apiClient] Network error - no response from server')
+      console.error('❌ [apiClient] This usually means CORS issue or backend is not running')
       return Promise.reject({
         status: 0,
         message: 'Network error - please check your connection',

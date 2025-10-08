@@ -1,10 +1,10 @@
-import { ZodSchema } from 'zod'
+import { ZodType } from 'zod'
 import { Script } from 'vm'
 
 import logger from '../utils/logger'
 
 export class ValidationService {
-  validate<T>(schema: ZodSchema<T>, data: unknown): T {
+  validate<T>(schema: ZodType<T>, data: unknown): T {
     logger.info('Validating data')
     try {
       const validatedData = schema.parse(data)

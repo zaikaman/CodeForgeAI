@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useGenerationStore } from '../stores/generationStore'
 import { useUIStore } from '../stores/uiStore'
-import apiClient, { GenerateRequest, GenerateResponse } from '../services/apiClient'
+import apiClient, { GenerateRequest } from '../services/apiClient'
 import { AgentMessage } from '../components/AgentChat'
 
 export interface UseGenerationReturn {
@@ -57,7 +57,13 @@ export const useGeneration = (): UseGenerationReturn => {
       } catch (err: any) {
         const errorMessage = err.message || 'Failed to generate code'
         setError(errorMessage)
-        failGeneration(currentGeneration?.id || '', errorMessage)
+        
+        // Get the generation ID from the store
+        const { currentGeneration: current } = useGenerationStore.getState()
+        if (current?.id) {
+          failGeneration(current.id, errorMessage)
+        }
+        
         showToast('error', errorMessage)
       } finally {
         setLoading(false)

@@ -102,7 +102,7 @@ export const useGenerationStore = create<GenerationState>()(
       },
 
       // Complete generation
-      completeGeneration: async (generationId: string, response: GenerateResponse) => {
+      completeGeneration: (generationId: string, response: GenerateResponse) => {
         const { currentGeneration, history } = get()
 
         if (currentGeneration && currentGeneration.id === generationId) {
@@ -124,18 +124,23 @@ export const useGenerationStore = create<GenerationState>()(
             history: [completedGeneration, ...history],
           })
 
-          // Save to Supabase
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await supabase.from('generations').insert([
-              {
-                id: completedGeneration.id,
-                prompt: completedGeneration.prompt,
-                files: completedGeneration.response?.files,
-                user_id: user.id,
-              },
-            ]);
-          }
+          // Save to Supabase asynchronously (don't block state update)
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+              supabase.from('generations').insert([
+                {
+                  id: completedGeneration.id,
+                  prompt: completedGeneration.prompt,
+                  files: completedGeneration.response?.files,
+                  user_id: user.id,
+                },
+              ]).catch(() => {
+                // Silently fail - don't block UI
+              });
+            }
+          }).catch(() => {
+            // Silently fail - don't block UI
+          });
         }
       },
 

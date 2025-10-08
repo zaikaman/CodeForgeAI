@@ -3,6 +3,8 @@
  * Uses AI agents for intelligent code generation.
  */
 import { CodeGeneratorAgent } from '../agents/specialized/CodeGeneratorAgent';
+import { SpecInterpreterAgent } from '../agents/specialized/SpecInterpreterAgent';
+import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent';
 
 export class GenerateWorkflow {
     constructor() {
@@ -11,9 +13,9 @@ export class GenerateWorkflow {
 
     /**
      * Executes the generation workflow.
-     * 1. Interprets the spec/prompt.
-     * 2. Generates code using AI agent.
-     * 3. Optionally generates tests.
+     * 1. Interprets the spec/prompt using SpecInterpreterAgent.
+     * 2. Generates code using CodeGeneratorAgent.
+     * 3. Optionally generates tests using TestCrafterAgent.
      * 4. Returns structured response.
      * @param request The generation request containing the prompt and options.
      * @returns An object containing the generated code, tests, and metadata.
@@ -21,17 +23,16 @@ export class GenerateWorkflow {
     async run(request: any): Promise<any> {
         const agentThoughts = [];
         let generatedCode = '';
-        let tests = '';
         
         try {
-            // Step 1: Interpret the requirements
+            // Step 1: Interpret requirements using SpecInterpreterAgent
             const requirements = await this.interpretPrompt(request.prompt);
             agentThoughts.push({
                 agent: 'SpecInterpreter',
                 thought: `Analyzed requirements: ${requirements.summary || 'Requirements parsed successfully'}`
             });
 
-            // Step 2: Generate code using AI agent
+            // Step 2: Generate code using CodeGeneratorAgent
             const codeResult = await this.generateCode({
                 ...request,
                 requirements
@@ -40,20 +41,20 @@ export class GenerateWorkflow {
             generatedCode = codeResult.code;
             agentThoughts.push({
                 agent: 'CodeGenerator',
-                thought: `Generated ${request.targetLanguage} code using AI agent (Mock: ${codeResult.metadata.generatedBy})`
+                thought: `Generated ${request.targetLanguage} code using AI agent (${codeResult.metadata.generatedBy})`
             });
 
-            // Step 3: Generate tests if requested
+            // Step 3: Generate tests if requested using TestCrafterAgent
             if (request.includeTests) {
                 const testResult = await this.generateTests({
                     ...request,
-                    generatedCode
+                    generatedCode,
+                    requirements
                 });
                 
-                tests = testResult.tests;
                 agentThoughts.push({
                     agent: 'TestCrafter',
-                    thought: `Generated comprehensive test suite`
+                    thought: `Generated comprehensive test suite with ${testResult.metadata?.testCount || 0} test cases`
                 });
             }
 
@@ -90,21 +91,67 @@ export class GenerateWorkflow {
 
     private async interpretPrompt(prompt: string): Promise<any> {
         try {
-            // Enhanced prompt interpretation
-            const analysis = this.analyzePrompt(prompt);
-            return {
-                summary: `Generating ${analysis.domain} system: ${prompt}`,
-                requirements: analysis.requirements,
-                complexity: analysis.complexity,
-                domain: analysis.domain
-            };
+            // Use SpecInterpreterAgent to analyze requirements
+            console.log('Calling SpecInterpreterAgent to analyze prompt:', prompt);
+            
+            const { runner } = await SpecInterpreterAgent;
+            const analysisPrompt = `Analyze the following requirement and extract structured requirements:
+
+User requirement: ${prompt}
+
+Please provide:
+1. A brief summary of the requirement
+2. List of functional requirements
+3. Non-functional requirements (if any)
+4. Complexity level (simple/moderate/complex)
+5. Application domain
+6. Technical constraints
+
+Return the result as JSON with the following structure:
+{
+  "summary": "...",
+  "requirements": ["...", "..."],
+  "nonFunctionalRequirements": ["...", "..."],
+  "complexity": "moderate",
+  "domain": "...",
+  "technicalConstraints": ["...", "..."]
+}`;
+
+            const response = await runner.ask(analysisPrompt) as string;
+            console.log('Response from SpecInterpreterAgent:', response);
+            
+            // Parse response from agent
+            let parsedResponse;
+            try {
+                // Try to parse JSON from response
+                const jsonMatch = response.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    parsedResponse = JSON.parse(jsonMatch[0]);
+                } else {
+                    throw new Error('No JSON found in response');
+                }
+            } catch (parseError) {
+                console.warn('Cannot parse JSON from SpecInterpreterAgent, using basic analysis');
+                // Fallback to basic analysis
+                const analysis = this.analyzePrompt(prompt);
+                parsedResponse = {
+                    summary: `Generate ${analysis.domain} system: ${prompt}`,
+                    requirements: analysis.requirements,
+                    complexity: analysis.complexity,
+                    domain: analysis.domain
+                };
+            }
+            
+            return parsedResponse;
         } catch (error) {
             console.error('Prompt interpretation error:', error);
+            // Fallback to basic analysis
+            const analysis = this.analyzePrompt(prompt);
             return {
-                summary: 'Basic code generation request',
-                requirements: ['Generate basic functional code'],
-                complexity: 'simple',
-                domain: 'generic'
+                summary: `Basic code generation request: ${prompt}`,
+                requirements: analysis.requirements || ['Generate basic functional code'],
+                complexity: analysis.complexity || 'simple',
+                domain: analysis.domain || 'generic'
             };
         }
     }
@@ -148,8 +195,8 @@ export class GenerateWorkflow {
             const prompt = this.buildCodeGenerationPrompt(request);
             console.log('Calling CodeGeneratorAgent with prompt:', prompt);
 
-            const agent = await CodeGeneratorAgent();
-            const response = await agent.runner.ask(prompt);
+            const { runner } = await CodeGeneratorAgent();
+            const response = await runner.ask(prompt) as any;
 
             return {
                 files: response.files,
@@ -190,6 +237,16 @@ ${request.requirements?.requirements ?
     : ''
 }
 
+${request.requirements?.nonFunctionalRequirements ? 
+    'Non-functional requirements:\n- ' + request.requirements.nonFunctionalRequirements.join('\n- ') 
+    : ''
+}
+
+${request.requirements?.technicalConstraints ? 
+    'Technical constraints:\n- ' + request.requirements.technicalConstraints.join('\n- ') 
+    : ''
+}
+
 Generate a complete, functional codebase with multiple files. The output should be a JSON object with the following structure:
 {
   "files": [
@@ -204,14 +261,14 @@ Focus on creating a meaningful, domain-specific codebase rather than generic boi
     }
 
     private extractCodeFromResponse(response: string): string {
-        // Extract code blocks from the agent response
-        const codeBlockRegex = /```(?:typescript|javascript|ts|js)?\n?([\s\S]*?)```/g;
+        // Extract code blocks from agent response
+        const codeBlockRegex = /```(?:typescript|javascript|ts|js|python|py)?\n?([\s\S]*?)```/g;
         const matches = response.match(codeBlockRegex);
         
         if (matches && matches.length > 0) {
             // Take the first code block and clean it up
             return matches[0]
-                .replace(/```(?:typescript|javascript|ts|js)?\n?/, '')
+                .replace(/```(?:typescript|javascript|ts|js|python|py)?\n?/, '')
                 .replace(/```$/, '')
                 .trim();
         }
@@ -223,316 +280,74 @@ Focus on creating a meaningful, domain-specific codebase rather than generic boi
     private async generateTests(request: any): Promise<any> {
         try {
             if (!request.generatedCode) {
-                return { tests: '' };
+                return { tests: '', metadata: { testCount: 0 } };
             }
 
-            const tests = this.generateTestsFromCode(request.generatedCode, request.targetLanguage);
+            // Use TestCrafterAgent to generate tests
+            console.log('Calling TestCrafterAgent to generate tests for the generated code');
+            
+            const { runner } = await TestCrafterAgent;
+            const testPrompt = `Generate a comprehensive test suite for the following code:
+
+Language: ${request.targetLanguage}
+Original requirement: ${request.prompt}
+
+Generated code:
+\`\`\`${request.targetLanguage}
+${request.generatedCode}
+\`\`\`
+
+Requirements:
+${request.requirements?.requirements ? request.requirements.requirements.map((r: string) => `- ${r}`).join('\n') : ''}
+
+Please create:
+1. Unit tests for all functions/methods
+2. Integration tests for component interactions
+3. Edge case tests
+4. Error handling tests
+5. Appropriate test data and mocks
+
+Use the appropriate test framework for ${request.targetLanguage} (e.g., Jest/Vitest for TypeScript/JavaScript, pytest for Python).
+
+Return complete, runnable test code.`;
+
+            const response = await runner.ask(testPrompt) as string;
+            console.log('Response from TestCrafterAgent:', response);
+            
+            // Extract test code from response
+            const tests = this.extractCodeFromResponse(response);
+            
+            // Count test cases
+            let testCount = 0;
+            if (request.targetLanguage === 'python') {
+                testCount = (tests.match(/def test_/g) || []).length;
+            } else {
+                testCount = (tests.match(/test\(/g) || []).length + (tests.match(/it\(/g) || []).length;
+            }
             
             return {
                 tests,
                 metadata: {
-                    testCount: tests.split('test(').length - 1
+                    testCount,
+                    generatedBy: 'TestCrafterAgent (gpt-5-nano)'
                 }
             };
         } catch (error) {
             console.error('Test generation error:', error);
-            return { tests: '// Test generation failed' };
-        }
-    }
-
-    private generateCodeFromPrompt(prompt: string, language: string): string {
-        // Basic code generation templates based on common patterns
-        const lowerPrompt = prompt.toLowerCase();
-        
-        if (lowerPrompt.includes('function') || lowerPrompt.includes('method')) {
-            return this.generateFunction(prompt, language);
-        } else if (lowerPrompt.includes('class') || lowerPrompt.includes('component')) {
-            return this.generateClass(prompt, language);
-        } else if (lowerPrompt.includes('api') || lowerPrompt.includes('endpoint')) {
-            return this.generateApi(prompt, language);
-        } else {
-            return this.generateGeneric(prompt, language);
-        }
-    }
-
-    private generateFunction(prompt: string, language: string): string {
-        switch (language) {
-            case 'typescript':
-            case 'javascript':
-                return `/**
- * Generated function based on: ${prompt}
- */
-export function generatedFunction(input: any): any {
-    try {
-        // TODO: Implement logic based on requirements
-        console.log('Processing input:', input);
-        
-        // Basic implementation
-        return {
-            success: true,
-            data: input,
-            timestamp: new Date().toISOString()
-        };
-    } catch (error) {
-        console.error('Function error:', error);
-        throw new Error('Function execution failed');
-    }
-}`;
-
-            case 'python':
-                return `"""
-Generated function based on: ${prompt}
-"""
-def generated_function(input_data):
-    try:
-        # TODO: Implement logic based on requirements
-        print(f"Processing input: {input_data}")
-        
-        # Basic implementation
-        return {
-            "success": True,
-            "data": input_data,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as error:
-        print(f"Function error: {error}")
-        raise Exception("Function execution failed")`;
-
-            default:
-                return `// Generated code for: ${prompt}\n// Language: ${language}\n// TODO: Implement functionality`;
-        }
-    }
-
-    private generateClass(prompt: string, language: string): string {
-        switch (language) {
-            case 'typescript':
-                return `/**
- * Generated class based on: ${prompt}
- */
-export class GeneratedClass {
-    private data: any;
-
-    constructor(initialData?: any) {
-        this.data = initialData || {};
-    }
-
-    /**
-     * Process data according to requirements
-     */
-    public process(input: any): any {
-        try {
-            console.log('Processing:', input);
-            return {
-                success: true,
-                result: this.data,
-                processed: input
+            // Fallback to basic test generation
+            const tests = this.generateTestsFromCode(request.generatedCode, request.targetLanguage);
+            return { 
+                tests,
+                metadata: {
+                    testCount: tests.split('test(').length - 1,
+                    generatedBy: 'Template Fallback (Error)'
+                }
             };
-        } catch (error) {
-            console.error('Processing error:', error);
-            throw new Error('Processing failed');
         }
     }
 
-    /**
-     * Get current data
-     */
-    public getData(): any {
-        return this.data;
-    }
-
-    /**
-     * Update data
-     */
-    public setData(newData: any): void {
-        this.data = { ...this.data, ...newData };
-    }
-}`;
-
-            case 'python':
-                return `"""
-Generated class based on: ${prompt}
-"""
-class GeneratedClass:
-    def __init__(self, initial_data=None):
-        self.data = initial_data or {}
-
-    def process(self, input_data):
-        """Process data according to requirements"""
-        try:
-            print(f"Processing: {input_data}")
-            return {
-                "success": True,
-                "result": self.data,
-                "processed": input_data
-            }
-        except Exception as error:
-            print(f"Processing error: {error}")
-            raise Exception("Processing failed")
-
-    def get_data(self):
-        """Get current data"""
-        return self.data
-
-    def set_data(self, new_data):
-        """Update data"""
-        self.data = {**self.data, **new_data}`;
-
-            default:
-                return `// Generated class for: ${prompt}\n// Language: ${language}\n// TODO: Implement class functionality`;
-        }
-    }
-
-    private generateApi(prompt: string, language: string): string {
-        switch (language) {
-            case 'typescript':
-                return `/**
- * Generated API endpoint based on: ${prompt}
- */
-import { Request, Response } from 'express';
-
-export interface ApiRequest extends Request {
-    body: {
-        data?: any;
-        [key: string]: any;
-    };
-}
-
-export interface ApiResponse {
-    success: boolean;
-    data?: any;
-    error?: string;
-    timestamp: string;
-}
-
-export async function handleRequest(req: ApiRequest, res: Response): Promise<void> {
-    try {
-        console.log('API request received:', req.body);
-        
-        // TODO: Implement API logic based on requirements
-        const result = await processRequest(req.body);
-        
-        const response: ApiResponse = {
-            success: true,
-            data: result,
-            timestamp: new Date().toISOString()
-        };
-        
-        res.status(200).json(response);
-    } catch (error: any) {
-        console.error('API error:', error);
-        
-        const errorResponse: ApiResponse = {
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        };
-        
-        res.status(500).json(errorResponse);
-    }
-}
-
-async function processRequest(data: any): Promise<any> {
-    // TODO: Implement processing logic
-    return {
-        processed: true,
-        originalData: data,
-        result: 'Processing completed'
-    };
-}`;
-
-            default:
-                return `// Generated API code for: ${prompt}\n// Language: ${language}\n// TODO: Implement API functionality`;
-        }
-    }
-
-    private generateGeneric(prompt: string, language: string): string {
-        switch (language) {
-            case 'typescript':
-                return `/**
- * Generated code based on: ${prompt}
- */
-
-// Main implementation
-export const implementation = {
-    execute: (input: any) => {
-        try {
-            console.log('Executing with input:', input);
-            
-            // TODO: Implement logic based on requirements
-            const result = {
-                success: true,
-                data: input,
-                timestamp: new Date().toISOString(),
-                description: \`${prompt}\`
-            };
-            
-            return result;
-        } catch (error) {
-            console.error('Execution error:', error);
-            throw new Error('Implementation failed');
-        }
-    }
-};
-
-// Helper functions
-export const helpers = {
-    validate: (data: any): boolean => {
-        return data !== null && data !== undefined;
-    },
     
-    format: (data: any): string => {
-        return JSON.stringify(data, null, 2);
-    }
-};
-
-export default implementation;`;
-
-            case 'python':
-                return `"""
-Generated code based on: ${prompt}
-"""
-import json
-from datetime import datetime
-from typing import Any, Dict
-
-def execute(input_data: Any) -> Dict[str, Any]:
-    """Main implementation function"""
-    try:
-        print(f"Executing with input: {input_data}")
-        
-        # TODO: Implement logic based on requirements
-        result = {
-            "success": True,
-            "data": input_data,
-            "timestamp": datetime.now().isoformat(),
-            "description": "${prompt}"
-        }
-        
-        return result
-    except Exception as error:
-        print(f"Execution error: {error}")
-        raise Exception("Implementation failed")
-
-def validate(data: Any) -> bool:
-    """Validate input data"""
-    return data is not None
-
-def format_data(data: Any) -> str:
-    """Format data as JSON string"""
-    return json.dumps(data, indent=2)
-
-# Main execution
-if __name__ == "__main__":
-    # Example usage
-    result = execute({"example": "data"})
-    print(format_data(result))`;
-
-            default:
-                return `// Generated code for: ${prompt}\n// Language: ${language}\n// TODO: Implement functionality based on requirements`;
-        }
-    }
-
-    private generateTestsFromCode(code: string, language: string): string {
+    private generateTestsFromCode(_code: string, language: string): string {
         switch (language) {
             case 'typescript':
             case 'javascript':
@@ -614,47 +429,18 @@ if __name__ == '__main__':
         }
     }
 
-    private validateSyntax(code: string, language: string): boolean {
-        try {
-            if (!code || code.trim().length === 0) {
-                return false;
-            }
-
-            // Basic syntax validation
-            switch (language) {
-                case 'typescript':
-                case 'javascript':
-                    // Check for basic JS/TS syntax issues
-                    return !code.includes('undefined') || 
-                           code.includes('function') || 
-                           code.includes('const') || 
-                           code.includes('export');
-                
-                case 'python':
-                    // Check for basic Python syntax
-                    return !code.includes('SyntaxError') && 
-                           (code.includes('def ') || code.includes('class ') || code.includes('import '));
-                
-                default:
-                    return code.trim().length > 0;
-            }
-        } catch (error) {
-            return false;
-        }
-    }
-
     private generateFallbackCode(request: any): string {
         return `// Fallback code generation for: ${request.prompt}
 // Language: ${request.targetLanguage}
 // 
-// TODO: The advanced code generation failed, but here's a basic structure:
+// NOTE: Advanced code generation failed, but here's a basic structure:
 
-console.log(\`Generated code for: \${request.prompt}\`);
+console.log(\`Generated code for: ${request.prompt}\`);
 
 export default {
     message: 'Code generation completed with fallback',
-    prompt: \`\${request.prompt}\`,
-    language: \`\${request.targetLanguage}\`,
+    prompt: \`${request.prompt}\`,
+    language: \`${request.targetLanguage}\`,
     timestamp: new Date().toISOString()
 };`;
     }
