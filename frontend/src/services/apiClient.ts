@@ -108,7 +108,7 @@ class ApiClient {
 
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 180000, // 180 seconds (3 minutes) for long-running LLM operations
+      timeout: 290000, // 290 seconds (almost 5 minutes) for long-running LLM operations
       headers: {
         'Content-Type': 'application/json',
       },

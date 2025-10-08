@@ -14,8 +14,10 @@ Focus on:
 
 Ensure all documentation is accurate, up-to-date, and follows best practices.`;
 
-export const DocWeaverAgent = AgentBuilder.create('DocWeaverAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)
-  .withTools(commentInserterTool)
-  .build();
+export const DocWeaverAgent = async () => {
+  return AgentBuilder.create('DocWeaverAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .withTools(commentInserterTool)
+    .build();
+};

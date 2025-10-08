@@ -29,7 +29,7 @@ const io = new Server(server, {
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/api/', apiRateLimiter);
+app.use('/api', apiRateLimiter);
 
 // Routes
 app.use('/api', onboardRouter);

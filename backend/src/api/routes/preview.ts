@@ -6,20 +6,34 @@ const router = Router();
 
 router.post('/preview', async (req, res) => {
   try {
-    const { generationId } = req.body;
+    const { generationId, files: providedFiles } = req.body;
 
-    // 1. Retrieve the generated files from the database
-    const { data: generationData, error: generationError } = await supabase
-      .from('generations')
-      .select('files')
-      .eq('id', generationId)
-      .single();
+    let files: Array<{ path: string; content: string }>;
 
-    if (generationError) {
-      throw new Error(generationError.message);
+    // If files are provided directly in the request, use them
+    if (providedFiles && Array.isArray(providedFiles) && providedFiles.length > 0) {
+      files = providedFiles;
+    } else {
+      // Otherwise, retrieve the generated files from the database
+      const { data: generationData, error: generationError } = await supabase
+        .from('generations')
+        .select('files')
+        .eq('id', generationId)
+        .maybeSingle();
+
+      if (generationError) {
+        throw new Error(generationError.message);
+      }
+
+      if (!generationData) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Generation not found in database. Please ensure files are provided in the request.' 
+        });
+      }
+
+      files = generationData.files as Array<{ path: string; content: string }>;
     }
-
-    const files = generationData.files as Array<{ path: string; content: string }>;
 
     // 2. Generate the preview
     const previewService = new PreviewService();

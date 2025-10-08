@@ -15,8 +15,10 @@ Focus on:
 
 Provide specific, actionable refactoring recommendations with before/after examples.`;
 
-export const RefactorGuruAgent = AgentBuilder.create('RefactorGuruAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)
-  .withTools(patternMatcherTool)
-  .build();
+export const RefactorGuruAgent = async () => {
+  return AgentBuilder.create('RefactorGuruAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .withTools(patternMatcherTool)
+    .build();
+};

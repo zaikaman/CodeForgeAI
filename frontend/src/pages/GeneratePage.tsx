@@ -35,14 +35,17 @@ export const GeneratePage: React.FC = () => {
   };
 
   const handlePreview = async () => {
-    if (currentGeneration) {
+    if (currentGeneration && currentGeneration.response?.files) {
       try {
         const response = await fetch('/api/preview', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ generationId: currentGeneration.id }),
+          body: JSON.stringify({ 
+            generationId: currentGeneration.id,
+            files: currentGeneration.response.files 
+          }),
         });
 
         console.log('Preview response:', response);

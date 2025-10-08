@@ -14,7 +14,9 @@ Focus on:
 
 Provide detailed security recommendations with severity levels.`;
 
-export const SecuritySentinelAgent = AgentBuilder.create('SecuritySentinelAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)  
-  .build();
+export const SecuritySentinelAgent = async () => {
+  return AgentBuilder.create('SecuritySentinelAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .build();
+};

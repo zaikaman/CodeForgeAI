@@ -14,7 +14,9 @@ Focus on:
 
 Provide specific, measurable optimization recommendations.`;
 
-export const PerformanceProfilerAgent = AgentBuilder.create('PerformanceProfilerAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)
-  .build();
+export const PerformanceProfilerAgent = async () => {
+  return AgentBuilder.create('PerformanceProfilerAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .build();
+};

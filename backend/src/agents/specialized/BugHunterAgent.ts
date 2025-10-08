@@ -13,7 +13,9 @@ Focus on:
 
 Provide specific recommendations for fixes.`;
 
-export const BugHunterAgent = AgentBuilder.create('BugHunterAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)
-  .build();
+export const BugHunterAgent = async () => {
+  return AgentBuilder.create('BugHunterAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .build();
+};

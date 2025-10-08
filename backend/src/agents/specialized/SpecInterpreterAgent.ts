@@ -13,7 +13,9 @@ Extract and organize:
 
 Provide structured, prioritized requirements that developers can implement.`;
 
-export const SpecInterpreterAgent = AgentBuilder.create('SpecInterpreterAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)
-  .build();
+export const SpecInterpreterAgent = async () => {
+  return AgentBuilder.create('SpecInterpreterAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .build();
+};

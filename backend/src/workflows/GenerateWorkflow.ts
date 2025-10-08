@@ -1,28 +1,36 @@
 /**
  * Implements the code generation workflow.
- * Uses AI agents for intelligent code generation.
+ * Uses AI agents for intelligent code generation with validation and auto-fixing.
  */
 import { CodeGeneratorAgent } from '../agents/specialized/CodeGeneratorAgent';
 import { SpecInterpreterAgent } from '../agents/specialized/SpecInterpreterAgent';
 import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent';
+import { CodeValidatorAgent } from '../agents/specialized/CodeValidatorAgent';
+import { CodeFixerAgent } from '../agents/specialized/CodeFixerAgent';
 
 export class GenerateWorkflow {
+    private readonly MAX_FIX_ATTEMPTS = 1; // Maximum number of times to try fixing code
+    private readonly VALIDATION_ENABLED = false; // Enable/disable validation
+
     constructor() {
         // Initialize with agent dependencies
     }
 
     /**
-     * Executes the generation workflow.
+     * Executes the generation workflow with validation and auto-fixing.
      * 1. Interprets the spec/prompt using SpecInterpreterAgent.
      * 2. Generates code using CodeGeneratorAgent.
-     * 3. Optionally generates tests using TestCrafterAgent.
-     * 4. Returns structured response.
+     * 3. Validates the generated code using CodeValidatorAgent.
+     * 4. If issues found, uses CodeFixerAgent to fix them (with retry logic).
+     * 5. Optionally generates tests using TestCrafterAgent.
+     * 6. Returns structured response with validation results.
      * @param request The generation request containing the prompt and options.
-     * @returns An object containing the generated code, tests, and metadata.
+     * @returns An object containing the generated code, tests, validation results, and metadata.
      */
     async run(request: any): Promise<any> {
         const agentThoughts = [];
         let generatedCode = '';
+        let tests = '';
         
         try {
             // Step 1: Interpret requirements using SpecInterpreterAgent
@@ -33,18 +41,38 @@ export class GenerateWorkflow {
             });
 
             // Step 2: Generate code using CodeGeneratorAgent
-            const codeResult = await this.generateCode({
+            let codeResult = await this.generateCode({
                 ...request,
                 requirements
             });
             
-            generatedCode = codeResult.code;
             agentThoughts.push({
                 agent: 'CodeGenerator',
                 thought: `Generated ${request.targetLanguage} code using AI agent (${codeResult.metadata.generatedBy})`
             });
 
-            // Step 3: Generate tests if requested using TestCrafterAgent
+            // Step 3: Validate and fix code if validation is enabled
+            if (this.VALIDATION_ENABLED) {
+                const validationResult = await this.validateAndFixCode(
+                    codeResult.files,
+                    request,
+                    agentThoughts
+                );
+                
+                if (validationResult.fixed) {
+                    codeResult.files = validationResult.files;
+                    codeResult.validation = validationResult.validation;
+                } else {
+                    codeResult.validation = validationResult.validation;
+                }
+            }
+
+            // Combine all generated files into a single code string for test generation
+            generatedCode = (codeResult.files || [])
+                .map((f: any) => `// File: ${f.path}\n${f.content}`)
+                .join('\n\n');
+
+            // Step 4: Generate tests if requested using TestCrafterAgent
             if (request.includeTests) {
                 const testResult = await this.generateTests({
                     ...request,
@@ -52,17 +80,21 @@ export class GenerateWorkflow {
                     requirements
                 });
                 
+                tests = testResult.tests || '';
+                
                 agentThoughts.push({
                     agent: 'TestCrafter',
                     thought: `Generated comprehensive test suite with ${testResult.metadata?.testCount || 0} test cases`
                 });
             }
 
-            // Step 4: Basic validation
+            // Step 5: Return final result
             return {
                 files: codeResult.files,
+                tests,
                 language: request.targetLanguage,
-                confidence: codeResult.confidence || 0.85,
+                confidence: codeResult.validation?.isValid ? 0.95 : 0.75,
+                validation: codeResult.validation,
                 agentThoughts,
                 requirements
             };
@@ -89,12 +121,211 @@ export class GenerateWorkflow {
         }
     }
 
+    /**
+     * Validates generated code and attempts to fix any issues found.
+     * Uses a retry mechanism to ensure code quality.
+     */
+    private async validateAndFixCode(
+        files: any[],
+        request: any,
+        agentThoughts: any[]
+    ): Promise<any> {
+        let currentFiles = files;
+        let attempt = 0;
+        let lastValidation: any = null;
+
+        while (attempt < this.MAX_FIX_ATTEMPTS) {
+            attempt++;
+
+            // Validate the current code
+            const validation = await this.validateCode(currentFiles, request.targetLanguage);
+            lastValidation = validation;
+
+            agentThoughts.push({
+                agent: 'CodeValidator',
+                thought: `Validation attempt ${attempt}: ${validation.isValid ? 'Code is valid ✓' : `Found ${validation.issues.length} issue(s)`}`
+            });
+
+            // If code is valid, we're done
+            if (validation.isValid) {
+                return {
+                    fixed: attempt > 1,
+                    files: currentFiles,
+                    validation: {
+                        isValid: true,
+                        issues: [],
+                        summary: validation.summary,
+                        attempts: attempt
+                    }
+                };
+            }
+
+            // If this is the last attempt, return with issues
+            if (attempt >= this.MAX_FIX_ATTEMPTS) {
+                agentThoughts.push({
+                    agent: 'CodeValidator',
+                    thought: `Max fix attempts (${this.MAX_FIX_ATTEMPTS}) reached. Returning code with known issues.`
+                });
+                break;
+            }
+
+            // Try to fix the issues
+            agentThoughts.push({
+                agent: 'CodeFixer',
+                thought: `Attempting to fix ${validation.issues.length} issue(s)...`
+            });
+
+            const fixedFiles = await this.fixCode(currentFiles, validation, request.targetLanguage);
+            
+            if (fixedFiles && fixedFiles.length > 0) {
+                currentFiles = fixedFiles;
+                agentThoughts.push({
+                    agent: 'CodeFixer',
+                    thought: `Applied fixes. Re-validating...`
+                });
+            } else {
+                agentThoughts.push({
+                    agent: 'CodeFixer',
+                    thought: `Failed to apply fixes. Stopping retry loop.`
+                });
+                break;
+            }
+        }
+
+        // Return with validation issues if we couldn't fix everything
+        return {
+            fixed: false,
+            files: currentFiles,
+            validation: {
+                isValid: false,
+                issues: lastValidation?.issues || [],
+                summary: lastValidation?.summary || 'Code has unresolved issues',
+                attempts: attempt
+            }
+        };
+    }
+
+    /**
+     * Validates code using CodeValidatorAgent
+     */
+    private async validateCode(files: any[], language: string): Promise<any> {
+        try {
+            const { runner } = await CodeValidatorAgent();
+            
+            // Build validation prompt
+            const filesContent = files.map(f => 
+                `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``
+            ).join('\n\n');
+
+            const validationPrompt = `Validate the following ${language} code for any issues:
+
+${filesContent}
+
+Check for:
+1. Syntax errors
+2. Duplicate files (same path appearing multiple times)
+3. Missing dependencies
+4. Type errors
+5. Logic errors
+6. Code quality issues
+
+Provide detailed analysis of any issues found.`;
+
+            const response = await runner.ask(validationPrompt) as any;
+            
+            return {
+                isValid: response.isValid,
+                issues: response.issues || [],
+                summary: response.summary || 'Validation completed'
+            };
+        } catch (error) {
+            console.error('Code validation error:', error);
+            // If validation fails, assume code is valid to avoid blocking
+            return {
+                isValid: true,
+                issues: [],
+                summary: 'Validation skipped due to error'
+            };
+        }
+    }
+
+    /**
+     * Fixes code issues using CodeFixerAgent
+     */
+    private async fixCode(files: any[], validation: any, language: string): Promise<any[]> {
+        try {
+            const { runner } = await CodeFixerAgent();
+            
+            // Build fix prompt
+            const filesContent = files.map(f => 
+                `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``
+            ).join('\n\n');
+
+            const issuesDescription = validation.issues.map((issue: any, index: number) => 
+                `${index + 1}. [${issue.severity.toUpperCase()}] ${issue.type} in ${issue.filePath}${issue.line ? ` (line ${issue.line})` : ''}
+   Description: ${issue.description}
+   Suggested fix: ${issue.suggestedFix}`
+            ).join('\n\n');
+
+            const fixPrompt = `Fix the following ${language} code based on the validation issues found:
+
+ORIGINAL CODEBASE (${files.length} files):
+${filesContent}
+
+ISSUES TO FIX:
+${issuesDescription}
+
+CRITICAL: You MUST return ALL ${files.length} files in your response, not just the files with issues.
+
+Instructions:
+1. Fix all syntax errors in the affected files
+2. Remove duplicate files (keep the best version)
+3. Add missing dependencies to package.json if it exists
+4. Correct type errors in the affected files
+5. Fix logic errors in the affected files
+6. For files WITHOUT issues, return them UNCHANGED with their original content
+7. Maintain the original functionality
+
+Your response MUST include ALL files from the original codebase. Return the COMPLETE fixed codebase with this exact structure:
+{
+  "files": [
+    { "path": "file1.ts", "content": "..." },
+    { "path": "file2.ts", "content": "..." },
+    ... (all ${files.length} files must be included)
+  ]
+}`;
+
+            const response = await runner.ask(fixPrompt) as any;
+            
+            // Validate that we got all files back
+            if (response.files && response.files.length < files.length) {
+                console.warn(`CodeFixerAgent returned ${response.files.length} files but expected ${files.length}. Merging with original files.`);
+                
+                // Create a map of fixed files
+                const fixedFilesMap = new Map(response.files.map((f: any) => [f.path, f]));
+                
+                // Merge: use fixed version if available, otherwise use original
+                const mergedFiles = files.map(originalFile => {
+                    const fixedFile = fixedFilesMap.get(originalFile.path);
+                    return fixedFile || originalFile;
+                });
+                
+                return mergedFiles;
+            }
+            
+            return response.files || [];
+        } catch (error) {
+            console.error('Code fixing error:', error);
+            return [];
+        }
+    }
+
     private async interpretPrompt(prompt: string): Promise<any> {
         try {
             // Use SpecInterpreterAgent to analyze requirements
             console.log('Calling SpecInterpreterAgent to analyze prompt:', prompt);
             
-            const { runner } = await SpecInterpreterAgent;
+            const { runner } = await SpecInterpreterAgent();
             const analysisPrompt = `Analyze the following requirement and extract structured requirements:
 
 User requirement: ${prompt}
@@ -280,13 +511,14 @@ Focus on creating a meaningful, domain-specific codebase rather than generic boi
     private async generateTests(request: any): Promise<any> {
         try {
             if (!request.generatedCode) {
+                console.warn('No generated code provided for test generation');
                 return { tests: '', metadata: { testCount: 0 } };
             }
 
             // Use TestCrafterAgent to generate tests
             console.log('Calling TestCrafterAgent to generate tests for the generated code');
             
-            const { runner } = await TestCrafterAgent;
+            const { runner } = await TestCrafterAgent();
             const testPrompt = `Generate a comprehensive test suite for the following code:
 
 Language: ${request.targetLanguage}

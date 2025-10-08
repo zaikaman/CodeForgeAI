@@ -15,8 +15,10 @@ Focus on:
 
 Ensure tests are reliable, fast, and provide meaningful feedback to developers.`;
 
-export const TestCrafterAgent = AgentBuilder.create('TestCrafterAgent')
-  .withModel('gpt-5-nano')
-  .withInstruction(systemPrompt)
-  .withTools(testGenTool)
-  .build();
+export const TestCrafterAgent = async () => {
+  return AgentBuilder.create('TestCrafterAgent')
+    .withModel('gpt-5-nano')
+    .withInstruction(systemPrompt)
+    .withTools(testGenTool)
+    .build();
+};
