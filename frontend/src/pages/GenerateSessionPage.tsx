@@ -17,6 +17,8 @@ export const GenerateSessionPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('source');
   const [chatInput, setChatInput] = useState('');
   const [isFileTreeCollapsed, setIsFileTreeCollapsed] = useState(false);
+  const [hasGeneratedInitialPreview, setHasGeneratedInitialPreview] = useState(false);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   
   const store = useGenerationStore();
   const { 
@@ -49,12 +51,26 @@ export const GenerateSessionPage: React.FC = () => {
     }
   }, [generation]);
 
+  // Auto-generate preview when generation completes (first time only, not on updates)
+  useEffect(() => {
+    const shouldGeneratePreview = generation?.response?.files && 
+                                  generation.response.files.length > 0 &&
+                                  !isGeneratingPreview &&
+                                  !hasGeneratedInitialPreview;
+
+    if (shouldGeneratePreview) {
+      // Generate preview automatically on initial load
+      handlePreview();
+    }
+  }, [generation?.response?.files, hasGeneratedInitialPreview]);
+
   const handleSelectFile = (file: { path: string; content: string }) => {
     setSelectedFile(file);
   };
 
   const handlePreview = async () => {
-    if (generation && generation.response?.files) {
+    if (generation && generation.response?.files && !isGeneratingPreview) {
+      setIsGeneratingPreview(true);
       try {
         const response = await fetch('/api/preview', {
           method: 'POST',
@@ -75,12 +91,17 @@ export const GenerateSessionPage: React.FC = () => {
 
         if (data.data && data.data.previewUrl) {
           setPreviewUrl(data.data.previewUrl);
-          setActiveTab('preview');
+          if (!hasGeneratedInitialPreview) {
+            setHasGeneratedInitialPreview(true);
+            setActiveTab('preview');
+          }
         } else {
           console.error('previewUrl not found in response:', data);
         }
       } catch (error) {
         console.error('Failed to generate preview:', error);
+      } finally {
+        setIsGeneratingPreview(false);
       }
     }
   };
@@ -104,6 +125,17 @@ export const GenerateSessionPage: React.FC = () => {
     };
     addMessageToGeneration(id, userAgentMessage);
 
+    // Add temporary "thinking" message
+    const thinkingMessageId = `msg_${Date.now()}_thinking`;
+    const thinkingMessage: AgentMessage = {
+      id: thinkingMessageId,
+      agent: 'System',
+      role: 'thought',
+      content: 'Analyzing request and generating code...',
+      timestamp: new Date(),
+    };
+    addMessageToGeneration(id, thinkingMessage);
+
     // Set generating state
     setIsGenerating(true);
 
@@ -122,7 +154,40 @@ export const GenerateSessionPage: React.FC = () => {
 
       const data = apiRes.data;
 
-      // Add agent response message
+      // Generate preview with new files FIRST
+      setIsGeneratingPreview(true);
+      try {
+        const previewResponse = await fetch('/api/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            generationId: id,
+            files: data.files 
+          }),
+        });
+
+        if (previewResponse.ok) {
+          const previewData = await previewResponse.json();
+          if (previewData.data && previewData.data.previewUrl) {
+            setPreviewUrl(previewData.data.previewUrl);
+            if (!hasGeneratedInitialPreview) {
+              setHasGeneratedInitialPreview(true);
+            }
+          }
+        }
+      } catch (previewError) {
+        console.error('Failed to generate preview:', previewError);
+      } finally {
+        setIsGeneratingPreview(false);
+      }
+
+      // Remove thinking message and add agent response AFTER preview is loaded
+      const updatedMessages = generation.agentMessages?.filter(
+        (msg) => msg.id !== thinkingMessageId
+      ) || [];
+      
       const agentResponseMessage: AgentMessage = {
         id: `msg_${Date.now()}_agent`,
         agent: data.agentThought.agent,
@@ -130,9 +195,14 @@ export const GenerateSessionPage: React.FC = () => {
         content: data.agentThought.thought,
         timestamp: new Date(),
       };
+      
+      // Replace messages with updated list
+      if (generation.agentMessages) {
+        generation.agentMessages = [...updatedMessages, agentResponseMessage];
+      }
       addMessageToGeneration(id, agentResponseMessage);
 
-      // Update files in the generation
+      // Update files in the generation AFTER preview is ready
       updateGenerationFiles(id, data.files);
 
       // If the currently selected file was updated, refresh it
@@ -275,10 +345,10 @@ export const GenerateSessionPage: React.FC = () => {
             <div className="preview-view">
               <button 
                 onClick={handlePreview} 
-                disabled={!generation || isGenerating}
+                disabled={!generation || isGenerating || isGeneratingPreview}
                 className="btn btn-primary"
               >
-                GENERATE PREVIEW
+                {isGeneratingPreview ? 'GENERATING...' : 'REGENERATE PREVIEW'}
               </button>
               {previewUrl ? (
                 <iframe src={previewUrl} title="Preview" />
@@ -289,10 +359,10 @@ export const GenerateSessionPage: React.FC = () => {
                       <pre className="ascii-logo phosphor-glow">
 {`    ╔═══════════════════════════════════╗
     ║                                   ║
-    ║      PREVIEW NOT GENERATED        ║
+    ║      GENERATING PREVIEW...        ║
     ║                                   ║
-    ║   ►  Click "GENERATE PREVIEW"     ║
-    ║      to see live preview          ║
+    ║   ►  Preview will load            ║
+    ║      automatically                ║
     ║                                   ║
     ╚═══════════════════════════════════╝`}
                       </pre>

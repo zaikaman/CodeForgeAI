@@ -146,7 +146,16 @@ export const AgentChat: React.FC<AgentChatProps> = ({
               {/* Message Content */}
               <div className="message-content">
                 <span className="message-prefix">&gt;&gt;</span>
-                <span className="message-text">{message.content}</span>
+                <span className="message-text">
+                  {message.content}
+                  {message.role === 'thought' && (
+                    <span className="typing-dots">
+                      <span>.</span>
+                      <span>.</span>
+                      <span>.</span>
+                    </span>
+                  )}
+                </span>
               </div>
 
               {/* Tool Calls */}
