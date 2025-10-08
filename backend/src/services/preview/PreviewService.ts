@@ -55,7 +55,8 @@ export class PreviewService implements IPreviewService {
         const child = spawn(command, args, {
             cwd: workDir,
             env: { ...process.env, FLY_API_TOKEN: this.flyApiToken },
-            shell: true
+            shell: false,
+            windowsHide: true
         });
 
         let stdout = '';
@@ -80,12 +81,37 @@ export class PreviewService implements IPreviewService {
   }
 
   private async deployWithFlyctl(workDir: string, appName: string): Promise<void> {
-    const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir);
-
-    if (createResult.code !== 0 && !createResult.stderr.includes('already exists')) {
-        throw new Error(`flyctl apps create failed with code ${createResult.code}: ${createResult.stderr}`);
+    // Check if app already exists
+    const listResult = await this.runCommand('flyctl', ['apps', 'list', '--json'], workDir);
+    
+    let appExists = false;
+    if (listResult.code === 0 && listResult.stdout) {
+      try {
+        const apps = JSON.parse(listResult.stdout);
+        appExists = apps.some((app: any) => app.Name === appName);
+      } catch (e) {
+        console.warn('Failed to parse flyctl apps list output, will attempt to create app');
+      }
     }
 
+    // Only create app if it doesn't exist
+    if (!appExists) {
+      console.log(`Creating new Fly.io app: ${appName}`);
+      const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir);
+
+      if (createResult.code !== 0) {
+        // Check if error is because app already exists (race condition or parsing failure)
+        const errorMsg = createResult.stderr.toLowerCase();
+        if (!errorMsg.includes('already') && !errorMsg.includes('taken')) {
+          throw new Error(`flyctl apps create failed with code ${createResult.code}: ${createResult.stderr}`);
+        }
+        console.log(`App ${appName} already exists, proceeding with deployment`);
+      }
+    } else {
+      console.log(`App ${appName} already exists, updating deployment`);
+    }
+
+    // Deploy (this will update existing app or deploy new one)
     const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir);
 
     if (deployResult.code !== 0) {

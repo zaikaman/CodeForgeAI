@@ -93,7 +93,7 @@
 }
 
 .source-code-view .code-editor {
-  width: 70%;
+  width: 100%;
   flex-grow: 1;
 }
 

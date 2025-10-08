@@ -120,6 +120,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       {/* Monaco Editor Container */}
       <div className="editor-container crt-screen">
         <Editor
+          width="100%"
           height={height}
           language={language}
           value={value}

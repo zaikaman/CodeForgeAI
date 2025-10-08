@@ -16,6 +16,7 @@ export const GenerateSessionPage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('source');
   const [chatInput, setChatInput] = useState('');
+  const [isFileTreeCollapsed, setIsFileTreeCollapsed] = useState(false);
   
   const store = useGenerationStore();
   const { 
@@ -227,18 +228,46 @@ export const GenerateSessionPage: React.FC = () => {
 
           {activeTab === 'source' && (
             <div className="source-code-view">
-              <FileTree 
-                files={generation?.response?.files || []} 
-                onSelectFile={handleSelectFile} 
-              />
-              <CodeEditor
-                value={selectedFile?.content || '// Select a file to view its content'}
-                onChange={() => {}}
-                language={selectedFile?.path.split('.').pop() || 'typescript'}
-                readOnly={true}
-                title={selectedFile?.path || 'CODEFORGE EDITOR V1.0.0'}
-                height="100%"
-              />
+              {/* Collapsible File Tree Sidebar */}
+              <div className={`file-tree-sidebar ${isFileTreeCollapsed ? 'collapsed' : ''}`}>
+                <div className="file-tree-header">
+                  <span className="file-tree-title">FILES</span>
+                  <button 
+                    className="collapse-btn"
+                    onClick={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
+                    title={isFileTreeCollapsed ? 'Expand' : 'Collapse'}
+                  >
+                    {isFileTreeCollapsed ? '▶' : '◀'}
+                  </button>
+                </div>
+                <div className="file-tree-content">
+                  <FileTree 
+                    files={generation?.response?.files || []} 
+                    onSelectFile={handleSelectFile}
+                    selectedFile={selectedFile}
+                  />
+                </div>
+              </div>
+              
+              {/* Code Editor with File Tab */}
+              <div className="code-editor-wrapper">
+                {selectedFile && (
+                  <div className="active-file-tab">
+                    <span className="file-icon">📄</span>
+                    <span className="file-name">{selectedFile.path}</span>
+                  </div>
+                )}
+                <div className="code-editor-container">
+                  <CodeEditor
+                    value={selectedFile?.content || '// Select a file from the sidebar to view its content'}
+                    onChange={() => {}}
+                    language={selectedFile?.path.split('.').pop() || 'typescript'}
+                    readOnly={true}
+                    title={selectedFile?.path || 'CODEFORGE EDITOR V1.0.0'}
+                    height="100%"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
