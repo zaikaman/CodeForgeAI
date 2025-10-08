@@ -1,40 +1,25 @@
-import Docker from 'dockerode';
+import { spawn } from 'child_process';
 import tmp from 'tmp';
 import fs from 'fs';
 import path from 'path';
-
-const FLY_API_URL = 'https://api.fly.io/graphql';
 
 export interface IPreviewService {
   generatePreview(generationId: string, files: Array<{ path: string; content: string }>): Promise<{ previewUrl: string }>;
 }
 
 export class PreviewService implements IPreviewService {
-  private docker: Docker;
   private flyApiToken: string;
-  private dockerHubUsername: string;
-  private dockerHubToken: string;
 
   constructor() {
-    this.docker = new Docker();
     if (!process.env.FLY_API_TOKEN) {
       throw new Error('FLY_API_TOKEN environment variable is not set.');
     }
-    if (!process.env.DOCKER_HUB_USERNAME) {
-      throw new Error('DOCKER_HUB_USERNAME environment variable is not set.');
-    }
-    if (!process.env.DOCKER_HUB_TOKEN) {
-      throw new Error('DOCKER_HUB_TOKEN environment variable is not set.');
-    }
     this.flyApiToken = process.env.FLY_API_TOKEN;
-    this.dockerHubUsername = process.env.DOCKER_HUB_USERNAME;
-    this.dockerHubToken = process.env.DOCKER_HUB_TOKEN;
   }
 
   async generatePreview(generationId: string, files: Array<{ path: string; content: string }>): Promise<{ previewUrl: string }> {
     const tmpDir = tmp.dirSync({ unsafeCleanup: true });
-    const imageName = `preview-${generationId}`.toLowerCase();
-    const repositoryName = `${this.dockerHubUsername}/${imageName}`;
+    const appName = `preview-${generationId.replace(/_/g, "-")}`.toLowerCase();
 
     try {
       // 1. Write files to temp directory
@@ -51,93 +36,61 @@ export class PreviewService implements IPreviewService {
       const dockerfileContent = this.createDockerfile();
       fs.writeFileSync(path.join(tmpDir.name, 'Dockerfile'), dockerfileContent);
 
-      // 3. Build and push the image
-      const publicImageUrl = await this.buildAndPushImage(tmpDir.name, repositoryName);
+      // 3. Create a fly.toml file
+      const flyTomlContent = this.createFlyToml(appName);
+      fs.writeFileSync(path.join(tmpDir.name, 'fly.toml'), flyTomlContent);
 
-      // 4. Deploy to Fly.io
-      const previewUrl = await this.deployToFly(generationId, publicImageUrl);
-      return { previewUrl };
+      // 4. Deploy using flyctl
+      await this.deployWithFlyctl(tmpDir.name, appName);
+
+      return { previewUrl: `https://${appName}.fly.dev` };
 
     } finally {
       tmpDir.removeCallback();
     }
   }
 
-  private async buildAndPushImage(buildContext: string, repositoryName: string): Promise<string> {
-    // 1. Build the image
-    const stream = await this.docker.buildImage({ context: buildContext, src: fs.readdirSync(buildContext) }, { t: repositoryName });
-    await new Promise((resolve, reject) => {
-      this.docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
-    });
+  private runCommand(command: string, args: string[], workDir: string): Promise<{ code: number | null, stdout: string, stderr: string }> {
+    return new Promise((resolve) => {
+        const child = spawn(command, args, {
+            cwd: workDir,
+            env: { ...process.env, FLY_API_TOKEN: this.flyApiToken },
+            shell: true
+        });
 
-    // 2. Push the image
-    const image = this.docker.getImage(repositoryName);
-    const pushStream = await image.push({ authconfig: { username: this.dockerHubUsername, password: this.dockerHubToken } });
-    await new Promise((resolve, reject) => {
-      this.docker.modem.followProgress(pushStream, (err, res) => err ? reject(err) : resolve(res));
-    });
+        let stdout = '';
+        let stderr = '';
 
-    return `${repositoryName}:latest`;
+        child.stdout.on('data', (data) => {
+            const output = data.toString();
+            console.log(`${command} stdout: ${output}`);
+            stdout += output;
+        });
+
+        child.stderr.on('data', (data) => {
+            const output = data.toString();
+            console.error(`${command} stderr: ${output}`);
+            stderr += output;
+        });
+
+        child.on('close', (code) => {
+            resolve({ code, stdout, stderr });
+        });
+    });
   }
 
-  private async deployToFly(generationId: string, imageUrl: string): Promise<string> {
-    const appName = `preview-${generationId}`.toLowerCase();
+  private async deployWithFlyctl(workDir: string, appName: string): Promise<void> {
+    const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir);
 
-    // 1. Check if app exists, create if not
-    let app = await this.findFlyApp(appName);
-    if (!app) {
-      app = await this.createFlyApp(appName);
+    if (createResult.code !== 0 && !createResult.stderr.includes('already exists')) {
+        throw new Error(`flyctl apps create failed with code ${createResult.code}: ${createResult.stderr}`);
     }
 
-    // 2. Deploy the image
-    await this.deployFlyImage(appName, imageUrl);
+    const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir);
 
-    // 3. Return the app's URL
-    return `https://${appName}.fly.dev`;
-  }
-
-  private async findFlyApp(appName: string): Promise<any> {
-    const query = `query($name: String!) { app(name: $name) { id name } }`;
-    const response = await this.flyApiRequest(query, { name: appName });
-    return response.data.app;
-  }
-
-  private async createFlyApp(appName: string): Promise<any> {
-    const mutation = `mutation($input: CreateAppInput!) { createApp(input: $input) { app { id name } } }`;
-    const orgId = await this.getPrimaryOrganizationId(); 
-    const variables = { input: { name: appName, organizationId: orgId } };
-    const response = await this.flyApiRequest(mutation, variables);
-    return response.data.createApp.app;
-  }
-
-  private async getPrimaryOrganizationId(): Promise<string> {
-    const query = `query { organizations { nodes { id name } } }`;
-    const response = await this.flyApiRequest(query);
-    return response.data.organizations.nodes[0].id;
-  }
-
-  private async deployFlyImage(appName: string, imageUrl: string): Promise<void> {
-    const mutation = `mutation($input: DeployImageInput!) { deployImage(input: $input) { release { id version } } }`;
-    const variables = { input: { appId: appName, image: imageUrl, strategy: 'CANARY' } };
-    await this.flyApiRequest(mutation, variables);
-  }
-
-  private async flyApiRequest(query: string, variables: object = {}): Promise<any> {
-    const response = await fetch(FLY_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.flyApiToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`Fly.io API request failed: ${response.status} ${errorBody}`);
+    if (deployResult.code !== 0) {
+        throw new Error(`flyctl deploy failed with code ${deployResult.code}: ${deployResult.stderr}`);
     }
-
-    return response.json();
   }
 
   private createDockerfile(): string {
@@ -154,6 +107,23 @@ export class PreviewService implements IPreviewService {
       COPY --from=build /app/dist /usr/share/nginx/html
       EXPOSE 80
       CMD ["nginx", "-g", "daemon off;"]
+    `;
+  }
+
+  private createFlyToml(appName: string): string {
+    return `
+      app = "${appName}"
+      primary_region = "sjc"
+
+      [build]
+        dockerfile = "Dockerfile"
+
+      [http_service]
+        internal_port = 80
+        force_https = true
+        auto_stop_machines = true
+        auto_start_machines = true
+        min_machines_running = 0
     `;
   }
 }
