@@ -412,3 +412,27 @@ export function updateFunctionComment(
 
   return sourceFile.getFullText()
 }
+
+// Export the tool for ADK integration
+import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { z } from 'zod'
+
+export const commentInserterTool = createTool({
+  name: 'commentInserterTool',
+  description: 'Add TSDoc comments to TypeScript/JavaScript code',
+  schema: z.object({
+    code: z.string(),
+    functionName: z.string().optional(),
+    description: z.string().optional(),
+    filePath: z.string().optional()
+  }),
+  fn: async (args, context) => {
+    const { code, functionName, description, filePath } = args
+    if (functionName && description) {
+      return addFunctionComment(code, functionName, description, filePath || 'temp.ts')
+    } else if (code) {
+      return addFileHeader(code, args)
+    }
+    return code
+  }
+})

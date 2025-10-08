@@ -1,18 +1,18 @@
-import React, { useState } from 'react'
-import { Layout } from '../components/Layout'
-import { GenerationForm, GenerationOptions } from '../components/GenerationForm'
-import { CodeEditor } from '../components/CodeEditor'
-import { AgentChat } from '../components/AgentChat'
-import { SystemStatus } from '../components/StatusIndicator'
-import { useGeneration } from '../hooks/useGeneration'
-import { useWebSocket } from '../hooks/useWebSocket'
-import '../styles/theme.css'
-import './GeneratePage.css'
+import React, { useState, useEffect } from 'react';
+import { Layout } from '../components/Layout';
+import { GenerationForm, GenerationOptions } from '../components/GenerationForm';
+import { CodeEditor } from '../components/CodeEditor';
+import { FileTree } from '../components/FileTree';
+// import { AgentChat } from '../components/AgentChat';
+import { useGeneration } from '../hooks/useGeneration';
+import '../styles/theme.css';
+import './GeneratePage.css';
 
 export const GeneratePage: React.FC = () => {
-  const [generatedCode, setGeneratedCode] = useState('')
-  const { isGenerating, agentMessages, currentGeneration, generate } = useGeneration()
-  const { isConnected } = useWebSocket()
+  const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('source');
+  const { isGenerating, currentGeneration, generate, /*agentMessages*/ } = useGeneration();
 
   const handleGenerate = async (options: GenerationOptions) => {
     try {
@@ -24,159 +24,87 @@ export const GeneratePage: React.FC = () => {
         targetLanguage: options.targetLanguage,
         complexity: options.complexity,
         agents: options.agents,
-      })
-
-      // Update generated code when complete
-      if (currentGeneration?.response?.code) {
-        setGeneratedCode(currentGeneration.response.code)
-      }
+      });
     } catch (error) {
-      console.error('Generation failed:', error)
+      console.error('Generation failed:', error);
     }
-  }
+  };
+
+  const handleSelectFile = (file: { path: string; content: string }) => {
+    setSelectedFile(file);
+  };
+
+  const handlePreview = async () => {
+    if (currentGeneration) {
+      try {
+        const response = await fetch('/api/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ generationId: currentGeneration.id }),
+        });
+
+        console.log('Preview response:', response);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Preview data:', data);
+
+        if (data.data && data.data.previewUrl) {
+          setPreviewUrl(data.data.previewUrl);
+          setActiveTab('preview');
+        } else {
+          console.error('previewUrl not found in response:', data);
+        }
+      } catch (error) {
+        console.error('Failed to generate preview:', error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (currentGeneration?.response?.files && currentGeneration.response.files.length > 0) {
+      setSelectedFile(currentGeneration.response.files[0]);
+    }
+  }, [currentGeneration]);
 
   return (
-    <Layout>
+    <Layout className="generate-page-layout">
       <div className="generate-page">
-      {/* Page Header */}
-      <div className="page-header terminal-window">
-        <div className="terminal-header">
-          <div className="terminal-button close"></div>
-          <div className="terminal-button minimize"></div>
-          <div className="terminal-button maximize"></div>
-          <div className="terminal-title">CODE GENERATION INTERFACE</div>
+        <div className="left-panel">
+          {/* <AgentChat messages={agentMessages} isStreaming={isGenerating} agentStatus={isGenerating ? 'PROCESSING' : 'STANDBY'} /> */}
+          <GenerationForm onSubmit={handleGenerate} isGenerating={isGenerating} />
         </div>
-        <div className="terminal-content">
-          <div className="header-content">
-            <div className="header-text">
-              <h1 className="page-title phosphor-glow">
-                ◆ CODE GENERATION TERMINAL
-              </h1>
-              <p className="page-description">
-                &gt; Deploy multi-agent AI system to generate production-ready code
-              </p>
-            </div>
-            <SystemStatus
-              agentStatus={isGenerating ? 'PROCESSING' : 'STANDBY'}
-              connectionStatus={isConnected ? 'online' : 'offline'}
-              queueSize={0}
-              className="header-status"
-            />
+        <div className="right-panel">
+          <div className="tabs">
+            <button className={activeTab === 'source' ? 'active' : ''} onClick={() => setActiveTab('source')}>Source Code</button>
+            <button className={activeTab === 'preview' ? 'active' : ''} onClick={() => setActiveTab('preview')}>Preview</button>
           </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="generate-grid">
-        {/* Left Panel - Generation Form */}
-        <div className="generate-panel form-panel">
-          <GenerationForm
-            onSubmit={handleGenerate}
-            isGenerating={isGenerating}
-          />
-        </div>
-
-        {/* Center Panel - Code Editor */}
-        <div className="generate-panel editor-panel">
-          <CodeEditor
-            value={generatedCode || currentGeneration?.response?.code || '// Generated code will appear here...\n// Waiting for generation request...'}
-            onChange={setGeneratedCode}
-            language={currentGeneration?.request?.targetLanguage || 'typescript'}
-            readOnly={isGenerating}
-            title="GENERATED CODE OUTPUT"
-          />
-
-          {/* Code Metadata */}
-          {currentGeneration?.response && (
-            <div className="code-metadata terminal-window mt-md">
-              <div className="terminal-content">
-                <div className="metadata-grid">
-                  <div className="metadata-item">
-                    <span className="text-muted">&gt; CONFIDENCE:</span>
-                    <span className="text-success phosphor-glow">
-                      {' '}{(currentGeneration.response.confidence * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="metadata-item">
-                    <span className="text-muted">&gt; SYNTAX:</span>
-                    <span className={currentGeneration.response.validation.syntaxValid ? 'text-success' : 'text-error'}>
-                      {' '}{currentGeneration.response.validation.syntaxValid ? '[VALID]' : '[INVALID]'}
-                    </span>
-                  </div>
-                  <div className="metadata-item">
-                    <span className="text-muted">&gt; LANGUAGE:</span>
-                    <span className="text-primary">
-                      {' '}{currentGeneration.response.language.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="metadata-item">
-                    <span className="text-muted">&gt; LINES:</span>
-                    <span className="text-primary">
-                      {' '}{generatedCode.split('\n').length}
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {activeTab === 'source' && (
+            <div className="source-code-view">
+              <FileTree files={currentGeneration?.response?.files || []} onSelectFile={handleSelectFile} />
+              <CodeEditor
+                value={selectedFile?.content || '// Select a file to view its content'}
+                onChange={() => {}}
+                language={selectedFile?.path.split('.').pop() || 'typescript'}
+                readOnly={true}
+                title={selectedFile?.path || 'CODEFORGE EDITOR V1.0.0'}
+                height="100%"
+              />
+            </div>
+          )}
+          {activeTab === 'preview' && (
+            <div className="preview-view">
+              <button onClick={handlePreview} disabled={!currentGeneration || isGenerating}>Generate Preview</button>
+              {previewUrl ? <iframe src={previewUrl} title="Preview" /> : <div className="no-preview">Click "Generate Preview" to see the live preview.</div>}
             </div>
           )}
         </div>
-
-        {/* Right Panel - Agent Chat */}
-        <div className="generate-panel chat-panel">
-          <AgentChat
-            messages={agentMessages}
-            isStreaming={isGenerating}
-            agentStatus={isGenerating ? 'PROCESSING' : 'STANDBY'}
-          />
-        </div>
-      </div>
-
-      {/* Quick Actions Bar */}
-      <div className="quick-actions terminal-window">
-        <div className="terminal-content">
-          <div className="actions-grid">
-            <button
-              className="btn btn-primary"
-              disabled={!generatedCode || isGenerating}
-              onClick={() => {
-                navigator.clipboard.writeText(generatedCode)
-              }}
-            >
-              ► COPY CODE
-            </button>
-            <button
-              className="btn"
-              disabled={!generatedCode || isGenerating}
-              onClick={() => {
-                const blob = new Blob([generatedCode], { type: 'text/plain' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `generated-code.${currentGeneration?.request?.targetLanguage || 'txt'}`
-                a.click()
-              }}
-            >
-              DOWNLOAD
-            </button>
-            <button
-              className="btn"
-              disabled={isGenerating}
-              onClick={() => {
-                setGeneratedCode('')
-              }}
-            >
-              CLEAR
-            </button>
-            <button
-              className="btn btn-danger"
-              disabled={!isGenerating}
-            >
-              CANCEL
-            </button>
-          </div>
-        </div>
-      </div>
       </div>
     </Layout>
-  )
-}
+  );
+};

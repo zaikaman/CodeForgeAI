@@ -13,6 +13,12 @@
   margin: 0 auto;
 }
 
+.generate-page-layout .layout-main {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .layout-main {

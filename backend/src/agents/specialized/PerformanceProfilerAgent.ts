@@ -1,9 +1,20 @@
-import { AgentBuilder } from '@iqai/adk';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
 
-const systemPrompt = `You are a Performance Profiler Agent. You analyze code for performance bottlenecks and suggest optimizations.`;
+const systemPrompt = `You are a Performance Profiler Agent. You analyze code for performance bottlenecks and suggest optimizations.
 
-export const PerformanceProfilerAgent = new AgentBuilder()
-  .withName('PerformanceProfilerAgent')
+Focus on:
+- Time complexity analysis (Big O notation)
+- Space complexity optimization
+- Database query optimization
+- Memory usage patterns
+- CPU-intensive operations
+- Network request optimization
+- Caching opportunities
+- Algorithmic improvements
+
+Provide specific, measurable optimization recommendations.`;
+
+export const PerformanceProfilerAgent = AgentBuilder.create('PerformanceProfilerAgent')
   .withModel('gpt-5-nano')
-  .withSystemPrompt(systemPrompt)
+  .withInstruction(systemPrompt)
   .build();

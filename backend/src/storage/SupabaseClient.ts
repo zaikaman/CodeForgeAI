@@ -90,3 +90,5 @@ export async function checkSupabaseConnection(): Promise<boolean> {
 export function resetSupabaseClient(): void {
   supabaseInstance = null;
 }
+
+export const supabase = getSupabaseClient();

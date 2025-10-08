@@ -30,10 +30,8 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
   const [includeDocumentation, setIncludeDocumentation] = useState(true)
   const [targetLanguage, setTargetLanguage] = useState('typescript')
   const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('moderate')
-  const [selectedAgents, setSelectedAgents] = useState<string[]>([
-    'CodeGenerator',
-    'TestCrafter',
-  ])
+  const [selectedAgents, setSelectedAgents] = useState<string[]>(['CodeGenerator', 'TestCrafter'])
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const availableAgents = [
     { id: 'CodeGenerator', name: 'CODE GENERATOR', icon: '▣' },
@@ -79,9 +77,7 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
         <form onSubmit={handleSubmit} className="form-container">
           {/* Prompt Input */}
           <div className="form-section">
-            <label className="form-label phosphor-glow">
-              &gt; GENERATION PROMPT (REQUIRED):
-            </label>
+            <label className="form-label phosphor-glow">&gt; GENERATION PROMPT (REQUIRED):</label>
             <div className="input-wrapper">
               <span className="input-prefix">&gt;&gt;</span>
               <textarea
@@ -115,102 +111,113 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
             </div>
           </div>
 
-          {/* Language Selection */}
+          {/* Advanced Options Toggle */}
           <div className="form-section mt-lg">
-            <label className="form-label phosphor-glow">&gt; TARGET LANGUAGE:</label>
-            <div className="language-grid">
-              {languages.map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  className={`language-btn ${targetLanguage === lang ? 'active' : ''}`}
-                  onClick={() => setTargetLanguage(lang)}
-                  disabled={isGenerating}
-                >
-                  <span className="lang-icon">◆</span>
-                  {lang.toUpperCase()}
-                </button>
-              ))}
-            </div>
+            <button type="button" className="btn-toggle-advanced" onClick={() => setShowAdvanced(!showAdvanced)}>
+              {showAdvanced ? '▼ HIDE ADVANCED OPTIONS' : '► SHOW ADVANCED OPTIONS'}
+            </button>
           </div>
 
-          {/* Complexity Selection */}
-          <div className="form-section mt-lg">
-            <label className="form-label phosphor-glow">&gt; COMPLEXITY LEVEL:</label>
-            <div className="complexity-selector">
-              {(['simple', 'moderate', 'complex'] as const).map((level) => (
-                <label key={level} className="complexity-option">
-                  <input
-                    type="radio"
-                    name="complexity"
-                    value={level}
-                    checked={complexity === level}
-                    onChange={() => setComplexity(level)}
-                    disabled={isGenerating}
-                  />
-                  <span className="complexity-label">
-                    <span className="complexity-icon">
-                      {level === 'simple' ? '▲' : level === 'moderate' ? '▣' : '◆'}
+          {showAdvanced && (
+            <div className="advanced-options">
+              {/* Language Selection */}
+              <div className="form-section mt-lg">
+                <label className="form-label phosphor-glow">&gt; TARGET LANGUAGE:</label>
+                <div className="language-grid">
+                  {languages.map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      className={`language-btn ${targetLanguage === lang ? 'active' : ''}`}
+                      onClick={() => setTargetLanguage(lang)}
+                      disabled={isGenerating}
+                    >
+                      <span className="lang-icon">◆</span>
+                      {lang.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Complexity Selection */}
+              <div className="form-section mt-lg">
+                <label className="form-label phosphor-glow">&gt; COMPLEXITY LEVEL:</label>
+                <div className="complexity-selector">
+                  {(['simple', 'moderate', 'complex'] as const).map((level) => (
+                    <label key={level} className="complexity-option">
+                      <input
+                        type="radio"
+                        name="complexity"
+                        value={level}
+                        checked={complexity === level}
+                        onChange={() => setComplexity(level)}
+                        disabled={isGenerating}
+                      />
+                      <span className="complexity-label">
+                        <span className="complexity-icon">
+                          {level === 'simple' ? '▲' : level === 'moderate' ? '▣' : '◆'}
+                        </span>
+                        {level.toUpperCase()}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="form-section mt-lg">
+                <label className="form-label phosphor-glow">&gt; GENERATION OPTIONS:</label>
+                <div className="options-grid">
+                  <label className="option-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={includeTests}
+                      onChange={(e) => setIncludeTests(e.target.checked)}
+                      disabled={isGenerating}
+                    />
+                    <span className="checkbox-label">
+                      <span className="checkbox-icon">◎</span>
+                      INCLUDE TESTS
                     </span>
-                    {level.toUpperCase()}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
+                  </label>
+                  <label className="option-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={includeDocumentation}
+                      onChange={(e) => setIncludeDocumentation(e.target.checked)}
+                      disabled={isGenerating}
+                    />
+                    <span className="checkbox-label">
+                      <span className="checkbox-icon">◐</span>
+                      INCLUDE DOCUMENTATION
+                    </span>
+                  </label>
+                </div>
+              </div>
 
-          {/* Options */}
-          <div className="form-section mt-lg">
-            <label className="form-label phosphor-glow">&gt; GENERATION OPTIONS:</label>
-            <div className="options-grid">
-              <label className="option-checkbox">
-                <input
-                  type="checkbox"
-                  checked={includeTests}
-                  onChange={(e) => setIncludeTests(e.target.checked)}
-                  disabled={isGenerating}
-                />
-                <span className="checkbox-label">
-                  <span className="checkbox-icon">◎</span>
-                  INCLUDE TESTS
-                </span>
-              </label>
-              <label className="option-checkbox">
-                <input
-                  type="checkbox"
-                  checked={includeDocumentation}
-                  onChange={(e) => setIncludeDocumentation(e.target.checked)}
-                  disabled={isGenerating}
-                />
-                <span className="checkbox-label">
-                  <span className="checkbox-icon">◐</span>
-                  INCLUDE DOCUMENTATION
-                </span>
-              </label>
+              {/* Agent Selection */}
+              <div className="form-section mt-lg">
+                <label className="form-label phosphor-glow">&gt; SELECT AGENTS:</label>
+                <div className="agents-grid">
+                  {availableAgents.map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      className={`agent-btn ${selectedAgents.includes(agent.id) ? 'active' : ''}`}
+                      onClick={() => toggleAgent(agent.id)}
+                      disabled={isGenerating}
+                    >
+                      <span className="agent-icon">{agent.icon}</span>
+                      <span className="agent-name">{agent.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="form-hint text-muted mt-sm">
+                  Selected: {selectedAgents.length} agent(s)
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Agent Selection */}
-          <div className="form-section mt-lg">
-            <label className="form-label phosphor-glow">&gt; SELECT AGENTS:</label>
-            <div className="agents-grid">
-              {availableAgents.map((agent) => (
-                <button
-                  key={agent.id}
-                  type="button"
-                  className={`agent-btn ${selectedAgents.includes(agent.id) ? 'active' : ''}`}
-                  onClick={() => toggleAgent(agent.id)}
-                  disabled={isGenerating}
-                >
-                  <span className="agent-icon">{agent.icon}</span>
-                  <span className="agent-name">{agent.name}</span>
-                </button>
-              ))}
-            </div>
-            <div className="form-hint text-muted mt-sm">
-              Selected: {selectedAgents.length} agent(s)
-            </div>
-          </div>
+          )}
 
           {/* Submit Button */}
           <div className="form-actions mt-xl">

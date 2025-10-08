@@ -199,7 +199,7 @@ export function listAllTools(): Array<{
     name: metadata.name,
     description: metadata.description,
     category: metadata.category,
-    capabilities: metadata.capabilities,
+    capabilities: [...metadata.capabilities], // Convert readonly array to mutable array
   }))
 }
 

@@ -2,6 +2,14 @@
 
 .generation-form {
   background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terminal-content {
+  overflow-y: auto;
+  flex-grow: 1;
 }
 
 .form-container {
@@ -222,6 +230,43 @@
 .form-actions {
   padding-top: var(--spacing-lg);
   border-top: 1px solid var(--border-secondary);
+}
+
+/* Toggle Advanced Button */
+.btn-toggle-advanced {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: var(--spacing-sm) 0;
+  transition: color var(--transition-base);
+}
+
+.btn-toggle-advanced:hover {
+  color: var(--text-primary);
+}
+
+/* Advanced Options Section */
+.advanced-options {
+  border-left: 2px solid var(--border-secondary);
+  margin-top: var(--spacing-lg);
+  padding-left: var(--spacing-lg);
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Disabled State */

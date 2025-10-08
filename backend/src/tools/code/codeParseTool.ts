@@ -1,4 +1,6 @@
-import { Project, SourceFile, Node } from 'ts-morph'
+import { Project, SourceFile, Node, VariableDeclarationKind } from 'ts-morph'
+import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { z } from 'zod'
 
 /**
  * Code Parse Tool
@@ -326,7 +328,7 @@ function extractExports(sourceFile: SourceFile): ParsedExport[] {
         const kind = varStmt.getDeclarationKind()
         exports.push({
           name: decl.getName(),
-          kind: kind === 2 ? 'const' : 'variable', // VariableDeclarationKind.Const = 2
+          kind: kind === VariableDeclarationKind.Const ? 'const' : 'variable',
           isDefault: false,
         })
       })
@@ -396,3 +398,16 @@ export async function parseFile(filePath: string): Promise<ParseResult> {
   const code = sourceFile.getFullText()
   return parseCode(code, filePath)
 }
+
+// Export the tool for ADK integration
+export const codeParseTool = createTool({
+  name: 'codeParseTool',
+  description: 'Parse TypeScript/JavaScript code and extract AST information',
+  schema: z.object({
+    code: z.string(),
+    filePath: z.string().optional()
+  }),
+  fn: async (args, context) => {
+    return parseCode(args.code, args.filePath || 'temp.ts')
+  }
+})

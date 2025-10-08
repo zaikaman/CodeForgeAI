@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { AgentMessage } from '../components/AgentChat'
 import { GenerateRequest, GenerateResponse } from '../services/apiClient'
+import { supabase } from '../lib/supabase';
 
 export interface GenerationHistoryEntry {
   id: string
@@ -101,7 +102,7 @@ export const useGenerationStore = create<GenerationState>()(
       },
 
       // Complete generation
-      completeGeneration: (generationId: string, response: GenerateResponse) => {
+      completeGeneration: async (generationId: string, response: GenerateResponse) => {
         const { currentGeneration, history } = get()
 
         if (currentGeneration && currentGeneration.id === generationId) {
@@ -122,6 +123,19 @@ export const useGenerationStore = create<GenerationState>()(
             progress: 100,
             history: [completedGeneration, ...history],
           })
+
+          // Save to Supabase
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.from('generations').insert([
+              {
+                id: completedGeneration.id,
+                prompt: completedGeneration.prompt,
+                files: completedGeneration.response?.files,
+                user_id: user.id,
+              },
+            ]);
+          }
         }
       },
 

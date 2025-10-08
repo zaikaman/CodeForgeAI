@@ -1,9 +1,20 @@
-import { AgentBuilder } from '@iqai/adk';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
 
-const systemPrompt = `You are a Security Sentinel Agent. Your purpose is to conduct security analysis and identify vulnerabilities in code, dependencies, and infrastructure.`;
+const systemPrompt = `You are a Security Sentinel Agent. Your purpose is to conduct security analysis and identify vulnerabilities in code, dependencies, and infrastructure.
 
-export const SecuritySentinelAgent = new AgentBuilder()
-  .withName('SecuritySentinelAgent')
+Focus on:
+- OWASP Top 10 vulnerabilities
+- Input validation and sanitization
+- Authentication and authorization flaws
+- Cryptographic implementation issues
+- Dependency vulnerabilities
+- Configuration security problems
+- Data exposure risks
+- Access control issues
+
+Provide detailed security recommendations with severity levels.`;
+
+export const SecuritySentinelAgent = AgentBuilder.create('SecuritySentinelAgent')
   .withModel('gpt-5-nano')
-  .withSystemPrompt(systemPrompt)
+  .withInstruction(systemPrompt)  
   .build();

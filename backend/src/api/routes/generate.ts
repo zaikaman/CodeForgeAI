@@ -25,23 +25,12 @@ router.post('/generate', async (req, res) => {
     const generateWorkflow = new GenerateWorkflow();
     const result = await generateWorkflow.run(validatedRequest);
 
-    // Transform result to match expected frontend interface
     const response = {
       success: true,
       data: {
-        code: result.code || result.generatedCode || '// No code generated',
+        files: result.files,
         language: validatedRequest.targetLanguage,
-        validation: {
-          syntaxValid: result.validation?.syntaxValid ?? true,
-          errors: result.validation?.errors || [],
-        },
-        confidence: result.confidence || 0.8,
-        agentThoughts: result.agentThoughts || [
-          {
-            agent: 'CodeGenerator',
-            thought: 'Code generation completed successfully',
-          },
-        ],
+        agentThoughts: result.agentThoughts,
       },
     };
 

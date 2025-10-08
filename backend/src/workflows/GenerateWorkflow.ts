@@ -1,16 +1,18 @@
 /**
  * Implements the code generation workflow.
- * Simple implementation without external agent dependencies.
+ * Uses AI agents for intelligent code generation.
  */
+import { CodeGeneratorAgent } from '../agents/specialized/CodeGeneratorAgent';
+
 export class GenerateWorkflow {
     constructor() {
-        // Simple implementation without complex dependencies
+        // Initialize with agent dependencies
     }
 
     /**
      * Executes the generation workflow.
      * 1. Interprets the spec/prompt.
-     * 2. Generates code.
+     * 2. Generates code using AI agent.
      * 3. Optionally generates tests.
      * 4. Returns structured response.
      * @param request The generation request containing the prompt and options.
@@ -29,7 +31,7 @@ export class GenerateWorkflow {
                 thought: `Analyzed requirements: ${requirements.summary || 'Requirements parsed successfully'}`
             });
 
-            // Step 2: Generate code
+            // Step 2: Generate code using AI agent
             const codeResult = await this.generateCode({
                 ...request,
                 requirements
@@ -38,7 +40,7 @@ export class GenerateWorkflow {
             generatedCode = codeResult.code;
             agentThoughts.push({
                 agent: 'CodeGenerator',
-                thought: `Generated ${request.targetLanguage} code with ${generatedCode.split('\n').length} lines`
+                thought: `Generated ${request.targetLanguage} code using AI agent (Mock: ${codeResult.metadata.generatedBy})`
             });
 
             // Step 3: Generate tests if requested
@@ -56,17 +58,10 @@ export class GenerateWorkflow {
             }
 
             // Step 4: Basic validation
-            const validation = {
-                syntaxValid: this.validateSyntax(generatedCode, request.targetLanguage),
-                errors: []
-            };
-
             return {
-                code: generatedCode,
-                tests: tests,
+                files: codeResult.files,
                 language: request.targetLanguage,
-                validation,
-                confidence: 0.85,
+                confidence: codeResult.confidence || 0.85,
                 agentThoughts,
                 requirements
             };
@@ -95,43 +90,134 @@ export class GenerateWorkflow {
 
     private async interpretPrompt(prompt: string): Promise<any> {
         try {
-            // For now, return a simple interpretation
-            // In a real implementation, this would use the agent to analyze the prompt
+            // Enhanced prompt interpretation
+            const analysis = this.analyzePrompt(prompt);
             return {
-                summary: `User wants to generate code: ${prompt.substring(0, 100)}...`,
-                requirements: [
-                    'Generate functional code',
-                    'Follow best practices',
-                    'Include proper error handling'
-                ],
-                complexity: 'moderate'
+                summary: `Generating ${analysis.domain} system: ${prompt}`,
+                requirements: analysis.requirements,
+                complexity: analysis.complexity,
+                domain: analysis.domain
             };
         } catch (error) {
             console.error('Prompt interpretation error:', error);
             return {
                 summary: 'Basic code generation request',
                 requirements: ['Generate basic functional code'],
-                complexity: 'simple'
+                complexity: 'simple',
+                domain: 'generic'
             };
         }
     }
 
+    private analyzePrompt(prompt: string): any {
+        const lowerPrompt = prompt.toLowerCase();
+        
+        // Determine domain and complexity
+        let domain = 'generic';
+        let complexity = 'moderate';
+        let requirements = ['Generate functional code', 'Follow best practices', 'Include proper error handling'];
+        
+        // Domain detection
+        if (lowerPrompt.includes('store') || lowerPrompt.includes('shop') || lowerPrompt.includes('ecommerce')) {
+            domain = 'e-commerce';
+            requirements.push('Implement inventory management', 'Handle transactions', 'Manage customer data');
+        } else if (lowerPrompt.includes('user') || lowerPrompt.includes('auth') || lowerPrompt.includes('login')) {
+            domain = 'authentication';
+            requirements.push('Implement user authentication', 'Handle sessions', 'Validate credentials');
+        } else if (lowerPrompt.includes('api') || lowerPrompt.includes('endpoint') || lowerPrompt.includes('service')) {
+            domain = 'api';
+            requirements.push('Create RESTful endpoints', 'Handle HTTP requests', 'Implement proper routing');
+        } else if (lowerPrompt.includes('database') || lowerPrompt.includes('data') || lowerPrompt.includes('crud')) {
+            domain = 'data';
+            requirements.push('Implement data operations', 'Handle database connections', 'Validate data integrity');
+        }
+        
+        // Complexity detection
+        if (lowerPrompt.includes('simple') || lowerPrompt.includes('basic')) {
+            complexity = 'simple';
+        } else if (lowerPrompt.includes('complex') || lowerPrompt.includes('advanced') || lowerPrompt.includes('enterprise')) {
+            complexity = 'complex';
+            requirements.push('Implement advanced patterns', 'Add comprehensive error handling', 'Include logging and monitoring');
+        }
+        
+        return { domain, complexity, requirements };
+    }
+
     private async generateCode(request: any): Promise<any> {
         try {
-            // Simple code generation based on prompt and language
-            const code = this.generateCodeFromPrompt(request.prompt, request.targetLanguage);
-            
+            const prompt = this.buildCodeGenerationPrompt(request);
+            console.log('Calling CodeGeneratorAgent with prompt:', prompt);
+
+            const agent = await CodeGeneratorAgent();
+            const response = await agent.runner.ask(prompt);
+
             return {
-                code,
+                files: response.files,
+                confidence: 0.8,
                 metadata: {
-                    lines: code.split('\n').length,
-                    language: request.targetLanguage
+                    generatedBy: 'AI Agent (gpt-5-nano)'
                 }
             };
         } catch (error) {
             console.error('Code generation error:', error);
-            throw new Error(`Failed to generate code: ${error.message}`);
+            return {
+                files: [{
+                    path: `fallback-code.${request.targetLanguage}`,
+                    content: this.generateFallbackCode(request)
+                }],
+                confidence: 0.1,
+                metadata: {
+                    generatedBy: 'Template Fallback (Error)'
+                }
+            };
         }
+    }
+
+    private buildCodeGenerationPrompt(request: any): string {
+        return `Generate ${request.targetLanguage} code for: ${request.prompt}
+
+Requirements:
+- Target language: ${request.targetLanguage}
+- Domain: ${request.requirements?.domain || 'generic'}
+- Complexity: ${request.requirements?.complexity || 'moderate'}
+- Include proper error handling
+- Follow best practices for ${request.requirements?.domain || 'generic'} applications
+- Make the code production-ready
+- Add appropriate comments and documentation
+
+${request.requirements?.requirements ? 
+    'Specific requirements:\n- ' + request.requirements.requirements.join('\n- ') 
+    : ''
+}
+
+Generate a complete, functional codebase with multiple files. The output should be a JSON object with the following structure:
+{
+  "files": [
+    {
+      "path": "path/to/file.ts",
+      "content": "... file content ..."
+    }
+  ]
+}
+
+Focus on creating a meaningful, domain-specific codebase rather than generic boilerplate. The code should be immediately usable and follow industry standards.`;
+    }
+
+    private extractCodeFromResponse(response: string): string {
+        // Extract code blocks from the agent response
+        const codeBlockRegex = /```(?:typescript|javascript|ts|js)?\n?([\s\S]*?)```/g;
+        const matches = response.match(codeBlockRegex);
+        
+        if (matches && matches.length > 0) {
+            // Take the first code block and clean it up
+            return matches[0]
+                .replace(/```(?:typescript|javascript|ts|js)?\n?/, '')
+                .replace(/```$/, '')
+                .trim();
+        }
+        
+        // If no code blocks found, return the entire response
+        return response.trim();
     }
 
     private async generateTests(request: any): Promise<any> {
@@ -377,7 +463,7 @@ export const implementation = {
                 success: true,
                 data: input,
                 timestamp: new Date().toISOString(),
-                description: '${prompt}'
+                description: \`${prompt}\`
             };
             
             return result;
@@ -563,12 +649,12 @@ if __name__ == '__main__':
 // 
 // TODO: The advanced code generation failed, but here's a basic structure:
 
-console.log('Generated code for: ${request.prompt}');
+console.log(\`Generated code for: \${request.prompt}\`);
 
 export default {
     message: 'Code generation completed with fallback',
-    prompt: '${request.prompt}',
-    language: '${request.targetLanguage}',
+    prompt: \`\${request.prompt}\`,
+    language: \`\${request.targetLanguage}\`,
     timestamp: new Date().toISOString()
 };`;
     }

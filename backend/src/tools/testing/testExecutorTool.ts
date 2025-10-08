@@ -126,14 +126,14 @@ export async function runTests(
 
     if (error instanceof Error && 'stdout' in error) {
       // Jest failed but produced output
-      const execError = error as { stdout: string; stderr: string }
+      const execError = error as Error & { stdout?: string; stderr?: string }
       try {
-        const result = parseJestOutput(execError.stdout)
+        const result = parseJestOutput(execError.stdout || '')
         return {
           ...result,
           success: false,
           duration,
-          errorMessage: execError.stderr,
+          errorMessage: execError.stderr || error.message,
         }
       } catch {
         // Failed to parse output

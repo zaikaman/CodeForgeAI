@@ -837,3 +837,20 @@ function generateErrorHandlingTests(functionName: string, parameters: any[]): st
   
   return tests
 }
+
+// Export the tool for ADK integration  
+import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { z } from 'zod'
+
+export const testGenTool = createTool({
+  name: 'testGenTool',
+  description: 'Generate Jest/Vitest tests from TypeScript/JavaScript code',
+  schema: z.object({
+    code: z.string(),
+    config: z.object({}).optional(),
+    filePath: z.string().optional()
+  }),
+  fn: async (args, context) => {
+    return generateTests(args.code, args.config || {}, args.filePath || 'temp.ts')
+  }
+})

@@ -414,7 +414,14 @@ export function getSymbolAtPosition(
   const project = new Project({ useInMemoryFileSystem: true })
   const sourceFile = project.createSourceFile(filePath, code)
 
-  const pos = sourceFile.getLineAndColumnToPos({ line, column })
+  // Calculate position from line and column
+  const lines = sourceFile.getFullText().split('\n')
+  let pos = 0
+  for (let i = 0; i < Math.min(line - 1, lines.length - 1); i++) {
+    pos += lines[i].length + 1 // +1 for newline
+  }
+  pos += Math.min(column, lines[line - 1]?.length || 0)
+  
   const node = sourceFile.getDescendantAtPos(pos)
 
   if (!node) return null

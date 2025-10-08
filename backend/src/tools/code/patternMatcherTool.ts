@@ -401,3 +401,19 @@ export async function findAllPatterns(
 
   return results.flat()
 }
+
+// Export the tool for ADK integration
+import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { z } from 'zod'
+
+export const patternMatcherTool = createTool({
+  name: 'patternMatcherTool',
+  description: 'Find code patterns and refactoring opportunities',
+  schema: z.object({
+    code: z.string(),
+    filePath: z.string().optional()
+  }),
+  fn: async (args, context) => {
+    return findAllPatterns(args.code, args.filePath || 'temp.ts')
+  }
+})
