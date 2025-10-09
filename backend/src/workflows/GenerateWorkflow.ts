@@ -7,6 +7,7 @@ import { SpecInterpreterAgent } from '../agents/specialized/SpecInterpreterAgent
 import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent';
 import { CodeValidatorAgent } from '../agents/specialized/CodeValidatorAgent';
 import { CodeFixerAgent } from '../agents/specialized/CodeFixerAgent';
+import fetch from 'node-fetch';
 
 export class GenerateWorkflow {
     private readonly MAX_FIX_ATTEMPTS = 1; // Maximum number of times to try fixing code
@@ -423,11 +424,52 @@ Return the result as JSON with the following structure:
 
     private async generateCode(request: any): Promise<any> {
         try {
-            const prompt = this.buildCodeGenerationPrompt(request);
-            console.log('Calling CodeGeneratorAgent with prompt:', prompt);
-
             const { runner } = await CodeGeneratorAgent();
-            const response = await runner.ask(prompt) as any;
+            
+            // Build the message with images if provided
+            let message: any;
+            
+            if (request.imageUrls && request.imageUrls.length > 0) {
+                // Download images and convert to base64
+                const imageParts = await Promise.all(
+                    request.imageUrls.map(async (url: string) => {
+                        try {
+                            const response = await fetch(url);
+                            const buffer = await response.buffer();
+                            const base64 = buffer.toString('base64');
+                            const contentType = response.headers.get('content-type') || 'image/jpeg';
+                            
+                            return {
+                                inline_data: {
+                                    mime_type: contentType,
+                                    data: base64
+                                }
+                            };
+                        } catch (error) {
+                            console.error(`Failed to fetch image from ${url}:`, error);
+                            return null;
+                        }
+                    })
+                );
+                
+                // Filter out failed downloads
+                const validImageParts = imageParts.filter(part => part !== null);
+                
+                // Build message with text and images
+                const textPart = {
+                    text: this.buildCodeGenerationPrompt(request)
+                };
+                
+                message = {
+                    parts: [textPart, ...validImageParts]
+                };
+            } else {
+                // Text-only message
+                message = this.buildCodeGenerationPrompt(request);
+            }
+
+            console.log('Calling CodeGeneratorAgent with message');
+            const response = await runner.ask(message) as any;
 
             return {
                 files: response.files,

@@ -6,6 +6,8 @@ import { CodeEditor } from '../components/CodeEditor';
 import { FileTree } from '../components/FileTree';
 import { useGenerationStore } from '../stores/generationStore';
 import apiClient from '../services/apiClient';
+import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
+import { useAuthContext } from '../contexts/AuthContext';
 import '../styles/theme.css';
 import './GenerateSessionPage.css';
 
@@ -29,6 +31,7 @@ const withCacheBust = (urlStr: string): string => {
 export const GenerateSessionPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuthContext();
   const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('source');
@@ -36,6 +39,9 @@ export const GenerateSessionPage: React.FC = () => {
   const [isFileTreeCollapsed, setIsFileTreeCollapsed] = useState(false);
   const [hasGeneratedInitialPreview, setHasGeneratedInitialPreview] = useState(false);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   const store = useGenerationStore();
   const { 
@@ -189,22 +195,81 @@ export const GenerateSessionPage: React.FC = () => {
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    // Validate each file
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+    
+    files.forEach(file => {
+      const validation = validateImageFile(file);
+      if (validation.valid) {
+        validFiles.push(file);
+      } else {
+        errors.push(`${file.name}: ${validation.error}`);
+      }
+    });
+    
+    if (errors.length > 0) {
+      alert(`Some files were not added:\n${errors.join('\n')}`);
+    }
+    
+    setSelectedImages(prev => [...prev, ...validFiles]);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleImageButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || !generation || !id) return;
 
     const userMessage = chatInput.trim();
+    const imagesToUpload = [...selectedImages];
     
-    // Clear input immediately
+    // Clear input and images immediately
     setChatInput('');
+    setSelectedImages([]);
 
-    // Add user message to chat immediately
+    // Upload images if any
+    let imageUrls: string[] = [];
+    if (imagesToUpload.length > 0 && user) {
+      setUploadingImages(true);
+      try {
+        const uploadResults = await uploadMultipleImages(imagesToUpload, user.id, 'chat');
+        imageUrls = uploadResults
+          .filter(result => result.url && !result.error)
+          .map(result => result.url);
+        
+        if (uploadResults.some(result => result.error)) {
+          console.error('Some images failed to upload:', uploadResults.filter(r => r.error));
+        }
+      } catch (error) {
+        console.error('Failed to upload images:', error);
+      } finally {
+        setUploadingImages(false);
+      }
+    }
+
+    // Add user message to chat immediately with images
     const userAgentMessage: AgentMessage = {
       id: `msg_${Date.now()}_user`,
       agent: 'User',
       role: 'user',
       content: userMessage,
       timestamp: new Date(),
+      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
     };
     addMessageToGeneration(id, userAgentMessage);
 
@@ -223,12 +288,13 @@ export const GenerateSessionPage: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      // Call chat API
+      // Call chat API with image URLs
       const apiRes = await apiClient.chat({
         generationId: id,
         message: userMessage,
         currentFiles: generation.response?.files || [],
         language: generation.response?.language || 'typescript',
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       });
 
       if (!apiRes.success || !apiRes.data) {
@@ -333,6 +399,30 @@ export const GenerateSessionPage: React.FC = () => {
           {/* Chat Input */}
           <div className="chat-input-container terminal-window">
             <div className="terminal-content">
+              {/* Image Previews */}
+              {selectedImages.length > 0 && (
+                <div className="selected-images-preview">
+                  {selectedImages.map((image, index) => (
+                    <div key={index} className="image-preview-item">
+                      <img 
+                        src={URL.createObjectURL(image)} 
+                        alt={`Preview ${index + 1}`}
+                        className="preview-thumbnail"
+                      />
+                      <button
+                        type="button"
+                        className="remove-image-btn"
+                        onClick={() => handleRemoveImage(index)}
+                        title="Remove image"
+                      >
+                        ×
+                      </button>
+                      <span className="image-name">{image.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               <form onSubmit={handleSendMessage} className="chat-input-form">
                 <div className="input-wrapper">
                   <span className="input-prefix">&gt;&gt;</span>
@@ -344,6 +434,23 @@ export const GenerateSessionPage: React.FC = () => {
                     placeholder="Ask AI to make changes to the codebase..."
                     disabled={isGenerating}
                   />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <button 
+                    type="button"
+                    className="btn btn-secondary btn-image"
+                    onClick={handleImageButtonClick}
+                    disabled={isGenerating || uploadingImages}
+                    title="Attach images"
+                  >
+                    📎
+                  </button>
                   <button 
                     type="submit" 
                     className="btn btn-primary btn-send"
@@ -455,7 +562,11 @@ export const GenerateSessionPage: React.FC = () => {
                 )}
               </div>
               {previewUrl ? (
-                <iframe src={previewUrl} title="Preview" />
+                <iframe 
+                  key={previewUrl} 
+                  src={previewUrl} 
+                  title="Preview"
+                />
               ) : (
                 <div className="no-preview">
                   <div className="terminal-window">

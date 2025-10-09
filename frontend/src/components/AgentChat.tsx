@@ -10,6 +10,7 @@ export interface AgentMessage {
   content: string
   timestamp: Date
   toolCalls?: string[]
+  imageUrls?: string[]
 }
 
 interface AgentChatProps {
@@ -157,6 +158,17 @@ export const AgentChat: React.FC<AgentChatProps> = ({
                   )}
                 </span>
               </div>
+
+              {/* Message Images */}
+              {message.imageUrls && message.imageUrls.length > 0 && (
+                <div className="message-images">
+                  {message.imageUrls.map((url, idx) => (
+                    <div key={idx} className="message-image-wrapper">
+                      <img src={url} alt={`Attachment ${idx + 1}`} className="message-image" />
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Tool Calls */}
               {message.toolCalls && message.toolCalls.length > 0 && (

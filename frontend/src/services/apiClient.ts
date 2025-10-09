@@ -93,6 +93,7 @@ export interface ChatRequest {
     content: string
   }>
   language: string
+  imageUrls?: string[]
 }
 
 export interface ChatResponse {

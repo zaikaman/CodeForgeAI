@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { z } from 'zod';
+import fetch from 'node-fetch';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ const chatRequestSchema = z.object({
     content: z.string()
   })),
   language: z.string().default('typescript'),
+  imageUrls: z.array(z.string()).optional(),
 });
 
 router.post('/chat', async (req, res): Promise<void> => {
@@ -20,7 +22,7 @@ router.post('/chat', async (req, res): Promise<void> => {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
-    const { message, currentFiles, language } = validatedRequest;
+    const { message, currentFiles, language, imageUrls } = validatedRequest;
 
     // Build context from current files
     const filesContext = currentFiles.map(f => 
@@ -30,18 +32,63 @@ router.post('/chat', async (req, res): Promise<void> => {
     // Use ChatAgent for all requests
     const { runner } = await ChatAgent();
     
-    const chatPrompt = `USER REQUEST: ${message}
+    // Build the message with images if provided
+    let chatMessage: any;
+    
+    if (imageUrls && imageUrls.length > 0) {
+      // Download images and convert to base64
+      const imageParts = await Promise.all(
+        imageUrls.map(async (url) => {
+          try {
+            const response = await fetch(url);
+            const buffer = await response.buffer();
+            const base64 = buffer.toString('base64');
+            const contentType = response.headers.get('content-type') || 'image/jpeg';
+            
+            return {
+              inline_data: {
+                mime_type: contentType,
+                data: base64
+              }
+            };
+          } catch (error) {
+            console.error(`Failed to fetch image from ${url}:`, error);
+            return null;
+          }
+        })
+      );
+      
+      // Filter out failed downloads
+      const validImageParts = imageParts.filter(part => part !== null);
+      
+      // Build message with text and images
+      const textPart = {
+        text: `USER REQUEST: ${message}
+
+CURRENT CODEBASE (${currentFiles.length} files):
+${filesContext}`
+      };
+      
+      chatMessage = {
+        parts: [textPart, ...validImageParts]
+      };
+    } else {
+      // Text-only message
+      chatMessage = `USER REQUEST: ${message}
 
 CURRENT CODEBASE (${currentFiles.length} files):
 ${filesContext}`;
+    }
 
-    const response = await runner.ask(chatPrompt) as any;
+    const response = await runner.ask(chatMessage) as any;
     
     // Merge modified/new files with existing files
-    let updatedFiles = [...currentFiles];
+    let updatedFiles: Array<{ path: string; content: string }> = [...currentFiles];
     
-    if (response.files && response.files.length > 0) {
-      const responseFilesMap = new Map(response.files.map((f: any) => [f.path, f]));
+    if (response.files && Array.isArray(response.files) && response.files.length > 0) {
+      const responseFilesMap = new Map<string, { path: string; content: string }>(
+        response.files.map((f: any) => [f.path, f as { path: string; content: string }])
+      );
       
       // Update existing files that were modified
       updatedFiles = currentFiles.map(originalFile => {
@@ -54,7 +101,7 @@ ${filesContext}`;
       });
       
       // Add any new files
-      responseFilesMap.forEach(newFile => {
+      responseFilesMap.forEach((newFile: { path: string; content: string }) => {
         updatedFiles.push(newFile);
       });
     }

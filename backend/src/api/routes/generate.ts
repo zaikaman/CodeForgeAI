@@ -16,6 +16,7 @@ const generateRequestSchema = z.object({
   targetLanguage: z.string().default('typescript'),
   complexity: z.enum(['simple', 'moderate', 'complex']).default('moderate'),
   agents: z.array(z.string()).default(['CodeGenerator', 'TestCrafter']),
+  imageUrls: z.array(z.string()).optional(),
 });
 
 router.post('/generate', async (req, res): Promise<void> => {
@@ -35,6 +36,7 @@ router.post('/generate', async (req, res): Promise<void> => {
         id: generationId,
         prompt: validatedRequest.prompt,
         files: result.files,
+        image_urls: validatedRequest.imageUrls || [],
       })
       .select()
       .single();

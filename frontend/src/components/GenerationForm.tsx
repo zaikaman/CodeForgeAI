@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { StatusIndicator } from './StatusIndicator'
+import { ImageUpload, UploadedImage } from './ImageUpload'
+import { useAuthContext } from '../contexts/AuthContext'
 import '../styles/theme.css'
 import './GenerationForm.css'
 
@@ -11,6 +13,7 @@ export interface GenerationOptions {
   targetLanguage: string
   complexity: 'simple' | 'moderate' | 'complex'
   agents: string[]
+  imageUrls?: string[]
 }
 
 interface GenerationFormProps {
@@ -32,6 +35,8 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
   const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('simple')
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['CodeGenerator'])
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const { user } = useAuthContext()
 
   const availableAgents = [
     { id: 'CodeGenerator', name: 'CODE GENERATOR', icon: '▣' },
@@ -46,6 +51,7 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const imageUrls = uploadedImages.map(img => img.url)
     onSubmit({
       prompt,
       projectContext,
@@ -54,7 +60,12 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
       targetLanguage,
       complexity,
       agents: selectedAgents,
+      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
     })
+  }
+
+  const handleImagesChange = (images: UploadedImage[]) => {
+    setUploadedImages(images)
   }
 
   const toggleAgent = (agentId: string) => {
@@ -110,6 +121,24 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
               />
             </div>
           </div>
+
+          {/* Image Upload */}
+          {user && (
+            <div className="form-section mt-lg">
+              <label className="form-label phosphor-glow">&gt; ATTACH IMAGES (OPTIONAL):</label>
+              <ImageUpload
+                userId={user.id}
+                folder="generation"
+                maxImages={5}
+                onImagesChange={handleImagesChange}
+                disabled={isGenerating}
+                className="mt-sm"
+              />
+              <div className="form-hint text-muted mt-sm">
+                Upload reference images, mockups, or diagrams to help with code generation
+              </div>
+            </div>
+          )}
 
           {/* Advanced Options Toggle */}
           <div className="form-section mt-lg">
