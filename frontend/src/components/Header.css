@@ -34,13 +34,13 @@
 }
 
 .brand-link:hover {
-  color: var(--blue-primary);
+  color: var(--text-secondary);
   text-shadow: var(--glow-text);
 }
 
 .brand-icon {
   font-size: 1.5em;
-  color: var(--blue-primary);
+  color: var(--text-secondary);
 }
 
 .brand-text {
@@ -76,9 +76,9 @@
 }
 
 .nav-link.active {
-  color: var(--white-primary);
-  border-color: var(--blue-primary);
-  background: var(--blue-dark);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+  background: var(--bg-elevated);
   box-shadow: var(--glow-medium);
 }
 

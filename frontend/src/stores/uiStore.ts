@@ -33,8 +33,8 @@ interface UIState {
   // Sidebar state
   sidebarOpen: boolean
 
-  // Theme (for amber mode toggle)
-  theme: 'green' | 'amber'
+  // Theme
+  theme: 'blue' | 'green'
 
   // Actions
   setLoading: (isLoading: boolean, message?: string) => void
@@ -56,7 +56,7 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void
 
   // Theme actions
-  setTheme: (theme: 'green' | 'amber') => void
+  setTheme: (theme: 'blue' | 'green') => void
   toggleTheme: () => void
 }
 
@@ -68,7 +68,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   toasts: [],
   modals: [],
   sidebarOpen: true,
-  theme: 'green',
+  theme: 'blue',
 
   // Loading
   setLoading: (isLoading: boolean, message: string = '') => {
@@ -167,24 +167,31 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   // Theme
-  setTheme: (theme: 'green' | 'amber') => {
+  setTheme: (theme: 'blue' | 'green') => {
     set({ theme })
     // Apply theme to document body
-    document.body.classList.remove('theme-green', 'theme-amber')
+    document.body.classList.remove('theme-blue', 'theme-green')
     document.body.classList.add(`theme-${theme}`)
   },
 
   toggleTheme: () => {
-    const newTheme = get().theme === 'green' ? 'amber' : 'green'
+    const newTheme = get().theme === 'blue' ? 'green' : 'blue'
     get().setTheme(newTheme)
   },
 }))
 
 // Initialize theme on load
 if (typeof window !== 'undefined') {
-  const savedTheme = localStorage.getItem('codeforge-theme') as 'green' | 'amber' | null
-  if (savedTheme) {
-    useUIStore.getState().setTheme(savedTheme)
+  const raw = localStorage.getItem('codeforge-theme') as 'green' | 'amber' | 'blue' | null
+  // Migrate legacy values: 'green' was actually Blue Mode, 'amber' becomes Green Phosphor
+  const mapped: 'blue' | 'green' | null =
+    raw === 'amber' ? 'green' : raw === 'green' ? 'blue' : raw === 'blue' ? 'blue' : null
+
+  if (mapped) {
+    useUIStore.getState().setTheme(mapped)
+  } else {
+    // Default to blue
+    useUIStore.getState().setTheme('blue')
   }
 
   // Save theme changes to localStorage

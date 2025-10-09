@@ -507,9 +507,10 @@ body {
 }
 
 .btn-primary {
-  background: var(--blue-dark);
-  border-color: var(--blue-primary);
-  color: var(--white-primary);
+  background: var(--bg-elevated);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+  box-shadow: var(--glow-medium);
 }
 
 .btn-secondary {
@@ -597,8 +598,8 @@ body {
 }
 
 .badge-primary {
-  border-color: var(--blue-primary);
-  color: var(--blue-primary);
+  border-color: var(--border-primary);
+  color: var(--text-secondary);
 }
 
 .badge-white {
@@ -731,28 +732,36 @@ body {
   padding: 0 var(--spacing-lg);
 }
 
-/* Amber Theme Override */
-body.theme-amber {
-  --terminal-primary: var(--amber-primary);
-  --terminal-secondary: var(--amber-secondary);
-  --terminal-accent: var(--amber-accent);
-  --terminal-dim: #cc7a00;
-  --terminal-dark: #995c00;
+/* Green Phosphor Theme - Mostly green with white accents for variety */
+body.theme-green {
+  --text-primary: var(--white-primary);
+  --text-secondary: var(--terminal-primary);
+  --text-muted: var(--white-dim);
+  --text-info: var(--terminal-accent);
+  
+  --border-primary: var(--terminal-primary);
+  --border-secondary: var(--white-dim);
+  --border-accent: var(--terminal-accent);
+  
+  --glow-small: 0 0 5px var(--terminal-primary);
+  --glow-medium: 0 0 10px var(--terminal-primary), 0 0 20px var(--terminal-primary);
+  --glow-large: 0 0 10px var(--terminal-primary), 0 0 20px var(--terminal-primary), 0 0 30px var(--terminal-primary);
+  --glow-text: 0 0 3px var(--white-primary);
 }
 
-/* Blue Theme */
+/* Blue Theme (Default) - Blue and white mixed palette */
 body.theme-blue {
-  --text-primary: var(--blue-primary);
-  --text-secondary: var(--blue-secondary);
-  --border-primary: var(--blue-accent);
-  --glow-small: 0 0 5px var(--blue-primary);
-  --glow-medium: 0 0 10px var(--blue-primary), 0 0 20px var(--blue-primary);
-}
-
-/* Mixed Theme (Default Enhanced) */
-body.theme-mixed {
   --text-primary: var(--white-primary);
   --text-secondary: var(--blue-primary);
+  --text-muted: var(--white-dim);
+  --text-info: var(--blue-accent);
+  
   --border-primary: var(--blue-primary);
   --border-secondary: var(--white-dim);
+  --border-accent: var(--terminal-primary);
+  
+  --glow-small: 0 0 5px var(--blue-primary);
+  --glow-medium: 0 0 10px var(--blue-primary), 0 0 20px var(--blue-primary);
+  --glow-large: 0 0 10px var(--blue-primary), 0 0 20px var(--blue-primary), 0 0 30px var(--blue-primary);
+  --glow-text: 0 0 3px var(--white-primary);
 }

@@ -75,9 +75,9 @@
 }
 
 .toggle-btn.active {
-  background: var(--blue-dark);
-  border-color: var(--blue-primary);
-  color: var(--white-primary);
+  background: var(--bg-elevated);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
   box-shadow: var(--glow-medium);
 }
 
@@ -169,7 +169,7 @@
 
 .project-icon {
   font-size: 2em;
-  color: var(--blue-primary);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 

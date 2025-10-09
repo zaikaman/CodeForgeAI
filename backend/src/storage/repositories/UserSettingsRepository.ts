@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../SupabaseClient'
 export interface UserSettings {
   userId: string
   apiKey?: string
+  theme?: 'blue' | 'green'
   crtEffects?: boolean
   phosphorGlow?: boolean
   autoScrollChat?: boolean
@@ -45,6 +46,7 @@ export class UserSettingsRepository {
     const payload = {
       user_id: settings.userId,
       api_key: settings.apiKey,
+      theme: settings.theme,
       crt_effects: settings.crtEffects,
       phosphor_glow: settings.phosphorGlow,
       auto_scroll_chat: settings.autoScrollChat,
@@ -90,13 +92,14 @@ export class UserSettingsRepository {
    */
   async updatePreferences(
     userId: string,
-    preferences: Partial<Pick<UserSettings, 'crtEffects' | 'phosphorGlow' | 'autoScrollChat' | 'soundEffects'>>
+    preferences: Partial<Pick<UserSettings, 'theme' | 'crtEffects' | 'phosphorGlow' | 'autoScrollChat' | 'soundEffects'>>
   ): Promise<void> {
     const payload: Record<string, any> = {
       user_id: userId,
       updated_at: new Date().toISOString(),
     }
 
+    if (preferences.theme !== undefined) payload.theme = preferences.theme
     if (preferences.crtEffects !== undefined) payload.crt_effects = preferences.crtEffects
     if (preferences.phosphorGlow !== undefined) payload.phosphor_glow = preferences.phosphorGlow
     if (preferences.autoScrollChat !== undefined) payload.auto_scroll_chat = preferences.autoScrollChat
@@ -152,6 +155,7 @@ export class UserSettingsRepository {
     return {
       userId: data.user_id,
       apiKey: data.api_key,
+      theme: data.theme,
       crtEffects: data.crt_effects,
       phosphorGlow: data.phosphor_glow,
       autoScrollChat: data.auto_scroll_chat,

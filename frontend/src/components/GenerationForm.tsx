@@ -26,11 +26,11 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
 }) => {
   const [prompt, setPrompt] = useState('')
   const [projectContext, setProjectContext] = useState('')
-  const [includeTests, setIncludeTests] = useState(true)
-  const [includeDocumentation, setIncludeDocumentation] = useState(true)
+  const [includeTests, setIncludeTests] = useState(false)
+  const [includeDocumentation, setIncludeDocumentation] = useState(false)
   const [targetLanguage, setTargetLanguage] = useState('typescript')
-  const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('moderate')
-  const [selectedAgents, setSelectedAgents] = useState<string[]>(['CodeGenerator', 'TestCrafter'])
+  const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('simple')
+  const [selectedAgents, setSelectedAgents] = useState<string[]>(['CodeGenerator'])
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   const availableAgents = [

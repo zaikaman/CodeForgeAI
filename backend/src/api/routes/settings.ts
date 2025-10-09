@@ -23,6 +23,7 @@ router.get('/settings', requireAuth, async (req, res, next) => {
       // Return default settings if none exist
       return res.json({
         userId,
+        theme: 'blue',
         crtEffects: true,
         phosphorGlow: true,
         autoScrollChat: true,
@@ -80,14 +81,15 @@ router.put('/settings/api-key', requireAuth, async (req, res, next) => {
 router.put('/settings/preferences', requireAuth, async (req, res, next) => {
   try {
     const userId = (req as any).user?.id
-    const { crtEffects, phosphorGlow, autoScrollChat, soundEffects } = req.body
+    const { theme, crtEffects, phosphorGlow, autoScrollChat, soundEffects } = req.body
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    const preferences: Record<string, boolean> = {}
+    const preferences: Record<string, any> = {}
 
+    if (theme === 'blue' || theme === 'green') preferences.theme = theme
     if (typeof crtEffects === 'boolean') preferences.crtEffects = crtEffects
     if (typeof phosphorGlow === 'boolean') preferences.phosphorGlow = phosphorGlow
     if (typeof autoScrollChat === 'boolean') preferences.autoScrollChat = autoScrollChat

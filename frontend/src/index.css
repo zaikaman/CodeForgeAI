@@ -17,3 +17,20 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Sticky header offset and anchor fixes */
+:root {
+  --header-height: 72px;
+}
+
+/* Ensure in-page anchors and programmatic scrolling don't hide content behind sticky header */
+html, body {
+  scroll-padding-top: var(--header-height);
+}
+
+/* Elements that are often targets for in-page anchors */
+[id],
+section,
+h1, h2, h3, h4, h5, h6 {
+  scroll-margin-top: var(--header-height);
+}

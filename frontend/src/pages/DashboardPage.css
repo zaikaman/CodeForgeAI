@@ -49,7 +49,7 @@
 }
 
 .stat-icon.blue {
-  color: var(--blue-primary);
+  color: var(--text-secondary);
 }
 
 .stat-icon.green {

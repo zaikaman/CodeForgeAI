@@ -37,7 +37,7 @@
 }
 
 .status-loading {
-  color: var(--blue-primary);
+  color: var(--text-secondary);
 }
 
 .status-success {
@@ -156,8 +156,8 @@
 .pixel-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--blue-dim);
-  border-top-color: var(--blue-primary);
+  border: 3px solid var(--border-secondary);
+  border-top-color: var(--border-primary);
   border-radius: 0;
   animation: pixel-spin 8s linear infinite; /* 3 quick spins in first 10%, then 90% pause */
   box-shadow: var(--glow-small);
@@ -197,7 +197,7 @@
 
 .spinner-dots span {
   font-size: var(--font-size-xl);
-  color: var(--blue-primary);
+  color: var(--text-secondary);
   animation: dot-pulse 8s infinite; /* 3 quick pulses pattern */
 }
 
@@ -259,7 +259,7 @@
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--blue-primary), var(--terminal-primary));
+  background: var(--border-primary);
   box-shadow: var(--glow-medium);
   transition: width 0.3s ease;
   position: relative;

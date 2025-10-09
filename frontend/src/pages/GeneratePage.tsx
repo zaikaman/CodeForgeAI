@@ -38,18 +38,44 @@ export const GeneratePage: React.FC = () => {
       <div className="generate-page generate-page-form-only">
         <div className="form-container-centered">
           <div className="welcome-banner terminal-window">
+            <div className="terminal-header">
+              <div className="terminal-button close"></div>
+              <div className="terminal-button minimize"></div>
+              <div className="terminal-button maximize"></div>
+              <div className="terminal-title">CODEFORGE AI - CODE GENERATION SYSTEM</div>
+            </div>
             <div className="terminal-content">
-              <pre className="ascii-logo phosphor-glow">
-{`    ╔��══════════════════════════════════╗
-    ║                                   ║
-    ║      CODEFORGE AI GENERATOR       ║
-    ║                                   ║
-    ║   ►  Describe your project        ║
-    ║   ►  Select your preferences      ║
-    ║   ►  Let AI build it for you      ║
-    ║                                   ║
-    ╚═══════════════════════════════════╝`}
-              </pre>
+              <div className="banner-header">
+                <div className="banner-icon phosphor-glow">▣</div>
+                <h1 className="banner-title">CODE GENERATION</h1>
+              </div>
+              <div className="banner-description">
+                <p>Transform your ideas into production-ready code with AI-powered multi-agent system.</p>
+              </div>
+              <div className="banner-features">
+                <div className="feature-item">
+                  <span className="feature-icon">►</span>
+                  <span>Describe your project in natural language</span>
+                </div>
+                <div className="feature-item">
+                  <span className="feature-icon">►</span>
+                  <span>Configure generation options & select specialized agents</span>
+                </div>
+                <div className="feature-item">
+                  <span className="feature-icon">►</span>
+                  <span>Get production-ready code with tests & documentation</span>
+                </div>
+              </div>
+              <div className="banner-status">
+                <span className="status-badge badge-success">
+                  <span className="status-dot"></span>
+                  SYSTEM ONLINE
+                </span>
+                <span className="status-badge badge-info">
+                  <span className="status-dot"></span>
+                  AGENTS READY
+                </span>
+              </div>
             </div>
           </div>
           <GenerationForm onSubmit={handleGenerate} isGenerating={isGenerating} />

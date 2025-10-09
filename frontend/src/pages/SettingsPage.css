@@ -79,6 +79,20 @@
   text-align: center;
 }
 
+.theme-sample.blue-theme {
+  border-color: #4fc3f7;
+}
+
+.theme-sample.blue-theme .sample-text {
+  color: #4fc3f7;
+  text-shadow: 0 0 5px #4fc3f7;
+}
+
+.theme-sample.blue-theme .sample-bar {
+  background: #4fc3f7;
+  box-shadow: 0 0 10px #4fc3f7;
+}
+
 .theme-sample.green-theme {
   border-color: #00ff41;
 }
@@ -91,20 +105,6 @@
 .theme-sample.green-theme .sample-bar {
   background: #00ff41;
   box-shadow: 0 0 10px #00ff41;
-}
-
-.theme-sample.amber-theme {
-  border-color: #ffb000;
-}
-
-.theme-sample.amber-theme .sample-text {
-  color: #ffb000;
-  text-shadow: 0 0 5px #ffb000;
-}
-
-.theme-sample.amber-theme .sample-bar {
-  background: #ffb000;
-  box-shadow: 0 0 10px #ffb000;
 }
 
 .sample-text {

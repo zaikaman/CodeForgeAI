@@ -31,6 +31,12 @@ export const SettingsPage: React.FC = () => {
 
       if (response.data) {
         setHasApiKey(response.data.hasApiKey || false)
+        
+        // Load theme from backend
+        if (response.data.theme) {
+          setTheme(response.data.theme)
+        }
+        
         setPreferences({
           crtEffects: response.data.crtEffects ?? true,
           phosphorGlow: response.data.phosphorGlow ?? true,
@@ -45,10 +51,29 @@ export const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleThemeToggle = () => {
-    const newTheme = theme === 'green' ? 'amber' : 'green'
+  const handleThemeToggle = async () => {
+    const newTheme = theme === 'blue' ? 'green' : 'blue'
     setTheme(newTheme)
-    showToast('success', `Theme changed to ${newTheme.toUpperCase()}`)
+    const themeName = newTheme === 'blue' ? 'BLUE MODE' : 'GREEN PHOSPHOR'
+    
+    try {
+      await apiClient.updatePreferences({ theme: newTheme })
+      showToast('success', `Theme changed to ${themeName}`)
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to save theme')
+    }
+  }
+
+  const handleThemeSelect = async (selectedTheme: 'blue' | 'green') => {
+    setTheme(selectedTheme)
+    const themeName = selectedTheme === 'blue' ? 'BLUE MODE' : 'GREEN PHOSPHOR'
+    
+    try {
+      await apiClient.updatePreferences({ theme: selectedTheme })
+      showToast('success', `Theme changed to ${themeName}`)
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to save theme')
+    }
   }
 
   const handleSaveApiKey = async () => {
@@ -151,30 +176,30 @@ export const SettingsPage: React.FC = () => {
 
             <div className="theme-preview mt-md">
               <div className="theme-option">
+                <div className="theme-sample blue-theme">
+                  <div className="sample-text phosphor-glow">BLUE MODE</div>
+                  <div className="sample-bar"></div>
+                </div>
+                <button
+                  className={`btn ${theme === 'blue' ? 'btn-primary' : ''}`}
+                  onClick={() => handleThemeSelect('blue')}
+                  disabled={theme === 'blue'}
+                >
+                  {theme === 'blue' ? '◉ ACTIVE' : 'SELECT'}
+                </button>
+              </div>
+
+              <div className="theme-option mt-md">
                 <div className="theme-sample green-theme">
                   <div className="sample-text phosphor-glow">GREEN PHOSPHOR</div>
                   <div className="sample-bar"></div>
                 </div>
                 <button
                   className={`btn ${theme === 'green' ? 'btn-primary' : ''}`}
-                  onClick={() => setTheme('green')}
+                  onClick={() => handleThemeSelect('green')}
                   disabled={theme === 'green'}
                 >
                   {theme === 'green' ? '◉ ACTIVE' : 'SELECT'}
-                </button>
-              </div>
-
-              <div className="theme-option mt-md">
-                <div className="theme-sample amber-theme">
-                  <div className="sample-text">AMBER MODE</div>
-                  <div className="sample-bar"></div>
-                </div>
-                <button
-                  className={`btn ${theme === 'amber' ? 'btn-primary' : ''}`}
-                  onClick={() => setTheme('amber')}
-                  disabled={theme === 'amber'}
-                >
-                  {theme === 'amber' ? '◉ ACTIVE' : 'SELECT'}
                 </button>
               </div>
             </div>
