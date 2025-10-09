@@ -38,14 +38,7 @@ router.post('/download', async (req, res): Promise<void> => {
       return;
     }
 
-    // Set response headers for zip download
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const filename = `codeforge-${generationId.slice(0, 8)}-${timestamp}.zip`;
-    
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    // Create zip archive
+    // Create zip archive first
     const archive = archiver('zip', {
       zlib: { level: 9 } // Maximum compression
     });
@@ -59,6 +52,16 @@ router.post('/download', async (req, res): Promise<void> => {
           error: 'Failed to create zip archive',
         });
       }
+    });
+
+    // Set response headers for zip download BEFORE piping
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `codeforge-${generationId.slice(0, 8)}-${timestamp}.zip`;
+    
+    res.writeHead(200, {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-cache',
     });
 
     // Pipe archive to response

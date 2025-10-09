@@ -85,6 +85,66 @@ export const GenerateSessionPage: React.FC = () => {
     setSelectedFile(file);
   };
 
+  const handleDownloadZip = async () => {
+    if (!generation || !id) return;
+
+    try {
+      const response = await fetch('/api/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          generationId: id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      // Get the blob from response with correct MIME type
+      const blob = await response.blob();
+      const zipBlob = new Blob([blob], { type: 'application/zip' });
+      
+      // Extract filename from Content-Disposition header
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `codeforge-${id.slice(0, 8)}.zip`;
+      
+      if (contentDisposition) {
+        // Try different patterns to extract filename
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(contentDisposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+
+      // Ensure filename ends with .zip
+      if (!filename.endsWith('.zip')) {
+        filename = filename.replace(/\.[^.]*$/, '') + '.zip';
+      }
+
+      // Create download link
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (error) {
+      console.error('Failed to download ZIP:', error);
+      alert('Failed to download ZIP file. Please try again.');
+    }
+  };
+
   const handlePreview = async (forceRegenerate: boolean = false) => {
     if (generation && generation.response?.files && !isGeneratingPreview) {
       setIsGeneratingPreview(true);
@@ -312,6 +372,15 @@ export const GenerateSessionPage: React.FC = () => {
             >
               PREVIEW
             </button>
+            {activeTab === 'source' && generation?.response?.files && (
+              <button 
+                className="btn-download-zip"
+                onClick={handleDownloadZip}
+                title="Download all files as ZIP"
+              >
+                ⬇ ZIP
+              </button>
+            )}
             <button 
               className="btn-back"
               onClick={() => navigate('/generate')}
