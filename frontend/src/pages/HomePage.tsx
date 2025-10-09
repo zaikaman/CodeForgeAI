@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MatrixBackground } from '../components/MatrixBackground'
+import { TypingEffect } from '../components/TypingEffect'
 import '../styles/theme.css'
 import './HomePage.css'
 
@@ -32,6 +34,7 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="home-page crt-screen auth-page">
+      <MatrixBackground />
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-grid">
@@ -56,9 +59,11 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="hero-content">
-            <h1 className="hero-title phosphor-glow auth-page typing-effect">
-              AUTONOMOUS CODE GENERATION SYSTEM
-            </h1>
+            <TypingEffect
+              text="AUTONOMOUS CODE GENERATION SYSTEM"
+              speed={80}
+              className="hero-title phosphor-glow auth-page"
+            />
             <p className="hero-subtitle">
               &gt; Multi-agent AI architecture powered by collaborative intelligence
             </p>
@@ -202,7 +207,7 @@ export const HomePage: React.FC = () => {
           </div>
           <div className="terminal-content">
             <pre className="cta-ascii phosphor-glow auth-page">
-{`    ╔═══════════════════════════════════════════════════╗
+{`    ╔═══════════��═══════════════════════════════════════╗
     ║                                                   ║
     ║   ►  SYSTEM STATUS: ONLINE                        ║
     ║   ►  AI AGENTS: OPERATIONAL                       ║

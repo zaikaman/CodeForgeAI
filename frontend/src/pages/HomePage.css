@@ -2,8 +2,14 @@
 
 .home-page {
   min-height: 100vh;
-  background: var(--bg-primary);
+  background: #000000;
   overflow-x: hidden;
+  position: relative;
+}
+
+.home-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Boot Sequence */
@@ -28,10 +34,10 @@
 
 .boot-bar {
   height: 100%;
-  width: 100%; /* Changed from 0 to 100% */
+  width: 0%;
   background: linear-gradient(90deg, var(--blue-primary), var(--terminal-primary));
   box-shadow: var(--glow-medium);
-  /* animation: bootLoad 1.5s ease-out forwards; - REMOVED */
+  animation: bootLoad 1.5s ease-out forwards;
 }
 
 @keyframes bootLoad {
@@ -48,6 +54,8 @@
 .hero-grid {
   max-width: 1200px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .ascii-title {
@@ -75,15 +83,10 @@
   margin-bottom: var(--spacing-lg);
   letter-spacing: 2px;
   color: var(--white-primary);
-}
-
-.typing-effect {
-  overflow: hidden;
-  border-right: 3px solid var(--blue-primary);
-  white-space: nowrap;
-  margin: 0 auto;
-  /* animation: typing 3s steps(40, end), blink 0.75s step-end infinite; - REMOVED */
-  display: inline-block;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .hero-subtitle {
@@ -110,6 +113,38 @@
 .btn-large {
   padding: var(--spacing-md) var(--spacing-2xl);
   font-size: var(--font-size-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-large::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+  z-index: 0;
+}
+
+.btn-large:hover {
+  background: var(--bg-elevated);
+  box-shadow: var(--glow-medium);
+  transform: translateY(-1px);
+}
+
+.btn-large:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-large > * {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-stats {
@@ -141,7 +176,8 @@
 /* Features Section */
 .features-section {
   padding: var(--spacing-2xl) var(--spacing-lg);
-  background: var(--bg-secondary);
+  background: rgba(0, 0, 0, 0.7);
+  position: relative;
 }
 
 .section-header {
@@ -168,8 +204,15 @@
   padding: var(--spacing-xl);
   text-align: center;
   transition: all var(--transition-base);
-  /* animation: fadeIn 0.5s ease-out; - REMOVED */
+  animation: fadeInUp 0.6s ease-out backwards;
 }
+
+.feature-card:nth-child(1) { animation-delay: 0.1s; }
+.feature-card:nth-child(2) { animation-delay: 0.2s; }
+.feature-card:nth-child(3) { animation-delay: 0.3s; }
+.feature-card:nth-child(4) { animation-delay: 0.4s; }
+.feature-card:nth-child(5) { animation-delay: 0.5s; }
+.feature-card:nth-child(6) { animation-delay: 0.6s; }
 
 .feature-card:hover {
   transform: translateY(-4px);
@@ -218,6 +261,7 @@
 /* CTA Section */
 .cta-section {
   padding: var(--spacing-2xl) var(--spacing-lg);
+  position: relative;
 }
 
 .cta-terminal {
@@ -234,6 +278,18 @@
 
 .cta-content {
   text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.cta-content .btn-large::before {
+  display: none;
+}
+
+.cta-content .btn-large:hover {
+  background: var(--bg-elevated);
+  box-shadow: 0 0 10px var(--blue-primary), 0 0 20px var(--blue-primary), 0 4px 20px var(--terminal-primary);
+  transform: translateY(-1px);
 }
 
 .cta-title {
@@ -332,5 +388,71 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Floating animation for icons */
+.feature-icon {
+  animation: float 3s ease-in-out infinite;
+}
+
+.feature-card:nth-child(even) .feature-icon {
+  animation-delay: 1.5s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Pulse effect for stats */
+.stat-value {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Glitch effect for ASCII title */
+.ascii-title {
+  animation: glitch 5s infinite;
+}
+
+@keyframes glitch {
+  0%, 90%, 100% {
+    transform: translate(0);
+  }
+  92% {
+    transform: translate(-2px, 2px);
+  }
+  94% {
+    transform: translate(2px, -2px);
+  }
+  96% {
+    transform: translate(-2px, -2px);
+  }
+  98% {
+    transform: translate(2px, 2px);
   }
 }
