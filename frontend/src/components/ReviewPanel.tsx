@@ -127,13 +127,12 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({
         ) : filteredFindings.length === 0 ? (
           <div className="empty-findings">
             <pre className="empty-ascii phosphor-glow">
-{`    ╔═══════════════════════════╗
-    ║                           ║
-    ║      ✓  NO ISSUES         ║
-    ║                           ║
-    ║   CODE REVIEW COMPLETE    ║
-    ║                           ║
-    ╚═══════════════════════════╝`}
+{`  
+                               
+           ✓  NO ISSUES        
+                               
+        CODE REVIEW COMPLETE    
+                               `}
             </pre>
             <div className="empty-message text-success mt-md">
               All checks passed! No issues found.

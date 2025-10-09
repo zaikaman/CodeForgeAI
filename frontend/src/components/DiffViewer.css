@@ -67,6 +67,7 @@
   flex: 1;
   overflow: auto;
   background: var(--bg-primary);
+  scrollbar-color: var(--scrollbar-thumb) var(--bg-tertiary);
 }
 
 /* Override react-diff-viewer styles for retro theme */
@@ -283,12 +284,12 @@
 }
 
 .diff-container::-webkit-scrollbar-thumb {
-  background: var(--terminal-dim);
+  background: var(--scrollbar-thumb);
   border: 2px solid var(--bg-tertiary);
 }
 
 .diff-container::-webkit-scrollbar-thumb:hover {
-  background: var(--terminal-primary);
+  background: var(--scrollbar-thumb-hover);
   box-shadow: var(--glow-small);
 }
 

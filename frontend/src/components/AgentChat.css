@@ -28,6 +28,7 @@
   padding: var(--spacing-md);
   background: var(--bg-secondary);
   font-family: var(--font-mono);
+  scrollbar-color: var(--scrollbar-thumb) var(--bg-tertiary);
 }
 
 /* Empty Chat State */
@@ -295,12 +296,12 @@
 }
 
 .chat-messages::-webkit-scrollbar-thumb {
-  background: var(--terminal-dim);
+  background: var(--scrollbar-thumb);
   border: 1px solid var(--bg-tertiary);
 }
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
-  background: var(--terminal-primary);
+  background: var(--scrollbar-thumb-hover);
   box-shadow: var(--glow-small);
 }
 

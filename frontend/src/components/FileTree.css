@@ -4,6 +4,7 @@
   overflow-y: auto;
   font-family: 'Courier New', monospace;
   font-size: 0.85rem;
+  scrollbar-color: var(--scrollbar-thumb) rgba(0, 0, 0, 0.3);
 }
 
 .tree-node {
@@ -24,15 +25,15 @@
 
 .tree-node-label:hover {
   background: rgba(79, 195, 247, 0.1);
-  color: var(--blue-primary);
+  color: var(--text-secondary);
 }
 
 .tree-node-label.selected {
   background: rgba(79, 195, 247, 0.2);
   color: var(--white-primary);
-  border-left: 2px solid var(--blue-primary);
+  border-left: 2px solid var(--border-primary);
   font-weight: bold;
-  box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+  box-shadow: var(--glow-small);
 }
 
 .tree-node-label .folder-icon,
@@ -62,10 +63,10 @@
 }
 
 .file-tree-list::-webkit-scrollbar-thumb {
-  background: rgba(79, 195, 247, 0.3);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 .file-tree-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(79, 195, 247, 0.5);
+  background: var(--scrollbar-thumb-hover);
 }

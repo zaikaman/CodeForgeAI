@@ -65,12 +65,12 @@
 
 /* Scrollbar styling for Monaco */
 .editor-container .monaco-scrollable-element > .scrollbar > .slider {
-  background: var(--blue-dim) !important;
+  background: var(--scrollbar-thumb) !important;
   border-radius: 0 !important;
 }
 
 .editor-container .monaco-scrollable-element > .scrollbar > .slider:hover {
-  background: var(--terminal-primary) !important;
+  background: var(--scrollbar-thumb-hover) !important;
   box-shadow: var(--glow-small);
 }
 
@@ -216,11 +216,11 @@
 }
 
 .editor-container .monaco-editor .minimap-slider {
-  background: rgba(0, 255, 65, 0.2) !important;
+  background: var(--scrollbar-thumb) !important;
 }
 
 .editor-container .monaco-editor .minimap-slider:hover {
-  background: rgba(0, 255, 65, 0.3) !important;
+  background: var(--scrollbar-thumb-hover) !important;
 }
 
 /* Find/Replace widget customization */
