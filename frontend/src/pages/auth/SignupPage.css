@@ -86,6 +86,23 @@
   animation: slideIn 0.5s ease-out;
 }
 
+/* ASCII Art */
+.ascii-art {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.ascii-art pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  display: inline-block;
+  text-align: left;
+  white-space: pre;
+}
+
 /* Registration Info */
 .registration-info {
   border-top: 1px solid var(--border-secondary);
@@ -178,7 +195,7 @@
   }
 
   .ascii-art {
-    font-size: 0.5rem;
+    font-size: 0.45rem;
   }
 
   .init-line {
@@ -187,6 +204,12 @@
 
   .spinner-text {
     font-size: var(--font-size-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .ascii-art {
+    font-size: 0.35rem;
   }
 }
 

@@ -208,7 +208,7 @@ body {
   background-size: 100% 4px;
   z-index: var(--z-scanlines);
   pointer-events: none;
-  animation: scanlines 16s linear infinite; /* Slower: 8s -> 16s */
+  /* Removed constant scanlines animation */
 }
 
 .crt-screen.auth-page::after {
@@ -222,7 +222,7 @@ body {
   opacity: 0;
   z-index: var(--z-scanlines);
   pointer-events: none;
-  animation: flicker 8s infinite; /* 3 quick flickers in first 30%, then 70% pause */
+  /* Removed constant flicker animation */
 }
 
 /* Scanline Animation */
@@ -266,7 +266,7 @@ body {
 /* Phosphor Glow Effect - ENABLED ONLY FOR AUTH PAGES */
 .phosphor-glow.auth-page {
   text-shadow: var(--glow-text);
-  animation: phosphor-pulse 8s infinite; /* 3 quick pulses in first 10%, then 90% pause */
+  /* Removed constant phosphor-pulse animation */
 }
 
 @keyframes phosphor-pulse {
@@ -427,7 +427,7 @@ body {
   border: 2px solid var(--terminal-dim);
   border-top-color: var(--terminal-primary);
   border-radius: 0;
-  animation: pixel-spin 8s linear infinite; /* 3 quick spins in first 10%, then 90% pause */
+  animation: pixel-spin 1s linear infinite; /* Smooth continuous spin for loading indicator */
   box-shadow: var(--glow-small);
   image-rendering: pixelated;
 }
@@ -472,7 +472,7 @@ body {
 
 /* Glitch Effect - ENABLED ONLY FOR AUTH PAGES */
 .glitch.auth-page {
-  animation: glitch 8s infinite; /* 3 quick glitches in first 10%, then 90% pause */
+  /* Removed constant glitch animation */
 }
 
 /* Button Styles */

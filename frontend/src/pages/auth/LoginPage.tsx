@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { MatrixBackground } from '../../components/MatrixBackground'
 import '../../styles/theme.css'
 import './LoginPage.css'
 
@@ -79,7 +80,7 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="login-page crt-screen auth-page full-height">
       {/* Background Matrix Effect */}
-      <div className="matrix-bg"></div>
+      <MatrixBackground />
 
       {/* Main Login Terminal */}
       <div className="flex items-center justify-center full-height">
@@ -99,12 +100,12 @@ export const LoginPage: React.FC = () => {
                 <pre>
 {`   ╔═══════════════════════════════════════╗
    ║                                       ║
-   ║    ██████╗ ██████╗ ██████╗ ███████╗  ║
-   ║   ██╔════╝██╔═══██╗██╔══██╗██╔════╝  ║
-   ║   ██║     ██║   ██║██║  ██║█████╗    ║
-   ║   ██║     ██║   ██║██║  ██║██╔══╝    ║
-   ║   ╚██████╗╚██████╔╝██████╔╝███████╗  ║
-   ║    ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝  ║
+   ║    ██████╗ ██████╗ ██████╗ ███████╗   ║
+   ║   ██╔════╝██╔═══██╗██╔══██╗██╔════╝   ║
+   ║   ██║     ██║   ██║██║  ██║█████╗     ║
+   ║   ██║     ██║   ██║██║  ██║██╔══╝     ║
+   ║   ╚██████╗╚██████╔╝██████╔╝███████╗   ║
+   ║    ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝   ║
    ║                                       ║
    ║         FORGE AI TERMINAL             ║
    ║         v1.0.0 [SECURE]               ║

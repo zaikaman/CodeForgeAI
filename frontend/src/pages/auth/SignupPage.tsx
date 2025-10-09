@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { MatrixBackground } from '../../components/MatrixBackground'
 import '../../styles/theme.css'
 import './SignupPage.css'
 
@@ -87,7 +88,7 @@ export const SignupPage: React.FC = () => {
 
   return (
     <div className="signup-page crt-screen auth-page full-height">
-      <div className="matrix-bg"></div>
+      <MatrixBackground />
 
       <div className="flex items-center justify-center full-height">
         <div className="signup-container">
@@ -103,17 +104,18 @@ export const SignupPage: React.FC = () => {
               {/* ASCII Art Header */}
               <div className="ascii-art phosphor-glow">
                 <pre>
-{`   ╔═══════════════════════════════════════╗
-   ║    ██████╗ ███████╗ ██████╗ ██╗███╗   ║
-   ║    ██╔══██╗██╔════╝██╔════╝ ██║████╗  ║
-   ║    ██████╔╝█████╗  ██║  ███╗██║██╔██╗ ║
-   ║    ██╔══██╗██╔══╝  ██║   ██║██║██║╚██╗║
-   ║    ██║  ██║███████╗╚██████╔╝██║██║ ╚═╝║
-   ║    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚═╝    ║
-   ║                                       ║
-   ║      CREATE NEW OPERATOR ACCOUNT      ║
-   ║                                       ║
-   ╚═══════════════════════════════════════╝`}
+{`╔═════════════════════════════════════════╗
+║                                         ║
+║  ██████╗ ███████╗ ██████╗ ██╗███╗   ██╗ ║
+║  ██╔══██╗██╔════╝██╔════╝ ██║████╗  ██║ ║
+║  ██████╔╝█████╗  ██║  ███╗██║██╔██╗ ██║ ║
+║  ██╔══██╗██╔══╝  ██║   ██║██║██║╚██╗██║ ║
+║  ██████╔╝███████╗╚██████╔╝██║██║ ╚████║ ║
+║  ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝ ║
+║                                         ║
+║       CREATE NEW OPERATOR ACCOUNT       ║
+║                                         ║
+╚═════════════════════════════════════════╝`}
                 </pre>
               </div>
 
