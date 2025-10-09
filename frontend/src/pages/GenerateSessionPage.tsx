@@ -9,6 +9,23 @@ import apiClient from '../services/apiClient';
 import '../styles/theme.css';
 import './GenerateSessionPage.css';
 
+const BUILD_ID = (import.meta as any).env.VITE_BUILD_ID 
+  || (import.meta as any).env.VERCEL_GIT_COMMIT_SHA 
+  || (import.meta as any).env.GITHUB_SHA 
+  || (import.meta as any).env.COMMIT_REF 
+  || Date.now().toString();
+
+const withCacheBust = (urlStr: string): string => {
+  try {
+    const u = new URL(urlStr);
+    u.searchParams.set('v', BUILD_ID);
+    return u.toString();
+  } catch {
+    const sep = urlStr.includes('?') ? '&' : '?';
+    return `${urlStr}${sep}v=${BUILD_ID}`;
+  }
+};
+
 export const GenerateSessionPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -91,7 +108,7 @@ export const GenerateSessionPage: React.FC = () => {
         const data = await response.json();
 
         if (data.data && data.data.previewUrl) {
-          setPreviewUrl(data.data.previewUrl);
+          setPreviewUrl(withCacheBust(data.data.previewUrl));
           if (!hasGeneratedInitialPreview) {
             setHasGeneratedInitialPreview(true);
             setActiveTab('preview');
@@ -178,7 +195,7 @@ export const GenerateSessionPage: React.FC = () => {
         if (previewResponse.ok) {
           const previewData = await previewResponse.json();
           if (previewData.data && previewData.data.previewUrl) {
-            setPreviewUrl(previewData.data.previewUrl);
+            setPreviewUrl(withCacheBust(previewData.data.previewUrl));
             if (!hasGeneratedInitialPreview) {
               setHasGeneratedInitialPreview(true);
             }
