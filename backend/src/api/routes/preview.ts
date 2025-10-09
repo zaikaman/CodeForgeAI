@@ -63,8 +63,19 @@ router.post('/preview', async (req, res) => {
     // 2. Generate the preview with or without retry mechanism
     if (useRetry) {
       console.log(`Using retry mechanism with max ${maxRetries} retries`);
+      console.log(`Generation ID: ${generationId}`);
+      console.log(`Files count: ${files.length}`);
+      
       const previewService = new PreviewServiceWithRetry(maxRetries);
-      const result = await previewService.generatePreviewWithRetry(generationId, files, maxRetries);
+      
+      // Add timeout for the entire deployment process (10 minutes)
+      const deploymentTimeout = 600000; // 10 minutes
+      const deploymentPromise = previewService.generatePreviewWithRetry(generationId, files, maxRetries);
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Deployment process timeout after 10 minutes')), deploymentTimeout)
+      );
+
+      const result = await Promise.race([deploymentPromise, timeoutPromise]);
 
       if (result.success) {
         // Persist preview URL to database
@@ -73,6 +84,7 @@ router.post('/preview', async (req, res) => {
             .from('generations')
             .update({ preview_url: result.previewUrl })
             .eq('id', generationId);
+          console.log(`✓ Preview URL persisted to database: ${result.previewUrl}`);
         } catch (persistError) {
           console.warn('Failed to persist preview_url:', persistError);
         }
@@ -86,6 +98,8 @@ router.post('/preview', async (req, res) => {
           } 
         });
       } else {
+        console.error(`✗ Deployment failed after ${result.attempt} attempts`);
+        console.error(`   Error: ${result.error}`);
         res.status(500).json({ 
           success: false, 
           error: result.error,

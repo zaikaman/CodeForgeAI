@@ -193,17 +193,28 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
 
     } catch (error: any) {
       // Capture deployment logs for debugging
-      let logs = '';
-      try {
-        logs = await this.getDeploymentLogs(appName);
-      } catch (logError) {
-        console.warn('Could not retrieve deployment logs:', logError);
+      let logs = error.deploymentLogs || '';
+      
+      // If no deployment logs in error, try to fetch them
+      if (!logs) {
+        try {
+          logs = await this.getDeploymentLogs(appName);
+        } catch (logError) {
+          console.warn('Could not retrieve deployment logs:', logError);
+        }
       }
+
+      // If still no logs, use error stack
+      if (!logs) {
+        logs = error.stack || '';
+      }
+
+      console.log(`Captured deployment logs (${logs.length} characters)`);
 
       return {
         success: false,
         error: error.message,
-        logs: logs || error.stack || ''
+        logs: logs
       };
     } finally {
       tmpDir.removeCallback();
@@ -220,6 +231,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     attempt: number
   ): Promise<Array<{ path: string; content: string }> | null> {
     try {
+      console.log('→ Initializing ChatAgent...');
       const { runner } = await ChatAgent();
 
       const filesContext = currentFiles.map(f => 
@@ -254,20 +266,67 @@ Common issues to check:
 
 Return the complete fixed codebase.`;
 
-      const response = await runner.ask(fixPrompt) as any;
+      console.log('→ Sending fix request to ChatAgent...');
+      console.log(`   Prompt length: ${fixPrompt.length} characters`);
+      console.log(`   Files to fix: ${currentFiles.length}`);
 
-      if (!response.files || response.files.length === 0) {
-        console.warn('ChatAgent returned no files');
+      // Add timeout to prevent hanging
+      const timeoutMs = 240000; // 4 minutes
+      const responsePromise = runner.ask(fixPrompt);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('ChatAgent timeout after 2 minutes')), timeoutMs)
+      );
+
+      const response = await Promise.race([responsePromise, timeoutPromise]) as any;
+
+      console.log('→ ChatAgent response received');
+      console.log(`   Response type: ${typeof response}`);
+      console.log(`   Response keys: ${response ? Object.keys(response).join(', ') : 'null'}`);
+
+      if (!response) {
+        console.error('✗ ChatAgent returned null/undefined response');
         return null;
       }
 
-      console.log(`ChatAgent fixed ${response.files.length} files`);
-      console.log(`Summary: ${response.summary}`);
+      if (!response.files) {
+        console.error('✗ ChatAgent response missing "files" property');
+        console.error(`   Full response: ${JSON.stringify(response, null, 2)}`);
+        return null;
+      }
+
+      if (!Array.isArray(response.files)) {
+        console.error('✗ ChatAgent response.files is not an array');
+        console.error(`   Type: ${typeof response.files}`);
+        return null;
+      }
+
+      if (response.files.length === 0) {
+        console.warn('⚠ ChatAgent returned empty files array');
+        return null;
+      }
+
+      console.log(`✓ ChatAgent fixed ${response.files.length} files`);
+      if (response.summary) {
+        console.log(`   Summary: ${response.summary}`);
+      }
+
+      // Validate file structure
+      for (const file of response.files) {
+        if (!file.path || !file.content) {
+          console.error(`✗ Invalid file structure: ${JSON.stringify(file)}`);
+          return null;
+        }
+      }
 
       return response.files;
 
     } catch (error: any) {
-      console.error('Error getting fixes from ChatAgent:', error);
+      console.error('✗ Error getting fixes from ChatAgent:');
+      console.error(`   Error type: ${error.constructor.name}`);
+      console.error(`   Error message: ${error.message}`);
+      if (error.stack) {
+        console.error(`   Stack trace: ${error.stack}`);
+      }
       return null;
     }
   }
@@ -358,7 +417,10 @@ Return the complete fixed codebase.`;
     const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir);
 
     if (deployResult.code !== 0) {
-        throw new Error(`flyctl deploy failed with code ${deployResult.code}: ${deployResult.stderr}`);
+        // Create a detailed error with both stdout and stderr
+        const error: any = new Error(`flyctl deploy failed with code ${deployResult.code}`);
+        error.deploymentLogs = deployResult.stderr + '\n' + deployResult.stdout;
+        throw error;
     }
   }
 
