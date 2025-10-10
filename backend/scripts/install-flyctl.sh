@@ -6,6 +6,12 @@ set -e
 
 echo "📦 Installing flyctl..."
 
+# Only run on Heroku (check for /app directory)
+if [ ! -d "/app" ]; then
+    echo "⏭️  Not on Heroku, skipping flyctl installation"
+    exit 0
+fi
+
 # Create vendor directory
 mkdir -p /app/vendor/flyctl
 
