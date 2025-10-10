@@ -16,6 +16,7 @@ const generateRequestSchema = z.object({
   complexity: z.enum(['simple', 'moderate', 'complex']).default('moderate'),
   agents: z.array(z.string()).default(['CodeGenerator']),
   imageUrls: z.array(z.string()).optional(),
+  autoPreview: z.boolean().default(true), // Auto-deploy to Fly.io after generation
 });
 
 // POST /generate - Start a new generation job (requires auth)
@@ -70,6 +71,7 @@ router.post('/generate', optionalAuth, async (req, res) => {
       complexity: validatedRequest.complexity,
       agents: validatedRequest.agents,
       imageUrls: validatedRequest.imageUrls,
+      autoPreview: validatedRequest.autoPreview, // Pass through autoPreview flag
     });
 
     // Return immediately with the generation ID

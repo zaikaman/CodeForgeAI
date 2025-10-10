@@ -1,5 +1,6 @@
 import { GenerateWorkflow } from '../workflows/GenerateWorkflow';
 import { supabase } from '../storage/SupabaseClient';
+import { PreviewServiceWithRetry } from './preview/PreviewServiceWithRetry';
 
 interface GenerationJob {
   id: string;
@@ -9,6 +10,7 @@ interface GenerationJob {
   complexity: 'simple' | 'moderate' | 'complex';
   agents: string[];
   imageUrls?: string[];
+  autoPreview?: boolean; // Enable automatic preview deployment
 }
 
 class GenerationQueue {
@@ -97,6 +99,41 @@ class GenerationQueue {
         .eq('id', id);
 
       console.log(`[GenerationQueue] Job ${id} completed successfully`);
+
+      // Auto-deploy to Fly.io if enabled and FLY_API_TOKEN is set
+      if (job.autoPreview !== false && process.env.FLY_API_TOKEN && result.files && result.files.length > 0) {
+        console.log(`[GenerationQueue] Auto-deploying preview for job ${id}...`);
+        try {
+          const previewService = new PreviewServiceWithRetry(3);
+          const previewResult = await previewService.generatePreviewWithRetry(
+            id,
+            result.files,
+            3 // max retries
+          );
+
+          if (previewResult.success && previewResult.previewUrl) {
+            // Update preview_url in database
+            await supabase
+              .from('generations')
+              .update({ 
+                preview_url: previewResult.previewUrl,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', id);
+            
+            console.log(`[GenerationQueue] ✓ Preview deployed successfully: ${previewResult.previewUrl}`);
+          } else {
+            console.warn(`[GenerationQueue] ✗ Preview deployment failed:`, previewResult.error);
+          }
+        } catch (previewError: any) {
+          console.error(`[GenerationQueue] Preview deployment error:`, previewError.message);
+          // Don't fail the job if preview deployment fails
+        }
+      } else if (!process.env.FLY_API_TOKEN) {
+        console.log(`[GenerationQueue] Skipping auto-preview: FLY_API_TOKEN not configured`);
+      } else if (job.autoPreview === false) {
+        console.log(`[GenerationQueue] Skipping auto-preview: disabled for this job`);
+      }
     } catch (error: any) {
       console.error(`[GenerationQueue] Job ${id} failed:`, error);
 
