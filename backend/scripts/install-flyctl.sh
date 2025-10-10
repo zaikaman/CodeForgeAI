@@ -1,6 +1,6 @@
 #!/bin/bash
 # Install flyctl on Heroku at build time
-# This script downloads and installs flyctl to vendor/flyctl directory
+# This script downloads and installs flyctl to bin directory
 
 set -e
 
@@ -12,8 +12,8 @@ if [ ! -d "/app" ]; then
     exit 0
 fi
 
-# Create vendor directory
-mkdir -p /app/vendor/flyctl
+# Create bin directory in build dir (will be included in slug)
+mkdir -p bin
 
 # Download flyctl
 FLYCTL_VERSION="0.3.193"
@@ -22,22 +22,22 @@ FLYCTL_URL="https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSI
 echo "⬇️  Downloading flyctl v${FLYCTL_VERSION}..."
 curl -L "$FLYCTL_URL" -o /tmp/flyctl.tar.gz
 
-# Extract to vendor directory
+# Extract to bin directory
 echo "📂 Extracting flyctl..."
-tar -xzf /tmp/flyctl.tar.gz -C /app/vendor/flyctl
+tar -xzf /tmp/flyctl.tar.gz -C bin
 
 # Make executable
-chmod +x /app/vendor/flyctl/flyctl
+chmod +x bin/flyctl
 
 # Cleanup
 rm /tmp/flyctl.tar.gz
 
 echo "✅ Flyctl installed successfully!"
-echo "📍 Location: /app/vendor/flyctl/flyctl"
+echo "📍 Location: /app/bin/flyctl"
 
 # Verify installation
-if [ -f /app/vendor/flyctl/flyctl ]; then
-    /app/vendor/flyctl/flyctl version || echo "⚠️  Could not verify flyctl version"
+if [ -f bin/flyctl ]; then
+    ./bin/flyctl version || echo "⚠️  Could not verify flyctl version"
 else
     echo "❌ Flyctl installation failed!"
     exit 1
