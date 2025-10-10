@@ -154,6 +154,7 @@ router.post('/preview', async (req, res) => {
             logs: result.logs
           } 
         });
+        return;
       } else {
         console.error(`✗ Deployment failed after ${result.attempt} attempts`);
         console.error(`   Error: ${result.error}`);
@@ -163,6 +164,7 @@ router.post('/preview', async (req, res) => {
           logs: result.logs,
           attempt: result.attempt
         });
+        return;
       }
     } else {
       console.log('Using standard preview service (no retry)');
