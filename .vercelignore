@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+dist
+*.log
+.DS_Store
+tests
+*.test.ts
+*.spec.ts
+coverage
+adk-ts
+images
+specs
+-p
