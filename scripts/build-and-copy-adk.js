@@ -14,6 +14,36 @@ const targetDir = path.join(__dirname, '..', 'backend', 'node_modules', '@iqai',
 const packageJsonSource = path.join(adkRoot, 'package.json');
 const packageJsonTarget = path.join(targetDir, 'package.json');
 
+// Create a clean package.json without workspace: dependencies
+function createDeployPackageJson(sourcePackage) {
+  const pkg = JSON.parse(fs.readFileSync(sourcePackage, 'utf8'));
+  
+  // Remove workspace: dependencies from devDependencies
+  if (pkg.devDependencies) {
+    for (const dep in pkg.devDependencies) {
+      if (pkg.devDependencies[dep].startsWith('workspace:')) {
+        delete pkg.devDependencies[dep];
+      }
+    }
+  }
+  
+  // Keep only necessary fields for deployment
+  // Fix paths - remove dist/ prefix since files are already in root
+  const main = pkg.main ? pkg.main.replace('dist/', '') : 'index.js';
+  const types = pkg.types ? pkg.types.replace('dist/', '') : 'index.d.ts';
+  
+  return {
+    name: pkg.name,
+    version: pkg.version,
+    description: pkg.description,
+    main: main,
+    types: types,
+    dependencies: pkg.dependencies,
+    peerDependencies: pkg.peerDependencies,
+    peerDependenciesMeta: pkg.peerDependenciesMeta
+  };
+}
+
 function copyRecursiveSync(src, dest) {
   const exists = fs.existsSync(src);
   const stats = exists && fs.statSync(src);
@@ -55,10 +85,11 @@ try {
   copyRecursiveSync(sourceDir, targetDir);
   console.log('✓ Copied ADK dist files');
 
-  // Copy package.json
+  // Create clean package.json without workspace dependencies
   if (fs.existsSync(packageJsonSource)) {
-    fs.copyFileSync(packageJsonSource, packageJsonTarget);
-    console.log('✓ Copied package.json');
+    const cleanPackage = createDeployPackageJson(packageJsonSource);
+    fs.writeFileSync(packageJsonTarget, JSON.stringify(cleanPackage, null, 2));
+    console.log('✓ Created clean package.json (removed workspace dependencies)');
   } else {
     console.error('✗ package.json not found:', packageJsonSource);
     process.exit(1);
