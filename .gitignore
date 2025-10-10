@@ -72,6 +72,7 @@ backend/dist/
 adk-ts/node_modules/
 adk-ts/.pnpm-store/
 adk-ts/packages/*/dist/
+!adk-ts/packages/adk/dist/
 adk-ts/packages/*/node_modules/
 
 # Shared package build

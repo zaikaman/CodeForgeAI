@@ -11,7 +11,7 @@
     "dev": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" tsx watch src/index.ts",
     "start": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" tsx src/index.ts",
     "build": "echo 'Skipping TypeScript compilation - running with tsx instead'",
-    "vercel-build": "node ../scripts/copy-adk.js && echo 'Backend ready for deployment'",
+    "vercel-build": "echo 'Backend ready for deployment'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

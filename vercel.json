@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm install -g pnpm@9.0.0 && npm run build",
-  "installCommand": "npm install -g pnpm@9.0.0 && npm install",
   "builds": [
     {
       "src": "backend/src/index.ts",

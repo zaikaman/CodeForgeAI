@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Build local ADK and copy to backend node_modules
- * This ensures we use the custom ADK with GPT-5 support and custom base URL
+ * Copy pre-built ADK dist to backend node_modules
+ * The ADK dist is committed to the repo with custom GPT-5 support and custom base URL
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
 const adkRoot = path.join(__dirname, '..', 'adk-ts', 'packages', 'adk');
 const sourceDir = path.join(adkRoot, 'dist');
@@ -35,72 +34,16 @@ function copyRecursiveSync(src, dest) {
   }
 }
 
-console.log('🔨 Building local ADK with custom modifications...');
+console.log('� Copying pre-built custom ADK to backend node_modules...');
 
 try {
-  // Check if ADK source exists
-  if (!fs.existsSync(adkRoot)) {
-    console.error('✗ ADK source directory not found:', adkRoot);
-    console.log('ℹ️  Skipping custom ADK build, will use npm package instead');
+  // Check if pre-built dist exists
+  if (!fs.existsSync(sourceDir)) {
+    console.error('✗ Pre-built ADK dist not found:', sourceDir);
+    console.log('ℹ️  Please run "npm run build" in adk-ts/packages/adk first');
+    console.log('ℹ️  Skipping custom ADK, will use npm package instead');
     process.exit(0); // Don't fail the build
   }
-
-  // Check if pnpm is available
-  let hasPnpm = false;
-  try {
-    execSync('pnpm --version', { stdio: 'ignore' });
-    hasPnpm = true;
-  } catch {
-    console.log('⚠️  pnpm not found, installing...');
-    try {
-      execSync('npm install -g pnpm@9.0.0', { stdio: 'inherit' });
-      hasPnpm = true;
-    } catch (error) {
-      console.log('⚠️  Could not install pnpm, trying with npm...');
-    }
-  }
-
-  // Install ADK dependencies if node_modules doesn't exist
-  const adkNodeModules = path.join(adkRoot, 'node_modules');
-  if (!fs.existsSync(adkNodeModules)) {
-    console.log('📦 Installing ADK dependencies...');
-    const adkTsRoot = path.join(__dirname, '..', 'adk-ts');
-    
-    if (hasPnpm) {
-      execSync('pnpm install --filter @iqai/adk', { 
-        cwd: adkTsRoot,
-        stdio: 'inherit'
-      });
-    } else {
-      // Fallback to npm
-      execSync('npm install', { 
-        cwd: adkRoot,
-        stdio: 'inherit'
-      });
-    }
-  }
-
-  // Build ADK
-  console.log('🏗️  Building ADK...');
-  if (hasPnpm) {
-    execSync('pnpm build', {
-      cwd: adkRoot,
-      stdio: 'inherit'
-    });
-  } else {
-    execSync('npm run build', {
-      cwd: adkRoot,
-      stdio: 'inherit'
-    });
-  }
-
-  // Verify build output
-  if (!fs.existsSync(sourceDir)) {
-    console.error('✗ Build failed: dist directory not found');
-    process.exit(1);
-  }
-
-  console.log('📦 Copying custom ADK to backend node_modules...');
 
   // Ensure target directory exists
   if (!fs.existsSync(targetDir)) {
@@ -116,12 +59,15 @@ try {
   if (fs.existsSync(packageJsonSource)) {
     fs.copyFileSync(packageJsonSource, packageJsonTarget);
     console.log('✓ Copied package.json');
+  } else {
+    console.error('✗ package.json not found:', packageJsonSource);
+    process.exit(1);
   }
 
-  console.log('✅ Custom ADK with GPT-5 support built and copied successfully!');
+  console.log('✅ Custom ADK with GPT-5 support copied successfully!');
   console.log('   Files available at:', targetDir);
 } catch (error) {
-  console.error('✗ Error building/copying ADK:', error.message);
+  console.error('✗ Error copying ADK:', error.message);
   console.log('ℹ️  Build will continue using npm package instead');
   process.exit(0); // Don't fail the main build
 }
