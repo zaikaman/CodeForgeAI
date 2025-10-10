@@ -4,7 +4,7 @@ import { supabase } from '../../storage/SupabaseClient';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { generationQueue } from '../../services/GenerationQueue';
-import { optionalAuth } from '../middleware/supabaseAuth';
+import { optionalAuth, AuthenticatedRequest } from '../middleware/supabaseAuth';
 
 const router = Router();
 
@@ -19,9 +19,9 @@ const generateRequestSchema = z.object({
 });
 
 // POST /generate - Start a new generation job (requires auth)
-router.post('/generate', optionalAuth, async (req, res): Promise<void> => {
+router.post('/generate', optionalAuth, async (req, res) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as AuthenticatedRequest).userId;
     
     // Check if user is authenticated
     if (!userId) {
@@ -105,9 +105,9 @@ router.post('/generate', optionalAuth, async (req, res): Promise<void> => {
 });
 
 // GET /generate/:id - Get generation status and results (requires auth)
-router.get('/generate/:id', optionalAuth, async (req, res): Promise<void> => {
+router.get('/generate/:id', optionalAuth, async (req, res) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as AuthenticatedRequest).userId;
     const { id } = req.params;
 
     // Check if user is authenticated

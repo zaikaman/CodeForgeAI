@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { getSupabaseClient } from '../../storage/SupabaseClient'
-import { User } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 
 /**
  * Supabase Auth Middleware
@@ -11,7 +11,7 @@ import { User } from '@supabase/supabase-js'
  * Extended Express Request with user information
  */
 export interface AuthenticatedRequest extends Request {
-  user?: User
+  supabaseUser?: User
   userId?: string
   accessToken?: string
 }
@@ -60,7 +60,12 @@ export async function supabaseAuth(
     }
 
     // Attach user info to request
-    req.user = data.user
+    req.supabaseUser = data.user
+    req.user = {
+      id: data.user.id,
+      email: data.user.email,
+      role: (data.user.user_metadata?.role as string) || 'user',
+    }
     req.userId = data.user.id
     req.accessToken = token
 
@@ -80,7 +85,7 @@ export async function supabaseAuth(
  */
 export async function optionalAuth(
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
@@ -104,7 +109,12 @@ export async function optionalAuth(
     const { data, error } = await supabase.auth.getUser(token)
 
     if (!error && data.user) {
-      req.user = data.user
+      req.supabaseUser = data.user
+      req.user = {
+        id: data.user.id,
+        email: data.user.email,
+        role: (data.user.user_metadata?.role as string) || 'user',
+      }
       req.userId = data.user.id
       req.accessToken = token
     }
@@ -131,8 +141,7 @@ export function requireRole(...roles: string[]) {
       return
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const userRole: string = (req.user.user_metadata?.role as string) || 'user'
+    const userRole: string = req.user.role || 'user'
 
     if (!roles.includes(userRole)) {
       res.status(403).json({

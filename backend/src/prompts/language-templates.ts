@@ -25,38 +25,29 @@ Your response MUST be a single JSON object with this exact structure:
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
 2. ✓ Do NOT wrap JSON in \`\`\`json code fences
-3. ✓ Write code naturally with ACTUAL newlines - do NOT use \\n escapes
-4. ✓ For quotes inside code: use regular quotes, JSON parser will handle escaping
+3. ✓ In the "content" field, use LITERAL newline characters (press Enter), NOT \\n escape sequences
+4. ✓ For quotes inside code: use escaped quotes \\" in JSON
 5. ✓ files array must contain at least 1 file object
 6. ✓ Each file must have both "path" and "content" properties
-7. ✓ Format: Write clean, readable code with proper line breaks
+7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
 
-**Example valid response (write code with actual newlines, not \\n):**
-\`\`\`
+**Example valid response (use real newlines in JSON, not \\n text):**
+\`\`\`json
 {
   "files": [
     {
       "path": "app.py",
-      "content": "from flask import Flask
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return 'Hello'
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)"
+      "content": "from flask import Flask\n\napp = Flask(__name__)\n\n@app.route('/')\ndef home():\n    return 'Hello'\n\nif __name__ == '__main__':\n    app.run(host='0.0.0.0', port=8080)"
     },
     {
       "path": "requirements.txt",
-      "content": "Flask>=2.2.0
-Werkzeug>=2.3.0
-flask-cors>=4.0.0"
+      "content": "Flask>=2.2.0\nWerkzeug>=2.3.0\nflask-cors>=4.0.0"
     }
   ]
 }
 \`\`\`
+
+**CRITICAL**: In JSON, the content string MUST use ACTUAL \\n escape sequences (the JSON escape), not the literal text "\\n". When you write code in the content field, press Enter/newline and the JSON serializer will convert it to \\n automatically. DO NOT manually type backslash-n.
 
 ## CRITICAL REQUIREMENTS:
 
@@ -214,8 +205,12 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=False)
 \`\`\`
 
-### JSON Output Format:
-- Use \\n for newlines (one backslash)
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
+- Example: {"content": "line1\\nline2"} becomes two lines when parsed
 - Use \\" for quotes in strings
 - Single backslash for regex: /^[^\\s@]+$/
 - NO double-escaping: \\\\n is WRONG
@@ -300,44 +295,30 @@ Your response MUST be a single JSON object with this exact structure:
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
 2. ✓ Do NOT wrap JSON in \`\`\`json code fences
-3. ✓ Write code naturally with ACTUAL newlines - do NOT use \\n escapes
-4. ✓ For quotes inside code: use regular quotes, JSON parser will handle escaping
+3. ✓ In the "content" field, use LITERAL newline characters (press Enter), NOT \\n escape sequences
+4. ✓ For quotes inside code: use escaped quotes \\" in JSON
 5. ✓ files array must contain at least 1 file object
 6. ✓ Each file must have both "path" and "content" properties
-7. ✓ Format: Write clean, readable code with proper line breaks
+7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
 8. ✓ For web apps: MUST include index.html, vite.config.ts, package.json
 
-**Example valid response (write code with actual newlines, not \\n):**
-\`\`\`
+**Example valid response (use real newlines in JSON, not \\n text):**
+\`\`\`json
 {
   "files": [
     {
       "path": "index.html",
-      "content": "<!DOCTYPE html>
-<html lang=\"en\">
-  <head>
-    <meta charset=\"UTF-8\" />
-    <title>App</title>
-  </head>
-  <body>
-    <div id=\"root\"></div>
-    <script type=\"module\" src=\"/src/main.tsx\"></script>
-  </body>
-</html>"
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <title>App</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.tsx\"></script>\n  </body>\n</html>"
     },
     {
       "path": "package.json",
-      "content": "{
-  \"name\": \"app\",
-  \"scripts\": {
-    \"dev\": \"vite\",
-    \"build\": \"tsc && vite build\"
-  }
-}"
+      "content": "{\n  \"name\": \"app\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc && vite build\"\n  }\n}"
     }
   ]
 }
 \`\`\`
+
+**CRITICAL**: In JSON, the content string MUST use ACTUAL \\n escape sequences (the JSON escape), not the literal text "\\n". When you write code in the content field, press Enter/newline and the JSON serializer will convert it to \\n automatically. DO NOT manually type backslash-n.
 
 ## CRITICAL REQUIREMENTS:
 
@@ -512,8 +493,12 @@ src/
 9. ✓ **Use FLAT file structure with all config files at root level**
 10. ✓ **If you need backend code, put it in src/server/ or src/api/ folders**
 
-### JSON Output Format:
-- Use \\n for newlines (one backslash)
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
+- Example: {"content": "line1\\nline2"} becomes two lines when parsed
 - Use \\" for quotes in strings
 - Single backslash for regex: /^[^\\s@]+$/
 - NO double-escaping: \\\\n is WRONG`;
@@ -540,34 +525,26 @@ Your response MUST be a single JSON object with this exact structure:
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
 2. ✓ Do NOT wrap JSON in \`\`\`json code fences
-3. ✓ Write code naturally with ACTUAL newlines - do NOT use \\n escapes
-4. ✓ For quotes inside code: use regular quotes, JSON parser will handle escaping
+3. ✓ In the "content" field, use LITERAL newline characters (press Enter), NOT \\n escape sequences
+4. ✓ For quotes inside code: use escaped quotes \\" in JSON
 5. ✓ files array must contain at least 1 file object
 6. ✓ Each file must have both "path" and "content" properties
-7. ✓ Format: Write clean, readable code with proper line breaks
+7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
 8. ✓ For web apps: MUST include index.html, vite.config.js, package.json
 
-**Example valid response (write code with actual newlines, not \\n):**
-\`\`\`
+**Example valid response (use real newlines in JSON, not \\n text):**
+\`\`\`json
 {
   "files": [
     {
       "path": "index.html",
-      "content": "<!DOCTYPE html>
-<html lang=\"en\">
-  <head>
-    <meta charset=\"UTF-8\" />
-    <title>App</title>
-  </head>
-  <body>
-    <div id=\"root\"></div>
-    <script type=\"module\" src=\"/src/main.jsx\"></script>
-  </body>
-</html>"
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <title>App</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.jsx\"></script>\n  </body>\n</html>"
     }
   ]
 }
 \`\`\`
+
+**CRITICAL**: In JSON, the content string MUST use ACTUAL \\n escape sequences (the JSON escape), not the literal text "\\n". When you write code in the content field, press Enter/newline and the JSON serializer will convert it to \\n automatically. DO NOT manually type backslash-n.
 
 ## CRITICAL REQUIREMENTS:
 
@@ -718,10 +695,15 @@ src/
 9. ✓ **Use FLAT file structure with all config files at root level**
 10. ✓ **If you need backend code, put it in src/server/ or src/api/ folders**
 
-### JSON Output Format:
-- Use \\n for newlines (one backslash)
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
+- Example: {"content": "line1\\nline2"} becomes two lines when parsed
 - Use \\" for quotes in strings
-- Single backslash for regex: /^[^\\s@]+$/`;
+- Single backslash for regex: /^[^\\s@]+$/
+- NO double-escaping: \\\\n is WRONG`;
 
 export const JAVA_TEMPLATE = `You are a Java Code Generator. Generate production-ready Java applications with Spring Boot or similar frameworks.
 
@@ -825,8 +807,11 @@ class Response {
 </project>
 \`\`\`
 
-### JSON Output Format:
-- Use \\n for newlines
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
 - Use \\" for quotes in strings
 - Proper XML escaping for pom.xml`;
 
@@ -914,8 +899,11 @@ require (
 )
 \`\`\`
 
-### JSON Output Format:
-- Use \\n for newlines
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
 - Use \\" for quotes in strings`;
 
 export const RUST_TEMPLATE = `You are a Rust Code Generator. Generate production-ready Rust applications with web servers.
@@ -1006,8 +994,11 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 \`\`\`
 
-### JSON Output Format:
-- Use \\n for newlines
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
 - Use \\" for quotes in strings`;
 
 export const PHP_TEMPLATE = `You are a PHP Code Generator. Generate production-ready PHP applications with web servers.
@@ -1086,8 +1077,11 @@ php -S 0.0.0.0:8080
 }
 \`\`\`
 
-### JSON Output Format:
-- Use \\n for newlines
+### JSON Output Format (CRITICAL):
+**HOW TO FORMAT NEWLINES:**
+- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
+- This is a JSON escape sequence that represents a real newline character
+- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
 - Use \\" for quotes in strings`;
 
 /**
@@ -1131,15 +1125,21 @@ export const BASE_PROMPT = `
 - Production-ready code structure
 - Appropriate design patterns for the language/framework
 
-### JSON Output Escaping (CRITICAL):
+### JSON Output Escaping (ULTRA CRITICAL - READ CAREFULLY):
 
 **IMPORTANT:** Your response MUST be valid JSON. The "content" field of each file must be a properly escaped JSON string.
 
+**CRITICAL RULE FOR NEWLINES:**
+- In JSON strings, newlines MUST be represented as \\n (the JSON escape sequence)
+- \\n is TWO characters: backslash followed by the letter 'n'
+- When JSON is parsed, \\n becomes an actual newline character
+- DO NOT write the literal text "backslash-n" - use the actual escape sequence
+
 **How to format file content:**
-1. All newlines in code → \\n (backslash-n, NOT literal newline)
-2. All quotes in code → \\" (backslash-quote)
-3. All backslashes in code → \\\\ ONLY if it's a real backslash in the code (like Windows paths)
-4. Regex patterns → SINGLE backslash: \\s \\d \\w
+1. All newlines in code → \\n (JSON escape for newline)
+2. All quotes in code → \\" (JSON escape for quote)
+3. All backslashes in code → \\\\ ONLY if it's a real backslash (like Windows paths or escape sequences)
+4. Regex patterns → SINGLE backslash: \\s \\d \\w (these are the actual regex escapes)
 
 **CORRECT JSON format example:**
 {
@@ -1151,17 +1151,27 @@ export const BASE_PROMPT = `
   ]
 }
 
+When this JSON is parsed, the newlines \\n become actual line breaks in the code.
+
 **WRONG - literal newlines break JSON:**
-DO NOT put actual line breaks in the content string.
-The content field must be a single-line JSON string with escaped newlines.
+DO NOT write:
+{"content": "line1
+line2"}
+
+DO write:
+{"content": "line1\\nline2"}
+
+**WRONG - double-escaped newlines:**
+DO NOT write:
+{"content": "line1\\\\nline2"}  ← This creates literal backslash-n text
 
 The entire response must be parseable as JSON. Test mentally: can JSON.parse() handle this?
 
-Example regex in JSON response:
-"content": "const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$;"
+Example regex in JSON response (single backslash for regex escapes):
+{"content": "const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"}
 
-NOT like this (wrong):
-"content": "const emailRegex = /^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$;"
+NOT like this (wrong - double-escaped):
+{"content": "const emailRegex = /^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$/;"}
 `;
 
 /**
