@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 
 const systemPrompt = `You are a Security Sentinel Agent. Your purpose is to conduct security analysis and identify vulnerabilities in code, dependencies, and infrastructure.
 

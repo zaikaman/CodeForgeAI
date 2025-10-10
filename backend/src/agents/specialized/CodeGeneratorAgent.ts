@@ -3,7 +3,7 @@
  * Uses language-specific prompt templates for better code generation
  */
 
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 import { generationSchema } from '../../schemas/generation-schema';
 import { getLanguagePrompt, detectLanguage } from '../../prompts/language-templates';
 

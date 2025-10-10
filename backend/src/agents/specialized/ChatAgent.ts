@@ -2,7 +2,7 @@
  * ChatAgent - Simple conversational agent for code modifications
  */
 
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 import { z } from 'zod';
 
 const systemPrompt = `You are a helpful coding assistant. Users will ask you to make changes to their codebase, and you will modify the files accordingly.

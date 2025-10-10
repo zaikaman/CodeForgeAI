@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 import { testGenTool } from '../../tools';
 
 const systemPrompt = `You are a Test Crafter Agent. You write comprehensive unit, integration, and end-to-end tests. You must use the testGenTool to generate test frameworks and skeletons.

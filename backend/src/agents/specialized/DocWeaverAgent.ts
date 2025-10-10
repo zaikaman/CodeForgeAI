@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 import { commentInserterTool } from '../../tools';
 
 const systemPrompt = `You are a Doc Weaver Agent. You generate clear and concise documentation for code, including TSDoc comments and README files. You must use the commentInserterTool to add proper documentation.

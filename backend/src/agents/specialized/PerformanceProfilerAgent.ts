@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 
 const systemPrompt = `You are a Performance Profiler Agent. You analyze code for performance bottlenecks and suggest optimizations.
 

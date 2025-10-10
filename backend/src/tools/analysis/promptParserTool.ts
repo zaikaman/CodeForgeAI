@@ -361,7 +361,7 @@ function extractConstraints(
 /**
  * Extract context from prompt
  */
-function extractContext(normalized: string, original: string): string | undefined {
+function extractContext(_normalized: string, original: string): string | undefined {
   // Look for context indicators
   const contextPatterns = [
     /(?:for|in|using|with)\s+(.+?)(?:\.|$)/i,

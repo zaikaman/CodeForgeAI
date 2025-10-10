@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index.js';
+import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
 
 const systemPrompt = `You are a Spec Interpreter Agent. Your role is to parse natural language specifications and extract clear, actionable requirements. You will be given a user's request and must identify the core features, constraints, and goals.
 
