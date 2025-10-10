@@ -30,6 +30,8 @@ Your response MUST be a single JSON object with this exact structure:
 5. ✓ files array must contain at least 1 file object
 6. ✓ Each file must have both "path" and "content" properties
 7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
+8. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
+9. ✓ **Every file MUST have actual meaningful content - no empty strings**
 
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
@@ -301,6 +303,8 @@ Your response MUST be a single JSON object with this exact structure:
 6. ✓ Each file must have both "path" and "content" properties
 7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
 8. ✓ For web apps: MUST include index.html, vite.config.ts, package.json
+9. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
+10. ✓ **Every file MUST have actual meaningful content - no empty strings**
 
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
@@ -531,6 +535,8 @@ Your response MUST be a single JSON object with this exact structure:
 6. ✓ Each file must have both "path" and "content" properties
 7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
 8. ✓ For web apps: MUST include index.html, vite.config.js, package.json
+9. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
+10. ✓ **Every file MUST have actual meaningful content - no empty strings**
 
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
@@ -1124,6 +1130,14 @@ export const BASE_PROMPT = `
 - Clear documentation
 - Production-ready code structure
 - Appropriate design patterns for the language/framework
+
+### FILE CREATION RULES (CRITICAL):
+1. ✓ **ONLY create files with actual code/content**
+2. ✓ **DO NOT create empty files (content: "")**
+3. ✓ **DO NOT create .gitkeep files**
+4. ✓ **DO NOT create placeholder files or README.md files with no content**
+5. ✓ **Every file MUST have meaningful, functional code**
+6. ✓ **If a directory needs to exist, create a real file in it instead**
 
 ### JSON Output Escaping (ULTRA CRITICAL - READ CAREFULLY):
 
