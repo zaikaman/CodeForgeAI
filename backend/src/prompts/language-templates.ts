@@ -302,9 +302,11 @@ Your response MUST be a single JSON object with this exact structure:
 5. ✓ files array must contain at least 1 file object
 6. ✓ Each file must have both "path" and "content" properties
 7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
-8. ✓ For web apps: MUST include index.html, vite.config.ts, package.json
-9. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
-10. ✓ **Every file MUST have actual meaningful content - no empty strings**
+8. ✓ **ABSOLUTELY NO EMPTY FILES - content: "" is FORBIDDEN**
+9. ✓ **DO NOT create files like src/index.ts with empty content**
+10. ✓ **DO NOT create .gitkeep files or placeholder files**
+11. ✓ **Every file MUST have actual meaningful code - minimum 10 lines**
+12. ✓ **For web apps: MUST include package.json with dependencies**
 
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
@@ -316,13 +318,18 @@ Your response MUST be a single JSON object with this exact structure:
     },
     {
       "path": "package.json",
-      "content": "{\n  \"name\": \"app\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc && vite build\"\n  }\n}"
+      "content": "{\n  \"name\": \"app\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc && vite build\",\n    \"start\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"react\": \"^18.2.0\",\n    \"react-dom\": \"^18.2.0\"\n  },\n  \"devDependencies\": {\n    \"@types/react\": \"^18.2.0\",\n    \"@types/react-dom\": \"^18.2.0\",\n    \"@vitejs/plugin-react\": \"^4.0.0\",\n    \"typescript\": \"^5.0.0\",\n    \"vite\": \"^5.0.0\"\n  }\n}"
     }
   ]
 }
 \`\`\`
 
-**CRITICAL**: In JSON, the content string MUST use ACTUAL \\n escape sequences (the JSON escape), not the literal text "\\n". When you write code in the content field, press Enter/newline and the JSON serializer will convert it to \\n automatically. DO NOT manually type backslash-n.
+**CRITICAL**: 
+- In JSON, the content string MUST use ACTUAL \\n escape sequences (the JSON escape), not the literal text "\\n". 
+- When you write code in the content field, press Enter/newline and the JSON serializer will convert it to \\n automatically. 
+- DO NOT manually type backslash-n.
+- **NEVER create a file with empty content: ""**
+- **package.json is MANDATORY for all TypeScript/JavaScript projects**
 
 ## CRITICAL REQUIREMENTS:
 
@@ -447,7 +454,7 @@ app.listen(PORT, () => {
    - Configure server port (3000)
    - Set build output directory (dist)
 
-5. **Package.json for React + Vite apps:**
+5. **Package.json for React + Vite apps (MANDATORY - ALWAYS CREATE THIS FILE):**
 \`\`\`json
 {
   "name": "app-name",
@@ -455,8 +462,8 @@ app.listen(PORT, () => {
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "vite build",
+    "start": "vite preview"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -472,6 +479,8 @@ app.listen(PORT, () => {
 }
 \`\`\`
 
+**CRITICAL**: package.json is MANDATORY. Without it, the build will fail with "Could not read package.json" error.
+
 6. **File structure for React apps (FLAT STRUCTURE ONLY):**
 \`\`\`
 index.html          (MANDATORY - browser entry point, at ROOT)
@@ -486,16 +495,17 @@ src/
 \`\`\`
 
 **CRITICAL RULES for Web UIs:**
-1. ✓ ALWAYS create index.html in root directory (NOT in subdirectories)
-2. ✓ index.html MUST have <div id="root"></div> for React
-3. ✓ index.html MUST have <script type="module" src="/src/main.tsx"></script>
-4. ✓ Include vite.config.ts with proper plugins
-5. ✓ Build script must be "tsc && vite build" to compile TS first
-6. ✓ For calculator/todo/UI apps, use React + Vite setup
-7. ✓ NO console.log for production logging - use proper logger
+1. ✓ **MUST create package.json in root directory (ABSOLUTELY MANDATORY)**
+2. ✓ ALWAYS create index.html in root directory (NOT in subdirectories)
+3. ✓ index.html MUST have <div id="root"></div> for React
+4. ✓ index.html MUST have <script type="module" src="/src/main.tsx"></script>
+5. ✓ Include vite.config.ts with proper plugins
+6. ✓ Build script must be "vite build" (TypeScript is compiled by Vite automatically)
+7. ✓ For calculator/todo/UI apps, use React + Vite setup
 8. ✓ **DO NOT create nested folders like frontend/, backend/, client/, server/**
 9. ✓ **Use FLAT file structure with all config files at root level**
-10. ✓ **If you need backend code, put it in src/server/ or src/api/ folders**
+10. ✓ **DO NOT create empty files - every file must have real code**
+11. ✓ **NEVER create files like src/index.ts with empty content: ""**
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**

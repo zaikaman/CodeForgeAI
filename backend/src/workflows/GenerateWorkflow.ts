@@ -618,18 +618,41 @@ Return the result as JSON with the following structure:
                 throw new Error('CodeGeneratorAgent returned no files');
             }
             
-            // Validate each file has required properties
-            for (const file of response.files) {
+            // Filter out empty files and validate
+            const validFiles = response.files.filter((file: any) => {
                 if (!file.path || !file.content) {
-                    console.error('Invalid file structure:', file);
-                    throw new Error('File missing required properties (path or content)');
+                    console.warn('⚠️ Filtering out invalid file:', file.path || 'unknown');
+                    return false;
                 }
+                if (file.content.trim().length === 0) {
+                    console.warn('⚠️ Filtering out empty file:', file.path);
+                    return false;
+                }
+                if (file.path.includes('.gitkeep')) {
+                    console.warn('⚠️ Filtering out .gitkeep file:', file.path);
+                    return false;
+                }
+                return true;
+            });
+            
+            if (validFiles.length === 0) {
+                console.error('❌ All files were filtered out - no valid files remain');
+                throw new Error('No valid files after filtering empty/placeholder files');
             }
             
-            console.log('Successfully validated response with', response.files.length, 'files');
+            // Check for critical missing files for web apps
+            const hasPackageJson = validFiles.some((f: any) => f.path === 'package.json');
+            const language = request.targetLanguage?.toLowerCase();
+            
+            if ((language === 'typescript' || language === 'javascript') && !hasPackageJson) {
+                console.error('❌ CRITICAL: Missing package.json for TypeScript/JavaScript project');
+                throw new Error('package.json is required for TypeScript/JavaScript projects');
+            }
+            
+            console.log(`✅ Successfully validated ${validFiles.length} files (filtered out ${response.files.length - validFiles.length} invalid files)`);
 
             return {
-                files: response.files,
+                files: validFiles,  // Use filtered files, not original
                 confidence: 0.8,
                 metadata: {
                     generatedBy: 'AI Agent (gpt-5-nano)'
