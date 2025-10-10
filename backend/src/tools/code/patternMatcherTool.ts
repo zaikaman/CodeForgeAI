@@ -403,7 +403,7 @@ export async function findAllPatterns(
 }
 
 // Export the tool for ADK integration
-import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { createTool } from '@iqai/adk'
 import { z } from 'zod'
 
 export const patternMatcherTool = createTool({
@@ -413,7 +413,7 @@ export const patternMatcherTool = createTool({
     code: z.string(),
     filePath: z.string().optional()
   }),
-  fn: async (args, context) => {
+  fn: async (args) => {
     return findAllPatterns(args.code, args.filePath || 'temp.ts')
   }
 })

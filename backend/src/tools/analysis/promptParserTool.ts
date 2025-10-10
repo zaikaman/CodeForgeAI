@@ -87,7 +87,8 @@ export async function parsePrompt(prompt: string): Promise<ParsedPrompt> {
 /**
  * Extract intent from prompt
  */
-function extractIntent(normalized: string, original: string): Intent {
+function extractIntent(_normalized: string, original: string): Intent {
+  const normalized = _normalized
   const actionPatterns = {
     generate: [
       /\b(create|generate|make|build|implement|write)\b/,

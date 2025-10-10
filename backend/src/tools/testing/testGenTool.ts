@@ -839,7 +839,7 @@ function generateErrorHandlingTests(functionName: string, parameters: any[]): st
 }
 
 // Export the tool for ADK integration  
-import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { createTool } from '@iqai/adk'
 import { z } from 'zod'
 
 export const testGenTool = createTool({
@@ -850,7 +850,7 @@ export const testGenTool = createTool({
     config: z.object({}).optional(),
     filePath: z.string().optional()
   }),
-  fn: async (args, context) => {
+  fn: async (args) => {
     return generateTests(args.code, args.config || {}, args.filePath || 'temp.ts')
   }
 })

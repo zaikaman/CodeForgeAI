@@ -1,5 +1,5 @@
 import { Project, SourceFile, Node, VariableDeclarationKind } from 'ts-morph'
-import { createTool } from '../../../../adk-ts/packages/adk/dist/index.js'
+import { createTool } from '@iqai/adk'
 import { z } from 'zod'
 
 /**
@@ -407,7 +407,7 @@ export const codeParseTool = createTool({
     code: z.string(),
     filePath: z.string().optional()
   }),
-  fn: async (args, context) => {
+  fn: async (args) => {
     return parseCode(args.code, args.filePath || 'temp.ts')
   }
 })
