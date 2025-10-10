@@ -1,0 +1,37 @@
+{
+  "name": "CodeForge AI Backend",
+  "description": "Multi-agent AI system for automated code generation",
+  "repository": "https://github.com/zaikaman/CodeForgeAI",
+  "keywords": ["nodejs", "express", "ai", "socketio", "typescript"],
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for AI features",
+      "required": true
+    },
+    "SUPABASE_URL": {
+      "description": "Supabase project URL",
+      "required": true
+    },
+    "SUPABASE_ANON_KEY": {
+      "description": "Supabase anonymous key",
+      "required": true
+    },
+    "SUPABASE_SERVICE_KEY": {
+      "description": "Supabase service role key",
+      "required": true
+    },
+    "FRONTEND_URL": {
+      "description": "Frontend URL for CORS",
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ]
+}
