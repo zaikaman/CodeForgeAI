@@ -36,7 +36,9 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
       return () => clearTimeout(timeout)
     } else if (onComplete) {
       onComplete()
+      return undefined
     }
+    return undefined
   }, [currentIndex, text, speed, onComplete])
 
   return (

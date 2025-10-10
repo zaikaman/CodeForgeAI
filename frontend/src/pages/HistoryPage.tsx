@@ -235,25 +235,25 @@ export const HistoryPage: React.FC = () => {
                           </span>
                         </div>
                         <div className="config-item">
-                          <span className="text-muted">Tests:</span>
+                          <span className="text-muted">Agents:</span>
                           <span className="text-primary">
-                            {selectedGeneration.request.includeTests ? 'YES' : 'NO'}
+                            {selectedGeneration.request.agents.length}
                           </span>
                         </div>
                         <div className="config-item">
-                          <span className="text-muted">Docs:</span>
+                          <span className="text-muted">Images:</span>
                           <span className="text-primary">
-                            {selectedGeneration.request.includeDocumentation ? 'YES' : 'NO'}
+                            {selectedGeneration.request.imageUrls?.length || 0}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {selectedGeneration.response?.code && (
+                    {selectedGeneration.response?.files && selectedGeneration.response.files.length > 0 && (
                       <div className="details-section mt-md">
-                        <h4 className="details-section-title phosphor-glow">&gt; GENERATED CODE:</h4>
+                        <h4 className="details-section-title phosphor-glow">&gt; GENERATED FILES:</h4>
                         <CodePreview
-                          code={selectedGeneration.response.code}
+                          code={selectedGeneration.response.files[0].content}
                           language={selectedGeneration.request.targetLanguage}
                           maxLines={15}
                           className="mt-sm"

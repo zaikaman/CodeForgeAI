@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useUIStore } from '../stores/uiStore'
-import apiClient, { ReviewRequest, ReviewResponse } from '../services/apiClient'
+import apiClient, { ReviewRequest } from '../services/apiClient'
 import { Finding } from '../components/ReviewPanel'
 
 export interface UseReviewReturn {

@@ -46,7 +46,7 @@ export async function uploadImage(
     const filePath = `${userId}/${folder}/${fileName}`;
 
     // Upload to Supabase storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('chat-images')
       .upload(filePath, file, {
         cacheControl: '3600',

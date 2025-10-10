@@ -1,4 +1,5 @@
 import React from 'react'
+// @ts-ignore - package lacks type definitions
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import '../styles/theme.css'
 import './DiffViewer.css'

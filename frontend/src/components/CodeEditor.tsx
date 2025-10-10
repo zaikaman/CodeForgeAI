@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react'
-import Editor, { OnMount, Monaco } from '@monaco-editor/react'
+import React, { useRef } from 'react'
+import Editor, { OnMount } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import '../styles/theme.css'
 import './CodeEditor.css'
