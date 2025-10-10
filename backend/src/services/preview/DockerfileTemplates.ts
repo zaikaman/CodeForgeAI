@@ -23,7 +23,6 @@ export function detectLanguageFromFiles(files: Array<{ path: string; content: st
   
   // Python indicators
   const pythonFileCount = (extensionCounts['py'] || 0);
-  const hasMainPy = files.some(f => f.path === 'main.py' || f.path === 'app.py' || f.path.endsWith('/main.py') || f.path.endsWith('/app.py'));
   
   // TypeScript/JavaScript indicators
   const tsFileCount = (extensionCounts['ts'] || 0) + (extensionCounts['tsx'] || 0);
