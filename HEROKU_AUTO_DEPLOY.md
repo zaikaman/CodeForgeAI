@@ -159,14 +159,111 @@ git push origin main
 3. Add webhook URL (e.g., Slack, Discord, email)
 4. You'll get notified on every deployment
 
+## 🚀 Installing Flyctl on Heroku
+
+Since Heroku doesn't natively support flyctl, we use a workaround to install it during the build process. This enables preview deployments and Fly.io integration.
+
+### Setup Steps
+
+#### 1. Add Vendor Binaries Buildpack
+
+The project includes a `Vendorfile` that tells Heroku to download flyctl during build:
+
+```bash
+# Add vendor binaries buildpack (must be FIRST)
+heroku buildpacks:add --index 1 https://github.com/diowa/heroku-buildpack-vendorbinaries.git -a your-app-name
+
+# Verify buildpack order (vendor binaries should be first)
+heroku buildpacks -a your-app-name
+```
+
+#### 2. Configure PATH for Flyctl
+
+```bash
+# Make flyctl executable from anywhere in your app
+heroku config:set PATH="/app/vendor/flyctl:$PATH" -a your-app-name
+```
+
+#### 3. Set Fly.io API Token
+
+```bash
+# Get your Fly.io API token locally
+flyctl auth token
+
+# Set it as Heroku config var
+heroku config:set FLY_API_TOKEN=your-token -a your-app-name
+```
+
+#### 4. Deploy and Test
+
+```bash
+# Push to trigger build (flyctl will be downloaded and extracted)
+git push heroku main
+
+# Test flyctl installation
+heroku run flyctl version -a your-app-name
+```
+
+### Automated Setup Script
+
+We provide scripts to automate the buildpack configuration:
+
+**PowerShell (Windows):**
+```powershell
+.\setup-heroku-flyctl.ps1 -AppName your-app-name -FlyApiToken your-token
+```
+
+**Bash (Linux/Mac):**
+```bash
+chmod +x setup-heroku-flyctl.sh
+./setup-heroku-flyctl.sh your-app-name your-token
+```
+
+### Vendorfile Configuration
+
+The `Vendorfile` in the project root specifies the flyctl binary to download:
+```
+https://github.com/superfly/flyctl/releases/latest/download/flyctl_linux_amd64.tar.gz
+```
+
+**Notes:**
+- Always fetches the latest flyctl version on each deploy
+- For a pinned version, replace `/latest/` with a specific tag (e.g., `/v0.3.192/`)
+- Binary size (~50MB) adds to slug size
+- Extracted to `/app/vendor/flyctl/flyctl` on Heroku dynos
+
+### Usage in Your App
+
+Once installed, you can use flyctl in:
+
+**Scripts (Node.js):**
+```javascript
+const { exec } = require('child_process');
+
+exec('flyctl deploy', (error, stdout, stderr) => {
+  console.log(stdout);
+});
+```
+
+**Procfile Worker:**
+```
+worker: node scripts/deploy-preview.js
+```
+
+**Terminal Commands:**
+```bash
+heroku run flyctl apps list -a your-app-name
+```
+
 ## ⚠️ Important Notes
 
 - **First deployment** must be manual to verify everything works
 - **Monorepo**: Make sure `PROJECT_PATH=backend` is set correctly
 - **Environment variables**: Double-check all required vars are set
 - **Socket.io**: Session affinity MUST be enabled
-- **Build time**: First build may take 2-3 minutes
+- **Build time**: First build may take 2-3 minutes (longer with flyctl download)
 - **Custom ADK**: Already committed in `backend/node_modules/@iqai/adk`
+- **Flyctl**: Vendor binaries buildpack must be FIRST in buildpack order
 
 ## 🆘 Troubleshooting
 
@@ -185,3 +282,15 @@ git push origin main
 ### Previous deployment keeps running
 - Build failed, check logs: `heroku logs --tail`
 - Heroku keeps old version running if new build fails
+
+### Flyctl not found on Heroku
+- Verify Vendorfile exists in project root
+- Check buildpack order: vendor binaries must be FIRST
+- Verify PATH config: `heroku config:get PATH -a your-app-name`
+- Check build logs for download errors: `heroku logs --tail -a your-app-name`
+- Test extraction path: `heroku run ls -la /app/vendor/flyctl -a your-app-name`
+
+### Flyctl authentication fails
+- Verify FLY_API_TOKEN is set: `heroku config:get FLY_API_TOKEN -a your-app-name`
+- Generate new token locally: `flyctl auth token`
+- Update token on Heroku: `heroku config:set FLY_API_TOKEN=new-token -a your-app-name`
