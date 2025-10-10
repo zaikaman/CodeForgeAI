@@ -252,23 +252,13 @@ export const GenerateSessionPage: React.FC = () => {
       setDeploymentStatus('deploying');
       
       try {
-        const response = await fetch('/api/preview', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            generationId: generation.id,
-            files: generation.response.files,
-            forceRegenerate: forceRegenerate
-          }),
+        const response = await apiClient.generatePreview({ 
+          generationId: generation.id,
+          files: generation.response.files,
+          forceRegenerate: forceRegenerate
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = response;
 
         if (data.data && data.data.previewUrl) {
           setPreviewUrl(withCacheBust(data.data.previewUrl));

@@ -405,6 +405,33 @@ class ApiClient {
     return response.data
   }
 
+  // Generate preview deployment on Fly.io
+  async generatePreview(request: {
+    generationId: string
+    files: Array<{ path: string; content: string }>
+    forceRegenerate?: boolean
+  }): Promise<ApiResponse<{
+    previewUrl: string
+    cached?: boolean
+    attempt?: number
+    logs?: string
+  }>> {
+    const response = await this.client.post('/api/preview', request)
+    return response.data
+  }
+
+  // Check preview deployment status
+  async checkPreviewStatus(generationId: string): Promise<ApiResponse<{
+    ready: boolean
+    status: 'deployed' | 'deploying' | 'error'
+    previewUrl?: string
+    statusCode?: number
+    error?: string
+  }>> {
+    const response = await this.client.get(`/api/preview/status/${generationId}`)
+    return response.data
+  }
+
   // Chat with AI to modify generation
   async chat(request: ChatRequest): Promise<ApiResponse<ChatResponse>> {
     const response = await this.client.post('/api/chat', request)

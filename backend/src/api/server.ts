@@ -21,6 +21,11 @@ import chatHistoryRouter from './routes/chatHistory';
 import downloadRouter from './routes/download';
 
 const app = express();
+
+// Trust proxy - MUST be set before any middleware
+// This is required when running behind a reverse proxy (Heroku, nginx, etc.)
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
