@@ -839,7 +839,7 @@ function generateErrorHandlingTests(functionName: string, parameters: any[]): st
 }
 
 // Export the tool for ADK integration  
-import { createTool } from '../../../../adk-ts/packages/adk/dist/index'
+import { createTool } from '@iqai/adk'
 import { z } from 'zod'
 
 export const testGenTool = createTool({

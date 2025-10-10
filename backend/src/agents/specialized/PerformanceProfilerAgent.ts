@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
+import { AgentBuilder } from '@iqai/adk';
 
 const systemPrompt = `You are a Performance Profiler Agent. You analyze code for performance bottlenecks and suggest optimizations.
 

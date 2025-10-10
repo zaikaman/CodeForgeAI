@@ -9,7 +9,7 @@ const userSettingsRepo = new UserSettingsRepository()
  * GET /api/settings
  * Get current user's settings
  */
-router.get('/settings', requireAuth, async (req, res, next): Promise<void> => {
+router.get('/settings', requireAuth, async (req: any, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
 
@@ -50,7 +50,7 @@ router.get('/settings', requireAuth, async (req, res, next): Promise<void> => {
  * PUT /api/settings/api-key
  * Update user's API key
  */
-router.put('/settings/api-key', requireAuth, async (req, res, next): Promise<void> => {
+router.put('/settings/api-key', requireAuth, async (req: any, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
     const { apiKey } = req.body
@@ -83,7 +83,7 @@ router.put('/settings/api-key', requireAuth, async (req, res, next): Promise<voi
  * PUT /api/settings/preferences
  * Update user's UI preferences
  */
-router.put('/settings/preferences', requireAuth, async (req, res, next): Promise<void> => {
+router.put('/settings/preferences', requireAuth, async (req: any, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
     const { theme, crtEffects, phosphorGlow, autoScrollChat, soundEffects } = req.body
@@ -113,7 +113,7 @@ router.put('/settings/preferences', requireAuth, async (req, res, next): Promise
  * DELETE /api/settings/api-key
  * Remove user's API key
  */
-router.delete('/settings/api-key', requireAuth, async (req, res, next): Promise<void> => {
+router.delete('/settings/api-key', requireAuth, async (req: any, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
 
@@ -134,7 +134,7 @@ router.delete('/settings/api-key', requireAuth, async (req, res, next): Promise<
  * DELETE /api/settings
  * Delete all user settings
  */
-router.delete('/settings', requireAuth, async (req, res, next): Promise<void> => {
+router.delete('/settings', requireAuth, async (req: any, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
 

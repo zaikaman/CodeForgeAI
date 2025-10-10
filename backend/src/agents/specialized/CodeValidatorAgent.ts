@@ -3,7 +3,7 @@
  * Detects syntax errors, duplicated files, and other code quality issues
  */
 
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
+import { AgentBuilder } from '@iqai/adk';
 import { z } from 'zod';
 
 const systemPrompt = `You are a Code Validator Agent. Your job is to analyze generated code and detect any issues including:

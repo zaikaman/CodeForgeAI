@@ -414,7 +414,7 @@ export function updateFunctionComment(
 }
 
 // Export the tool for ADK integration
-import { createTool } from '../../../../adk-ts/packages/adk/dist/index'
+import { createTool } from '@iqai/adk'
 import { z } from 'zod'
 
 export const commentInserterTool = createTool({
@@ -427,9 +427,9 @@ export const commentInserterTool = createTool({
     filePath: z.string().optional()
   }),
   fn: async (args) => {
-    const { code, functionName, description, filePath } = args
-    if (functionName && description) {
-      return addFunctionComment(code, functionName, description, filePath || 'temp.ts')
+    const { code, functionName, filePath } = args
+    if (functionName) {
+      return addFunctionComment(code, functionName, {}, filePath || 'temp.ts')
     } else if (code) {
       return addFileHeader(code, args)
     }

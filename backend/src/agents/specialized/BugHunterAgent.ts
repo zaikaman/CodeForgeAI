@@ -1,4 +1,4 @@
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
+import { AgentBuilder } from '@iqai/adk';
 
 const systemPrompt = `You are a Bug Hunter Agent. Your mission is to find bugs and security vulnerabilities in code. You will be given a piece of code and must analyze it for potential issues.
 

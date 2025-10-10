@@ -1,5 +1,5 @@
 import { Project, SourceFile, Node, VariableDeclarationKind } from 'ts-morph'
-import { createTool } from '../../../../adk-ts/packages/adk/dist/index'
+import { createTool } from '@iqai/adk'
 import { z } from 'zod'
 
 /**

@@ -152,11 +152,11 @@ export function requireRole(...roles: string[]) {
  */
 export function requireOwnership(
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void {
   if (!req.user) {
-    res.status(401).json({
+    _res.status(401).json({
       error: 'Unauthorized',
       message: 'Authentication required',
     })
@@ -168,7 +168,7 @@ export function requireOwnership(
     req.params.userId || (req.body.userId as string | undefined)
 
   if (resourceUserId && resourceUserId !== req.userId) {
-    res.status(403).json({
+    _res.status(403).json({
       error: 'Forbidden',
       message: 'You do not have permission to access this resource',
     })

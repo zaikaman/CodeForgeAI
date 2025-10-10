@@ -4,8 +4,6 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@iqai/adk": ["../adk-ts/packages/adk/dist/index.d.ts"],
-      "@iqai/adk/*": ["../adk-ts/packages/adk/dist/*"],
       "@/*": ["./src/*"]
     },
     "types": ["node", "jest"],

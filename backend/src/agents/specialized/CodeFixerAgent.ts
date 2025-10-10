@@ -3,7 +3,7 @@
  * Automatically fixes issues detected by CodeValidatorAgent
  */
 
-import { AgentBuilder } from '../../../../adk-ts/packages/adk/dist/index';
+import { AgentBuilder } from '@iqai/adk';
 import { generationSchema } from '../../schemas/generation-schema';
 
 const systemPrompt = `You are a Code Fixer Agent. Your job is to fix code issues based on validation results.
