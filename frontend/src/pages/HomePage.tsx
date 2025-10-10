@@ -207,12 +207,12 @@ export const HomePage: React.FC = () => {
           </div>
           <div className="terminal-content">
             <pre className="cta-ascii phosphor-glow auth-page">
-{`    ╔═══════════��═══════════════════════════════════════╗
+{`  ╔═══════════════════════════════════════════════════╗
     ║                                                   ║
-    ║   ►  SYSTEM STATUS: ONLINE                        ║
-    ║   ►  AI AGENTS: OPERATIONAL                       ║
-    ║   ►  SECURITY LEVEL: MAXIMUM                      ║
-    ║   ►  READY FOR DEPLOYMENT                         ║
+    ║           ►  SYSTEM STATUS: ONLINE                ║
+    ║           ►  AI AGENTS: OPERATIONAL               ║
+    ║           ►  SECURITY LEVEL: MAXIMUM              ║
+    ║           ►  READY FOR DEPLOYMENT                 ║
     ║                                                   ║
     ╚═══════════════════════════════════════════════════╝`}
             </pre>
