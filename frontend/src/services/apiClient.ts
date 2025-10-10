@@ -26,8 +26,6 @@ export interface GenerateRequest {
   prompt: string
   projectId?: string
   projectContext?: string
-  includeTests: boolean
-  includeDocumentation: boolean
   targetLanguage: string
   complexity: 'simple' | 'moderate' | 'complex'
   agents: string[]

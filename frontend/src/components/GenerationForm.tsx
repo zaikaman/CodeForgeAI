@@ -8,8 +8,6 @@ import './GenerationForm.css'
 export interface GenerationOptions {
   prompt: string
   projectContext?: string
-  includeTests: boolean
-  includeDocumentation: boolean
   targetLanguage: string
   complexity: 'simple' | 'moderate' | 'complex'
   agents: string[]
@@ -29,8 +27,6 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
 }) => {
   const [prompt, setPrompt] = useState('')
   const [projectContext, setProjectContext] = useState('')
-  const [includeTests, setIncludeTests] = useState(false)
-  const [includeDocumentation, setIncludeDocumentation] = useState(false)
   const [targetLanguage, setTargetLanguage] = useState('typescript')
   const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('simple')
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['CodeGenerator'])
@@ -55,8 +51,6 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
     onSubmit({
       prompt,
       projectContext,
-      includeTests,
-      includeDocumentation,
       targetLanguage,
       complexity,
       agents: selectedAgents,
@@ -69,6 +63,11 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
   }
 
   const toggleAgent = (agentId: string) => {
+    // Prevent unchecking CodeGenerator as it's required
+    if (agentId === 'CodeGenerator') {
+      return
+    }
+    
     setSelectedAgents((prev) =>
       prev.includes(agentId) ? prev.filter((id) => id !== agentId) : [...prev, agentId]
     )
@@ -193,56 +192,33 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
                 </div>
               </div>
 
-              {/* Options */}
-              <div className="form-section mt-lg">
-                <label className="form-label phosphor-glow">&gt; GENERATION OPTIONS:</label>
-                <div className="options-grid">
-                  <label className="option-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={includeTests}
-                      onChange={(e) => setIncludeTests(e.target.checked)}
-                      disabled={isGenerating}
-                    />
-                    <span className="checkbox-label">
-                      <span className="checkbox-icon">◎</span>
-                      INCLUDE TESTS
-                    </span>
-                  </label>
-                  <label className="option-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={includeDocumentation}
-                      onChange={(e) => setIncludeDocumentation(e.target.checked)}
-                      disabled={isGenerating}
-                    />
-                    <span className="checkbox-label">
-                      <span className="checkbox-icon">◐</span>
-                      INCLUDE DOCUMENTATION
-                    </span>
-                  </label>
-                </div>
-              </div>
-
               {/* Agent Selection */}
               <div className="form-section mt-lg">
                 <label className="form-label phosphor-glow">&gt; SELECT AGENTS:</label>
                 <div className="agents-grid">
-                  {availableAgents.map((agent) => (
-                    <button
-                      key={agent.id}
-                      type="button"
-                      className={`agent-btn ${selectedAgents.includes(agent.id) ? 'active' : ''}`}
-                      onClick={() => toggleAgent(agent.id)}
-                      disabled={isGenerating}
-                    >
-                      <span className="agent-icon">{agent.icon}</span>
-                      <span className="agent-name">{agent.name}</span>
-                    </button>
-                  ))}
+                  {availableAgents.map((agent) => {
+                    const isCodeGenerator = agent.id === 'CodeGenerator'
+                    const isSelected = selectedAgents.includes(agent.id)
+                    const isDisabled = isGenerating || isCodeGenerator
+                    
+                    return (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        className={`agent-btn ${isSelected ? 'active' : ''} ${isCodeGenerator ? 'required' : ''}`}
+                        onClick={() => toggleAgent(agent.id)}
+                        disabled={isDisabled}
+                        title={isCodeGenerator ? 'Core agent - always enabled' : undefined}
+                      >
+                        <span className="agent-icon">{agent.icon}</span>
+                        <span className="agent-name">{agent.name}</span>
+                        {isCodeGenerator && <span className="required-badge">REQUIRED</span>}
+                      </button>
+                    )
+                  })}
                 </div>
                 <div className="form-hint text-muted mt-sm">
-                  Selected: {selectedAgents.length} agent(s)
+                  Selected: {selectedAgents.length} agent(s) • CodeGenerator is always enabled
                 </div>
               </div>
             </div>

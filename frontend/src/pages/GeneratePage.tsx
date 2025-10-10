@@ -15,8 +15,6 @@ export const GeneratePage: React.FC = () => {
       await generate({
         prompt: options.prompt,
         projectContext: options.projectContext,
-        includeTests: options.includeTests,
-        includeDocumentation: options.includeDocumentation,
         targetLanguage: options.targetLanguage,
         complexity: options.complexity,
         agents: options.agents,

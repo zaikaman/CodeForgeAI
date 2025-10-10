@@ -11,11 +11,9 @@ const router = Router();
 const generateRequestSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   projectContext: z.string().optional(),
-  includeTests: z.boolean().default(true),
-  includeDocumentation: z.boolean().default(true),
   targetLanguage: z.string().default('typescript'),
   complexity: z.enum(['simple', 'moderate', 'complex']).default('moderate'),
-  agents: z.array(z.string()).default(['CodeGenerator', 'TestCrafter']),
+  agents: z.array(z.string()).default(['CodeGenerator']),
   imageUrls: z.array(z.string()).optional(),
 });
 

@@ -91,6 +91,40 @@ router.post('/chat', async (req, res): Promise<void> => {
 
     const response = await runner.ask(chatMessage) as any;
     
+    // Validate and sanitize response files
+    if (response.files && Array.isArray(response.files)) {
+      for (let i = 0; i < response.files.length; i++) {
+        const file = response.files[i];
+        
+        // Ensure content is always a string
+        if (typeof file.content !== 'string') {
+          console.warn(`⚠ File ${file.path} has non-string content, converting...`);
+          
+          if (typeof file.content === 'object') {
+            response.files[i].content = JSON.stringify(file.content, null, 2);
+          } else {
+            response.files[i].content = String(file.content);
+          }
+        } else {
+          // Content is already a string, but check if it's a double-escaped JSON string
+          // This happens when LLM returns already-stringified JSON content
+          if (file.path.endsWith('.json') && file.content.startsWith('"') && file.content.endsWith('"')) {
+            try {
+              // Try to parse it once to remove outer quotes and unescape
+              const unescaped = JSON.parse(file.content);
+              if (typeof unescaped === 'string') {
+                response.files[i].content = unescaped;
+                console.log(`✓ Unescaped double-stringified content for ${file.path}`);
+              }
+            } catch (err) {
+              // If parsing fails, keep original content
+              console.warn(`⚠ Could not unescape content for ${file.path}, keeping as-is`);
+            }
+          }
+        }
+      }
+    }
+    
     // Merge modified/new files with existing files
     let updatedFiles: Array<{ path: string; content: string }> = [...currentFiles];
     

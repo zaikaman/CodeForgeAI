@@ -173,7 +173,76 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         if (!fs.existsSync(dirName)) {
           fs.mkdirSync(dirName, { recursive: true });
         }
-        fs.writeFileSync(filePath, file.content);
+        
+        // Additional check: if this is a JSON file and content starts with a quote,
+        // it might be double-stringified
+        let contentToWrite = file.content;
+        
+        if (file.path.endsWith('.json')) {
+          // Try to detect and fix double-stringified JSON
+          if (typeof contentToWrite === 'string' && 
+              contentToWrite.startsWith('"') && 
+              contentToWrite.endsWith('"')) {
+            try {
+              const parsed = JSON.parse(contentToWrite);
+              if (typeof parsed === 'string') {
+                contentToWrite = parsed;
+                console.log(`✓ Fixed double-stringified JSON for ${file.path}`);
+              }
+            } catch (e) {
+              // Keep original if parsing fails
+            }
+          }
+          
+          // Validate JSON syntax before writing
+          try {
+            JSON.parse(contentToWrite);
+            console.log(`✓ Validated JSON syntax for ${file.path}`);
+          } catch (e: any) {
+            console.error(`✗ Invalid JSON syntax in ${file.path}: ${e.message}`);
+            console.error(`   Content preview: ${contentToWrite.substring(0, 100)}`);
+          }
+        }
+        
+        // Fix escaped content - LLM often returns JSON-escaped strings
+        // We need to unescape: \n -> newline, \" -> ", \\ -> \, etc.
+        
+        // Check if content looks like it's JSON-escaped (has \n or \" patterns)
+        if (contentToWrite.includes('\\n') || contentToWrite.includes('\\"') || contentToWrite.includes('\\t')) {
+          try {
+            // Try to parse as JSON string to unescape properly
+            // Wrap in quotes to make it a valid JSON string if it's not already
+            const wrapped = contentToWrite.startsWith('"') ? contentToWrite : `"${contentToWrite}"`;
+            const unescaped = JSON.parse(wrapped);
+            
+            // Only use unescaped version if it actually changed something
+            if (unescaped !== contentToWrite && typeof unescaped === 'string') {
+              contentToWrite = unescaped;
+              console.log(`✓ Unescaped JSON-encoded content for ${file.path}`);
+            }
+          } catch (e) {
+            // If JSON parsing fails, manually unescape common patterns
+            contentToWrite = contentToWrite
+              .replace(/\\n/g, '\n')
+              .replace(/\\r/g, '\r')
+              .replace(/\\t/g, '\t')
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\');
+            console.log(`✓ Manually unescaped content for ${file.path}`);
+          }
+        }
+        
+        // Fix over-escaped content in code files (secondary cleanup)
+        if (file.path.endsWith('.ts') || file.path.endsWith('.tsx') || 
+            file.path.endsWith('.js') || file.path.endsWith('.jsx')) {
+          // Fix common over-escaping patterns in regex
+          // Double-escaped regex character classes: \\s -> \s, \\d -> \d, etc.
+          contentToWrite = contentToWrite.replace(/\\\\([sdwSDW])/g, '\\$1');
+          // Double-escaped dots in regex: \\. -> \.
+          contentToWrite = contentToWrite.replace(/\\\\\./g, '\\.');
+        }
+        
+        fs.writeFileSync(filePath, contentToWrite);
       }
 
       // 3. Create Dockerfile based on detected language
@@ -315,14 +384,57 @@ Return the complete fixed codebase.`;
         console.log(`   Summary: ${response.summary}`);
       }
 
-      // Validate file structure
-      for (const file of response.files) {
-        if (!file.path || !file.content) {
-          console.error(`✗ Invalid file structure: ${JSON.stringify(file)}`);
+      // Validate file structure and ensure content is string
+      for (let i = 0; i < response.files.length; i++) {
+        const file = response.files[i];
+        
+        if (!file.path) {
+          console.error(`✗ File at index ${i} missing path property`);
           return null;
+        }
+        
+        if (!file.content && file.content !== '') {
+          console.error(`✗ File ${file.path} missing content property`);
+          return null;
+        }
+
+        // CRITICAL: Ensure content is a string
+        if (typeof file.content !== 'string') {
+          console.warn(`⚠ File ${file.path} has non-string content (${typeof file.content}), converting...`);
+          
+          // If content is an object/array, stringify it
+          if (typeof file.content === 'object') {
+            try {
+              response.files[i].content = JSON.stringify(file.content, null, 2);
+              console.log(`✓ Converted ${file.path} content to JSON string`);
+            } catch (err) {
+              console.error(`✗ Failed to stringify content for ${file.path}: ${err}`);
+              return null;
+            }
+          } else {
+            // Try to convert to string
+            response.files[i].content = String(file.content);
+          }
+        } else {
+          // Content is already a string, but check if it's a double-escaped JSON string
+          // This happens when LLM returns already-stringified JSON content
+          if (file.path.endsWith('.json') && file.content.startsWith('"') && file.content.endsWith('"')) {
+            try {
+              // Try to parse it once to remove outer quotes and unescape
+              const unescaped = JSON.parse(file.content);
+              if (typeof unescaped === 'string') {
+                response.files[i].content = unescaped;
+                console.log(`✓ Unescaped double-stringified content for ${file.path}`);
+              }
+            } catch (err) {
+              // If parsing fails, keep original content
+              console.warn(`⚠ Could not unescape content for ${file.path}, keeping as-is`);
+            }
+          }
         }
       }
 
+      console.log(`✓ All ${response.files.length} files validated successfully`);
       return response.files;
 
     } catch (error: any) {
@@ -369,15 +481,57 @@ Return the complete fixed codebase.`;
         let stdout = '';
         let stderr = '';
 
+        // Filter function to only log important messages
+        const shouldLogOutput = (output: string): boolean => {
+            const line = output.toLowerCase().trim();
+            
+            // Skip these verbose/repetitive messages
+            if (line.includes('nodes": null')) return false;
+            if (line.includes('edges": null')) return false;
+            if (line.includes('"id":')) return false;
+            if (line.includes('"internalnumericid":')) return false;
+            if (line.includes('"organization":')) return false;
+            if (line.includes('"secrets":')) return false;
+            if (line.includes('"releases":')) return false;
+            if (line.includes('"ipaddresses":')) return false;
+            if (line.includes('"certificates":')) return false;
+            if (line.includes('"machines":')) return false;
+            if (line.includes('wireGuard')) return false;
+            if (line.includes('loggedcertificates')) return false;
+            if (line.includes('limitedaccesstokens')) return false;
+            if (line.startsWith('{') && line.length > 100) return false; // Skip long JSON objects
+            if (line.includes('registry.fly.io')) return false; // Skip registry URLs
+            
+            // Log these important messages
+            if (line.includes('error')) return true;
+            if (line.includes('fail')) return true;
+            if (line.includes('warning')) return true;
+            if (line.includes('creating')) return true;
+            if (line.includes('building')) return true;
+            if (line.includes('deploying')) return true;
+            if (line.includes('deployed')) return true;
+            if (line.includes('success')) return true;
+            if (line.includes('visit your newly deployed app')) return true;
+            if (line.includes('app created')) return true;
+            if (line.includes('configuration is valid')) return true;
+            if (line.includes('deployment')) return true;
+            
+            return false; // Skip everything else
+        };
+
         child.stdout.on('data', (data) => {
             const output = data.toString();
-            console.log(`${command} stdout: ${output}`);
+            if (shouldLogOutput(output)) {
+                console.log(`${command} stdout: ${output}`);
+            }
             stdout += output;
         });
 
         child.stderr.on('data', (data) => {
             const output = data.toString();
-            console.error(`${command} stderr: ${output}`);
+            if (shouldLogOutput(output)) {
+                console.error(`${command} stderr: ${output}`);
+            }
             stderr += output;
         });
 

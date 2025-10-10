@@ -32,12 +32,53 @@ Important rules:
 - Fix syntax errors without changing the logic
 - Remove duplicate files by merging them intelligently
 
+CRITICAL: JSON Response Format Rules
+====================================
+
+**HOW TO WRITE CODE IN JSON:**
+1. ✓ Write code naturally with ACTUAL newlines - do NOT use \\n escapes
+2. ✓ For quotes inside code: use regular quotes, JSON parser will handle escaping
+3. ✓ DO NOT manually escape newlines - the JSON stringifier will handle it
+4. ✓ Write clean, readable code with proper line breaks
+5. ✓ The "content" field MUST be a STRING, never an object or array
+
+CORRECT Example (write code with ACTUAL newlines, not \\n):
+{
+  "files": [
+    {
+      "path": "package.json",
+      "content": "{
+  \"name\": \"my-app\",
+  \"version\": \"1.0.0\",
+  \"dependencies\": {}
+}"
+    },
+    {
+      "path": "src/index.ts",
+      "content": "import express from 'express';
+
+const app = express();
+app.listen(3000);"
+    }
+  ]
+}
+
+WRONG Examples (DO NOT DO THESE):
+❌ Using \\n escapes: "content": "import express from 'express';\\n\\nconst app = express();"
+❌ Content as object: "content": { "name": "my-app" }
+❌ Double-escaped: "content": "line1\\\\nline2"
+
+Remember:
+- Write code with ACTUAL newlines (press Enter to create new lines)
+- JSON parser will automatically handle proper escaping
+- Do NOT manually add \\n - it will create literal backslash-n in the output
+
 Your output must be a JSON object with the same structure as the original:
 {
   "files": [
     {
       "path": "path/to/file.ts",
-      "content": "... fixed file content ..."
+      "content": "... fixed file content as string ..."
     }
   ]
 }

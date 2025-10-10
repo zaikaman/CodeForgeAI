@@ -159,13 +159,33 @@ class OutputSchemaResponseProcessor extends BaseLlmResponseProcessor {
 		} catch (err) {
 			this.logger.debug("Initial JSON.parse failed, attempting jsonrepair", {
 				agent: agentName,
+				errorPosition: err instanceof SyntaxError ? (err as any).message : "unknown",
+				candidatePreview: candidate.substring(0, 500) + (candidate.length > 500 ? "..." : "")
 			});
 			try {
 				const repaired = jsonrepair(candidate as string);
+				this.logger.debug("jsonrepair succeeded, attempting to parse repaired JSON", {
+					agent: agentName,
+					repairedPreview: repaired.substring(0, 500) + (repaired.length > 500 ? "..." : "")
+				});
 				return JSON.parse(repaired);
 			} catch (repairErr) {
-				// If repair also fails, rethrow the original parse error
-				throw err;
+				this.logger.error("Both JSON.parse and jsonrepair failed", {
+					agent: agentName,
+					originalError: err instanceof Error ? err.message : String(err),
+					repairError: repairErr instanceof Error ? repairErr.message : String(repairErr),
+					candidateLength: candidate.length,
+					candidateStart: candidate.substring(0, 200),
+					candidateEnd: candidate.substring(Math.max(0, candidate.length - 200))
+				});
+				// If repair also fails, rethrow the original parse error with more context
+				const contextError = new Error(
+					`JSON parsing failed at position ${err instanceof SyntaxError && (err as any).message ? (err as any).message : "unknown"}. ` +
+					`Original error: ${err instanceof Error ? err.message : String(err)}. ` +
+					`Content length: ${candidate.length} chars. ` +
+					`Repair also failed: ${repairErr instanceof Error ? repairErr.message : String(repairErr)}`
+				);
+				throw contextError;
 			}
 		}
 	}

@@ -21,7 +21,6 @@ export const GenerationOptionsSchema = z.object({
   framework: z.string().optional(),
   style: z.enum(['functional', 'oop', 'mixed']).optional(),
   testFramework: z.string().optional(),
-  includeTests: z.boolean().default(false),
   includeComments: z.boolean().default(true),
   includeTypeHints: z.boolean().default(true),
   maxTokens: z.number().positive().optional(),

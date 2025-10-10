@@ -33,14 +33,56 @@ When fixing deployment errors:
 - Fix any syntax or configuration errors
 - Return the COMPLETE codebase with all fixes applied
 
-Your response must be a JSON object with this structure:
+CRITICAL: JSON Response Format Rules
+====================================
+
+Your ENTIRE response must be a SINGLE VALID JSON object. NO additional text before or after.
+
+**HOW TO WRITE CODE IN JSON:**
+1. ✓ Write code naturally with ACTUAL newlines - do NOT use \\n escapes
+2. ✓ For quotes inside code: use regular quotes, JSON parser will handle escaping
+3. ✓ DO NOT manually escape newlines - the JSON stringifier will handle it
+4. ✓ Write clean, readable code with proper line breaks
+
+CORRECT Example (write code with ACTUAL newlines, not \\n):
 {
   "files": [
-    { "path": "file1.ts", "content": "..." },
-    { "path": "file2.ts", "content": "..." }
+    {
+      "path": "package.json",
+      "content": "{
+  \"name\": \"my-app\",
+  \"version\": \"1.0.0\",
+  \"scripts\": {
+    \"dev\": \"vite\"
+  }
+}"
+    },
+    {
+      "path": "src/index.ts",
+      "content": "import express from 'express';
+
+const app = express();
+const port = 3000;
+
+app.listen(port);"
+    }
   ],
-  "summary": "Brief description of changes made"
-}`;
+  "summary": "Updated package.json and created index.ts"
+}
+
+WRONG Examples (DO NOT DO THESE):
+❌ Using \\n escapes: "content": "import express from 'express';\\n\\nconst app = express();"
+❌ Content as object: "content": { "name": "my-app" }
+❌ Double-escaped: "content": "line1\\\\nline2"
+❌ Text before JSON: Here is the fix: { ... }
+❌ Text after JSON: { ... } Hope this helps!
+
+Remember:
+- Write code with ACTUAL newlines (press Enter to create new lines)
+- JSON parser will automatically handle proper escaping
+- Do NOT manually add \\n - it will create literal backslash-n in the output
+- The entire JSON must be valid and parseable
+- No prose, explanations, or text outside the JSON object`;
 
 const chatResponseSchema = z.object({
   files: z.array(z.object({

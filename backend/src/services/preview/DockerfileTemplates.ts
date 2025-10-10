@@ -105,8 +105,11 @@ EXPOSE 8080
 CMD if [ -f "main.py" ]; then \\
         python main.py; \\
     elif [ -f "app.py" ]; then \\
+        # Check if app.py uses argparse with serve command
+        if grep -q "argparse\\|ArgumentParser" app.py && grep -q "serve" app.py; then \\
+            python app.py serve; \\
         # Try different ways to run Flask/FastAPI apps
-        if grep -q "Flask" app.py; then \\
+        elif grep -q "Flask" app.py; then \\
             python app.py; \\
         elif grep -q "FastAPI" app.py; then \\
             uvicorn app:app --host 0.0.0.0 --port 8080 || python app.py; \\
