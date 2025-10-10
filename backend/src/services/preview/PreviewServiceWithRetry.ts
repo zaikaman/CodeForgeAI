@@ -3,6 +3,7 @@ import tmp from 'tmp';
 import fs from 'fs';
 import path from 'path';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
+import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
 
 export interface DeploymentResult {
   success: boolean;
@@ -161,7 +162,11 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     const appName = `preview-${generationId.replace(/_/g, "-")}`.toLowerCase();
 
     try {
-      // 1. Write files to temp directory
+      // 1. Detect language from files
+      const language = detectLanguageFromFiles(files);
+      console.log(`[Attempt ${attempt}] Detected language: ${language} for generation ${generationId}`);
+
+      // 2. Write files to temp directory
       for (const file of files) {
         const filePath = path.join(tmpDir.name, file.path);
         const dirName = path.dirname(filePath);
@@ -171,18 +176,18 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         fs.writeFileSync(filePath, file.content);
       }
 
-      // 2. Create Dockerfile
-      const dockerfileContent = this.createDockerfile();
+      // 3. Create Dockerfile based on detected language
+      const dockerfileContent = generateDockerfile(files);
       fs.writeFileSync(path.join(tmpDir.name, 'Dockerfile'), dockerfileContent);
 
-      // 3. Create a fly.toml file
-      const flyTomlContent = this.createFlyToml(appName);
+      // 4. Create a fly.toml file
+      const flyTomlContent = this.createFlyToml(appName, language);
       fs.writeFileSync(path.join(tmpDir.name, 'fly.toml'), flyTomlContent);
 
-      // 4. Deploy using flyctl
+      // 5. Deploy using flyctl
       await this.deployWithFlyctl(tmpDir.name, appName);
 
-      // 5. Verify deployment by checking logs
+      // 6. Verify deployment by checking logs
       const verificationLogs = await this.getDeploymentLogs(appName);
       
       return {
@@ -424,23 +429,10 @@ Return the complete fixed codebase.`;
     }
   }
 
-  private createDockerfile(): string {
-    return `# Stage 1: Build the application
-FROM node:18-alpine AS build
-WORKDIR /app
-COPY . .
-RUN yarn install --frozen-lockfile || npm install
-RUN yarn build || npm run build
-
-# Stage 2: Serve the application with Nginx
-FROM nginx:1.21-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-`;
-  }
-
-  private createFlyToml(appName: string): string {
+  private createFlyToml(appName: string, language: string): string {
+    // Determine internal port based on language
+    const internalPort = language === 'python' ? 8080 : 80;
+    
     return `app = "${appName}"
 primary_region = "sjc"
 
@@ -448,7 +440,7 @@ primary_region = "sjc"
   dockerfile = "Dockerfile"
 
 [http_service]
-  internal_port = 80
+  internal_port = ${internalPort}
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true

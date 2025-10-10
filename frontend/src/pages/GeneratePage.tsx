@@ -20,6 +20,7 @@ export const GeneratePage: React.FC = () => {
         targetLanguage: options.targetLanguage,
         complexity: options.complexity,
         agents: options.agents,
+        imageUrls: options.imageUrls,
       });
     } catch (error) {
       console.error('Generation failed:', error);
@@ -37,6 +38,7 @@ export const GeneratePage: React.FC = () => {
     <Layout className="generate-page-layout">
       <div className="generate-page generate-page-form-only">
         <div className="form-container-centered">
+          {/*
           <div className="welcome-banner terminal-window">
             <div className="terminal-header">
               <div className="terminal-button close"></div>
@@ -78,6 +80,7 @@ export const GeneratePage: React.FC = () => {
               </div>
             </div>
           </div>
+          */}
           <GenerationForm onSubmit={handleGenerate} isGenerating={isGenerating} />
         </div>
       </div>

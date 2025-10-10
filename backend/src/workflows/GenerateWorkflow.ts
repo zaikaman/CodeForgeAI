@@ -494,10 +494,35 @@ Return the result as JSON with the following structure:
     }
 
     private buildCodeGenerationPrompt(request: any): string {
-        return `Generate ${request.targetLanguage} code for: ${request.prompt}
+        const language = request.targetLanguage || 'typescript';
+        const languageUpper = language.toUpperCase();
+        
+        // Get appropriate file extension
+        let fileExtension = '.ts';
+        let packageManager = 'package.json';
+        if (language === 'python') {
+            fileExtension = '.py';
+            packageManager = 'requirements.txt';
+        } else if (language === 'javascript') {
+            fileExtension = '.js';
+        }
+        
+        const webServerNote = language === 'python' 
+            ? '\n5. ⚠️ PYTHON WEB APPS: Must include a web framework (Flask/FastAPI/Streamlit) running on port 8080'
+            : '';
+        
+        return `🎯 CRITICAL: YOU MUST GENERATE ${languageUpper} CODE ONLY!
+
+Target Programming Language: ${languageUpper}
+User Request: ${request.prompt}
+
+IMPORTANT INSTRUCTIONS:
+1. ALL code files MUST use ${languageUpper} syntax with ${fileExtension} extension
+2. Include ${packageManager} for dependency management
+3. DO NOT mix languages - use ONLY ${languageUpper}
+4. Follow ${languageUpper} best practices and conventions${webServerNote}
 
 Requirements:
-- Target language: ${request.targetLanguage}
 - Domain: ${request.requirements?.domain || 'generic'}
 - Complexity: ${request.requirements?.complexity || 'moderate'}
 - Include proper error handling
@@ -520,17 +545,17 @@ ${request.requirements?.technicalConstraints ?
     : ''
 }
 
-Generate a complete, functional codebase with multiple files. The output should be a JSON object with the following structure:
+Generate a complete, functional ${languageUpper} codebase with multiple files. The output should be a JSON object with the following structure:
 {
   "files": [
     {
-      "path": "path/to/file.ts",
-      "content": "... file content ..."
+      "path": "path/to/file${fileExtension}",
+      "content": "... ${languageUpper} code here ..."
     }
   ]
 }
 
-Focus on creating a meaningful, domain-specific codebase rather than generic boilerplate. The code should be immediately usable and follow industry standards.`;
+Focus on creating a meaningful, domain-specific codebase in ${languageUpper} rather than generic boilerplate. The code should be immediately usable and follow ${languageUpper} industry standards.`;
     }
 
     private extractCodeFromResponse(response: string): string {

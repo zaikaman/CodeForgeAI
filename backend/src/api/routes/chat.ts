@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
+import { ChatMemoryManager } from '../../services/ChatMemoryManager';
 import { z } from 'zod';
 import fetch from 'node-fetch';
 
@@ -22,12 +23,26 @@ router.post('/chat', async (req, res): Promise<void> => {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
-    const { message, currentFiles, language, imageUrls } = validatedRequest;
+    const { generationId, message, currentFiles, language, imageUrls } = validatedRequest;
 
-    // Build context from current files
-    const filesContext = currentFiles.map(f => 
-      `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``
-    ).join('\n\n');
+    // Store user message in memory
+    await ChatMemoryManager.storeMessage({
+      generationId,
+      role: 'user',
+      content: message,
+      imageUrls: imageUrls || [],
+    });
+
+    // Build context with conversation history
+    const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
+      generationId,
+      message,
+      currentFiles,
+      language,
+      imageUrls
+    );
+
+    console.log(`📝 Chat context built: ${totalTokens} estimated tokens`);
 
     // Use ChatAgent for all requests
     const { runner } = await ChatAgent();
@@ -61,23 +76,17 @@ router.post('/chat', async (req, res): Promise<void> => {
       // Filter out failed downloads
       const validImageParts = imageParts.filter(part => part !== null);
       
-      // Build message with text and images
+      // Build message with text and images (includes conversation history)
       const textPart = {
-        text: `USER REQUEST: ${message}
-
-CURRENT CODEBASE (${currentFiles.length} files):
-${filesContext}`
+        text: contextMessage
       };
       
       chatMessage = {
         parts: [textPart, ...validImageParts]
       };
     } else {
-      // Text-only message
-      chatMessage = `USER REQUEST: ${message}
-
-CURRENT CODEBASE (${currentFiles.length} files):
-${filesContext}`;
+      // Text-only message (includes conversation history)
+      chatMessage = contextMessage;
     }
 
     const response = await runner.ask(chatMessage) as any;
@@ -105,6 +114,16 @@ ${filesContext}`;
         updatedFiles.push(newFile);
       });
     }
+
+    // Store assistant response in memory
+    await ChatMemoryManager.storeMessage({
+      generationId,
+      role: 'assistant',
+      content: response.summary || 'Applied requested changes to the codebase',
+      metadata: {
+        filesModified: response.files?.length || 0,
+      },
+    });
 
     const responseData = {
       success: true,

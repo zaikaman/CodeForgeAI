@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import tmp from 'tmp';
 import fs from 'fs';
 import path from 'path';
+import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
 
 export interface IPreviewService {
   generatePreview(generationId: string, files: Array<{ path: string; content: string }>): Promise<{ previewUrl: string }>;
@@ -22,7 +23,11 @@ export class PreviewService implements IPreviewService {
     const appName = `preview-${generationId.replace(/_/g, "-")}`.toLowerCase();
 
     try {
-      // 1. Write files to temp directory
+      // 1. Detect language from files
+      const language = detectLanguageFromFiles(files);
+      console.log(`Detected language: ${language} for generation ${generationId}`);
+
+      // 2. Write files to temp directory
       for (const file of files) {
         const filePath = path.join(tmpDir.name, file.path);
         const dirName = path.dirname(filePath);
@@ -32,15 +37,15 @@ export class PreviewService implements IPreviewService {
         fs.writeFileSync(filePath, file.content);
       }
 
-      // 2. Create Dockerfile
-      const dockerfileContent = this.createDockerfile();
+      // 3. Create Dockerfile based on detected language
+      const dockerfileContent = generateDockerfile(files);
       fs.writeFileSync(path.join(tmpDir.name, 'Dockerfile'), dockerfileContent);
 
-      // 3. Create a fly.toml file
-      const flyTomlContent = this.createFlyToml(appName);
+      // 4. Create a fly.toml file
+      const flyTomlContent = this.createFlyToml(appName, language);
       fs.writeFileSync(path.join(tmpDir.name, 'fly.toml'), flyTomlContent);
 
-      // 4. Deploy using flyctl
+      // 5. Deploy using flyctl
       await this.deployWithFlyctl(tmpDir.name, appName);
 
       return { previewUrl: `https://${appName}.fly.dev` };
@@ -119,38 +124,23 @@ export class PreviewService implements IPreviewService {
     }
   }
 
-  private createDockerfile(): string {
-    return `
-      # Stage 1: Build the application
-      FROM node:18-alpine AS build
-      WORKDIR /app
-      COPY . .
-      RUN yarn install --frozen-lockfile
-      RUN yarn build
+  private createFlyToml(appName: string, language: string): string {
+    // Determine internal port based on language
+    const internalPort = language === 'python' ? 8080 : 80;
+    
+    return `app = "${appName}"
+primary_region = "sjc"
 
-      # Stage 2: Serve the application with Nginx
-      FROM nginx:1.21-alpine
-      COPY --from=build /app/dist /usr/share/nginx/html
-      EXPOSE 80
-      CMD ["nginx", "-g", "daemon off;"]
-    `;
-  }
+[build]
+  dockerfile = "Dockerfile"
 
-  private createFlyToml(appName: string): string {
-    return `
-      app = "${appName}"
-      primary_region = "sjc"
-
-      [build]
-        dockerfile = "Dockerfile"
-
-      [http_service]
-        internal_port = 80
-        force_https = true
-        auto_stop_machines = true
-        auto_start_machines = true
-        min_machines_running = 0
-    `;
+[http_service]
+  internal_port = ${internalPort}
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+`;
   }
 }
 

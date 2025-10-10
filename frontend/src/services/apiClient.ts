@@ -31,6 +31,7 @@ export interface GenerateRequest {
   targetLanguage: string
   complexity: 'simple' | 'moderate' | 'complex'
   agents: string[]
+  imageUrls?: string[]
 }
 
 export interface GenerateResponse {
@@ -328,6 +329,26 @@ class ApiClient {
   // Chat with AI to modify generation
   async chat(request: ChatRequest): Promise<ApiResponse<ChatResponse>> {
     const response = await this.client.post('/api/chat', request)
+    return response.data
+  }
+
+  // Get chat history for a generation
+  async getChatHistory(generationId: string, limit?: number): Promise<ApiResponse<{
+    messages: Array<{
+      id: string
+      generationId: string
+      role: 'user' | 'assistant' | 'system'
+      content: string
+      imageUrls?: string[]
+      tokenCount?: number
+      metadata?: Record<string, any>
+      createdAt: string
+    }>
+    totalCount: number
+    returnedCount: number
+  }>> {
+    const params = limit ? { limit: limit.toString() } : {}
+    const response = await this.client.get(`/api/chat/history/${generationId}`, { params })
     return response.data
   }
 

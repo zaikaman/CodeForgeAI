@@ -5,6 +5,62 @@ import { supabase } from '../../storage/SupabaseClient';
 
 const router = Router();
 
+// Check deployment readiness endpoint
+router.get('/preview/status/:generationId', async (req, res) => {
+  try {
+    const { generationId } = req.params;
+    const appName = `preview-${generationId.replace(/_/g, "-")}`.toLowerCase();
+    const previewUrl = `https://${appName}.fly.dev`;
+
+    // Try to fetch the preview URL
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+    try {
+      const response = await fetch(previewUrl, {
+        method: 'HEAD',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return res.json({ 
+          success: true, 
+          data: { 
+            ready: true,
+            status: 'deployed',
+            previewUrl 
+          } 
+        });
+      } else {
+        return res.json({ 
+          success: true, 
+          data: { 
+            ready: false,
+            status: 'deploying',
+            statusCode: response.status 
+          } 
+        });
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      
+      // If fetch fails, it's likely still deploying or not accessible yet
+      return res.json({ 
+        success: true, 
+        data: { 
+          ready: false,
+          status: 'deploying',
+          error: fetchError.message 
+        } 
+      });
+    }
+  } catch (error: any) {
+    console.error('Status check error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/preview', async (req, res) => {
   try {
     const { generationId, files: providedFiles, useRetry = true, maxRetries = 3 } = req.body;

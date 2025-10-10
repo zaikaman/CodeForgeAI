@@ -206,6 +206,25 @@
   color: var(--white-primary);
 }
 
+.code-panel .tabs .btn-download-zip {
+  background: rgba(0, 255, 0, 0.05);
+  border-color: rgba(0, 255, 0, 0.3);
+  color: #00ff00;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.code-panel .tabs .btn-download-zip:hover {
+  background: rgba(0, 255, 0, 0.15);
+  border-color: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
 .code-panel .tabs .btn-back {
   margin-left: auto;
   background: rgba(189, 189, 189, 0.05);
@@ -370,6 +389,7 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
   flex-shrink: 0;
+  align-items: stretch;
 }
 
 .preview-actions .btn {
@@ -379,6 +399,13 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  height: 48px;
+  max-height: 48px;
+  box-sizing: border-box;
 }
 
 .preview-actions .btn-primary {
@@ -428,6 +455,82 @@
 
 .preview-view .no-preview .terminal-window {
   max-width: 500px;
+}
+
+/* Deployment Status */
+.deployment-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  cursor: default;
+  line-height: 1;
+  height: 48px;
+  max-height: 48px;
+}
+
+.deployment-status.deploying {
+  background: rgba(255, 193, 7, 0.1);
+  border: 2px solid rgba(255, 193, 7, 0.5);
+  color: #ffc107;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.deployment-status.ready {
+  background: rgba(0, 255, 0, 0.1);
+  border: 2px solid rgba(0, 255, 0, 0.5);
+  color: #00ff00;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Deployment Overlay */
+.preview-view {
+  position: relative;
+}
+
+.deployment-overlay {
+  position: absolute;
+  top: 80px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 10;
+  backdrop-filter: blur(2px);
+}
+
+.deployment-overlay .terminal-window {
+  max-width: 500px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Responsive adjustments */

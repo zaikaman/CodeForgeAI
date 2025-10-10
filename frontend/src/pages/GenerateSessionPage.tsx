@@ -41,7 +41,11 @@ export const GenerateSessionPage: React.FC = () => {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'ready' | 'error'>('idle');
+  const [iframeKey, setIframeKey] = useState<number>(Date.now());
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const pollingIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
   
   const store = useGenerationStore();
   const { 
@@ -51,6 +55,7 @@ export const GenerateSessionPage: React.FC = () => {
     updateGenerationFiles, 
     addMessageToGeneration,
     setIsGenerating,
+    clearCurrent,
     history
   } = store;
 
@@ -66,6 +71,40 @@ export const GenerateSessionPage: React.FC = () => {
       navigate('/generate');
     }
   }, [id, generation, navigate]);
+
+  // Load chat history when page loads
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      if (!id || chatHistoryLoaded) return;
+      
+      try {
+        const response = await apiClient.getChatHistory(id);
+        if (response.success && response.data?.messages) {
+          // Convert stored messages to AgentMessage format
+          const historyMessages: AgentMessage[] = response.data.messages.map((msg) => ({
+            id: msg.id,
+            agent: msg.role === 'user' ? 'User' : 'ChatAgent',
+            role: msg.role === 'assistant' ? 'agent' : msg.role as 'user' | 'system',
+            content: msg.content,
+            timestamp: new Date(msg.createdAt),
+            imageUrls: msg.imageUrls,
+          }));
+
+          // Add history messages to the generation
+          historyMessages.forEach((msg) => {
+            addMessageToGeneration(id, msg);
+          });
+
+          setChatHistoryLoaded(true);
+          console.log(`✅ Loaded ${historyMessages.length} chat messages from history`);
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    };
+
+    loadChatHistory();
+  }, [id, chatHistoryLoaded, addMessageToGeneration]);
 
   // Auto-select first file when generation completes
   useEffect(() => {
@@ -151,9 +190,67 @@ export const GenerateSessionPage: React.FC = () => {
     }
   };
 
+  // Poll deployment status until ready
+  const pollDeploymentStatus = React.useCallback(async (generationId: string) => {
+    try {
+      const response = await fetch(`/api/preview/status/${generationId}`);
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        if (data.data.ready) {
+          setDeploymentStatus('ready');
+          // Force iframe refresh with new key
+          setIframeKey(Date.now());
+          // Stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          console.log('✅ Deployment is ready and live');
+        } else {
+          setDeploymentStatus('deploying');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check deployment status:', error);
+    }
+  }, []);
+
+  // Start polling when preview URL is set
+  useEffect(() => {
+    if (previewUrl && deploymentStatus === 'deploying') {
+      // Clear any existing interval
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+
+      // Poll every 3 seconds
+      pollingIntervalRef.current = setInterval(() => {
+        if (id) {
+          pollDeploymentStatus(id);
+        }
+      }, 3000);
+
+      // Initial poll
+      if (id) {
+        pollDeploymentStatus(id);
+      }
+    }
+
+    // Cleanup on unmount or when status changes
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [previewUrl, deploymentStatus, id, pollDeploymentStatus]);
+
   const handlePreview = async (forceRegenerate: boolean = false) => {
     if (generation && generation.response?.files && !isGeneratingPreview) {
       setIsGeneratingPreview(true);
+      setDeploymentStatus('deploying');
+      
       try {
         const response = await fetch('/api/preview', {
           method: 'POST',
@@ -183,12 +280,20 @@ export const GenerateSessionPage: React.FC = () => {
           // Log if using cached preview
           if (data.data.cached) {
             console.log('Using cached preview URL');
+            setDeploymentStatus('ready');
+            setIframeKey(Date.now());
+          } else {
+            console.log('Deployment started, waiting for it to be ready...');
+            // Start polling for new deployments
+            setDeploymentStatus('deploying');
           }
         } else {
           console.error('previewUrl not found in response:', data);
+          setDeploymentStatus('error');
         }
       } catch (error) {
         console.error('Failed to generate preview:', error);
+        setDeploymentStatus('error');
       } finally {
         setIsGeneratingPreview(false);
       }
@@ -305,6 +410,8 @@ export const GenerateSessionPage: React.FC = () => {
 
       // Generate preview with new files FIRST (force regenerate since code changed)
       setIsGeneratingPreview(true);
+      setDeploymentStatus('deploying');
+      
       try {
         const previewResponse = await fetch('/api/preview', {
           method: 'POST',
@@ -325,10 +432,15 @@ export const GenerateSessionPage: React.FC = () => {
             if (!hasGeneratedInitialPreview) {
               setHasGeneratedInitialPreview(true);
             }
+            
+            // Start polling for deployment readiness
+            console.log('New deployment triggered, waiting for it to be ready...');
+            setDeploymentStatus('deploying');
           }
         }
       } catch (previewError) {
         console.error('Failed to generate preview:', previewError);
+        setDeploymentStatus('error');
       } finally {
         setIsGeneratingPreview(false);
       }
@@ -490,7 +602,10 @@ export const GenerateSessionPage: React.FC = () => {
             )}
             <button 
               className="btn-back"
-              onClick={() => navigate('/generate')}
+              onClick={() => {
+                clearCurrent();
+                navigate('/generate');
+              }}
             >
               ◄ NEW GENERATION
             </button>
@@ -560,13 +675,48 @@ export const GenerateSessionPage: React.FC = () => {
                     VIEW PAGE ↗
                   </button>
                 )}
+                {deploymentStatus === 'deploying' && (
+                  <span className="deployment-status deploying">
+                    🔄 Deploying...
+                  </span>
+                )}
+                {deploymentStatus === 'ready' && (
+                  <span className="deployment-status ready">
+                    ✅ Live
+                  </span>
+                )}
               </div>
               {previewUrl ? (
-                <iframe 
-                  key={previewUrl} 
-                  src={previewUrl} 
-                  title="Preview"
-                />
+                <>
+                  {deploymentStatus === 'deploying' && (
+                    <div className="deployment-overlay">
+                      <div className="terminal-window">
+                        <div className="terminal-content">
+                          <pre className="ascii-logo phosphor-glow">
+{`    ╔═══════════════════════════════════╗
+    ║                                   ║
+    ║      DEPLOYMENT IN PROGRESS       ║
+    ║                                   ║
+    ║   ►  Building your application... ║
+    ║   ►  Waiting for servers...       ║
+    ║   ►  This may take 30-60 seconds  ║
+    ║                                   ║
+    ║      Preview will auto-refresh    ║
+    ║      when deployment is ready     ║
+    ║                                   ║
+    ╚═══════════════════════════════════╝`}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <iframe 
+                    key={iframeKey} 
+                    src={previewUrl} 
+                    title="Preview"
+                    style={{ opacity: deploymentStatus === 'deploying' ? 0.3 : 1 }}
+                  />
+                </>
               ) : (
                 <div className="no-preview">
                   <div className="terminal-window">
