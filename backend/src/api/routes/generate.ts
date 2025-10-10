@@ -1,9 +1,10 @@
 
 import { Router } from 'express';
-import { GenerateWorkflow } from '../../workflows/GenerateWorkflow';
 import { supabase } from '../../storage/SupabaseClient';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
+import { generationQueue } from '../../services/GenerationQueue';
+import { optionalAuth } from '../middleware/supabaseAuth';
 
 const router = Router();
 
@@ -17,44 +18,69 @@ const generateRequestSchema = z.object({
   imageUrls: z.array(z.string()).optional(),
 });
 
-router.post('/generate', async (req, res): Promise<void> => {
+// POST /generate - Start a new generation job (requires auth)
+router.post('/generate', optionalAuth, async (req, res): Promise<void> => {
   try {
+    const userId = (req as any).userId;
+    
+    // Check if user is authenticated
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please log in to generate code.',
+      });
+      return;
+    }
+
     // Validate request body
     const validatedRequest = generateRequestSchema.parse(req.body);
     
-    // Create and run workflow
-    const generateWorkflow = new GenerateWorkflow();
-    const result = await generateWorkflow.run(validatedRequest);
-
-    // Save generation to database
+    // Create generation record with pending status
     const generationId = randomUUID();
-    const { data: generationData, error: saveError } = await supabase
+    const { error: saveError } = await supabase
       .from('generations')
       .insert({
         id: generationId,
+        user_id: userId, // Save user ID
         prompt: validatedRequest.prompt,
-        files: result.files,
+        target_language: validatedRequest.targetLanguage,
+        complexity: validatedRequest.complexity,
         image_urls: validatedRequest.imageUrls || [],
+        status: 'pending',
+        files: null, // Will be populated when generation completes
       })
       .select()
       .single();
 
     if (saveError) {
-      console.error('Failed to save generation:', saveError);
-      // Continue even if save fails
+      console.error('Failed to create generation:', saveError);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create generation',
+      });
+      return;
     }
 
-    const response = {
+    // Enqueue the generation job for background processing
+    await generationQueue.enqueue({
+      id: generationId,
+      prompt: validatedRequest.prompt,
+      projectContext: validatedRequest.projectContext,
+      targetLanguage: validatedRequest.targetLanguage,
+      complexity: validatedRequest.complexity,
+      agents: validatedRequest.agents,
+      imageUrls: validatedRequest.imageUrls,
+    });
+
+    // Return immediately with the generation ID
+    res.json({
       success: true,
       data: {
-        id: generationData?.id,
-        files: result.files,
-        language: validatedRequest.targetLanguage,
-        agentThoughts: result.agentThoughts,
+        id: generationId,
+        status: 'pending',
+        message: 'Generation started. Use the ID to check status.',
       },
-    };
-
-    res.json(response);
+    });
     return;
   } catch (error: any) {
     console.error('Generation error:', error);
@@ -72,7 +98,65 @@ router.post('/generate', async (req, res): Promise<void> => {
     // Handle other errors
     res.status(500).json({
       success: false,
-      error: error.message || 'Code generation failed',
+      error: error.message || 'Failed to start generation',
+    });
+    return;
+  }
+});
+
+// GET /generate/:id - Get generation status and results (requires auth)
+router.get('/generate/:id', optionalAuth, async (req, res): Promise<void> => {
+  try {
+    const userId = (req as any).userId;
+    const { id } = req.params;
+
+    // Check if user is authenticated
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please log in to view generations.',
+      });
+      return;
+    }
+
+    // Fetch generation from database (only if it belongs to the user)
+    const { data: generation, error } = await supabase
+      .from('generations')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId) // Only get user's own generations
+      .single();
+
+    if (error || !generation) {
+      res.status(404).json({
+        success: false,
+        error: 'Generation not found or you do not have permission to view it',
+      });
+      return;
+    }
+
+    // Return generation status and data
+    res.json({
+      success: true,
+      data: {
+        id: generation.id,
+        status: generation.status,
+        prompt: generation.prompt,
+        targetLanguage: generation.target_language,
+        complexity: generation.complexity,
+        files: generation.files,
+        agentThoughts: generation.agent_thoughts,
+        error: generation.error,
+        createdAt: generation.created_at,
+        updatedAt: generation.updated_at,
+      },
+    });
+    return;
+  } catch (error: any) {
+    console.error('Error fetching generation:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch generation',
     });
     return;
   }

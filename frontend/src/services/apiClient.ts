@@ -33,15 +33,19 @@ export interface GenerateRequest {
 }
 
 export interface GenerateResponse {
-  files: Array<{
+  id?: string
+  status?: 'pending' | 'processing' | 'completed' | 'failed'
+  message?: string
+  files?: Array<{
     path: string
     content: string
   }>
-  language: string
-  agentThoughts: Array<{
+  language?: string
+  agentThoughts?: Array<{
     agent: string
     thought: string
   }>
+  error?: string
 }
 
 export interface ReviewRequest {
@@ -243,10 +247,87 @@ class ApiClient {
     return response.data
   }
 
-  // Generate code
+  // Generate code - starts generation and returns immediately with ID
   async generate(request: GenerateRequest): Promise<ApiResponse<GenerateResponse>> {
     const response = await this.client.post('/api/generate', request)
     return response.data
+  }
+
+  // Get generation status - check progress of a generation
+  async getGenerationStatus(generationId: string): Promise<ApiResponse<GenerateResponse>> {
+    const response = await this.client.get(`/api/generate/${generationId}`)
+    return response.data
+  }
+
+  // Poll generation until complete - wrapper that handles polling automatically
+  async generateAndWait(
+    request: GenerateRequest,
+    options?: {
+      onStatusChange?: (status: string) => void
+      pollInterval?: number
+      timeout?: number
+    }
+  ): Promise<ApiResponse<GenerateResponse>> {
+    // Start generation
+    const startResponse = await this.generate(request)
+    
+    if (!startResponse.success || !startResponse.data?.id) {
+      throw new Error(startResponse.error || 'Failed to start generation')
+    }
+
+    const generationId = startResponse.data.id
+    const pollInterval = options?.pollInterval || 2000 // 2 seconds
+    const timeout = options?.timeout || 300000 // 5 minutes
+
+    const startTime = Date.now()
+
+    // Poll until complete or failed
+    return new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          // Check timeout
+          if (Date.now() - startTime > timeout) {
+            reject(new Error('Generation timeout - process took too long'))
+            return
+          }
+
+          // Get current status
+          const statusResponse = await this.getGenerationStatus(generationId)
+
+          if (!statusResponse.success || !statusResponse.data) {
+            reject(new Error('Failed to get generation status'))
+            return
+          }
+
+          const { status } = statusResponse.data
+
+          // Notify status change
+          if (options?.onStatusChange) {
+            options.onStatusChange(status || 'unknown')
+          }
+
+          // Check if complete
+          if (status === 'completed') {
+            resolve(statusResponse)
+            return
+          }
+
+          // Check if failed
+          if (status === 'failed') {
+            reject(new Error(statusResponse.data.error || 'Generation failed'))
+            return
+          }
+
+          // Continue polling
+          setTimeout(poll, pollInterval)
+        } catch (error: any) {
+          reject(error)
+        }
+      }
+
+      // Start polling
+      poll()
+    })
   }
 
   // Review code

@@ -43,8 +43,30 @@ export const useGeneration = (): UseGenerationReturn => {
         // Start generation in store
         const generationId = startGeneration(request)
 
-        // Call API
-        const response = await apiClient.generate(request)
+        // Call API with polling support
+        const response = await apiClient.generateAndWait(request, {
+          onStatusChange: (status) => {
+            // Update loading message based on status
+            switch (status) {
+              case 'pending':
+                setLoading(true, 'Generation queued, waiting to start...')
+                break
+              case 'processing':
+                setLoading(true, 'Generating code with AI agents...')
+                break
+              case 'completed':
+                setLoading(true, 'Finalizing generation...')
+                break
+              case 'failed':
+                setLoading(true, 'Generation encountered an error...')
+                break
+              default:
+                setLoading(true, 'Processing...')
+            }
+          },
+          pollInterval: 2000, // Poll every 2 seconds
+          timeout: 300000, // 5 minutes timeout
+        })
 
         if (!response.success || !response.data) {
           throw new Error(response.error || 'Generation failed')

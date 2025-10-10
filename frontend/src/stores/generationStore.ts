@@ -2,14 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { AgentMessage } from '../components/AgentChat'
 import { GenerateRequest, GenerateResponse } from '../services/apiClient'
-import { supabase } from '../lib/supabase';
 
 export interface GenerationHistoryEntry {
   id: string
   prompt: string
   request: GenerateRequest
   response: GenerateResponse | null
-  status: 'pending' | 'generating' | 'completed' | 'error'
+  status: 'pending' | 'generating' | 'processing' | 'completed' | 'error' | 'failed'
   error?: string
   agentMessages: AgentMessage[]
   startedAt: Date
@@ -150,25 +149,8 @@ export const useGenerationStore = create<GenerationState>()(
             history: [completedGeneration, ...history],
           })
 
-          // Save to Supabase asynchronously (don't block state update)
-          void (async () => {
-            try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user) {
-                await supabase.from('generations').insert([
-                  {
-                    id: completedGeneration.id,
-                    prompt: completedGeneration.prompt,
-                    files: completedGeneration.response?.files,
-                    user_id: user.id,
-                  },
-                ]);
-              }
-            } catch (error) {
-              // Silently fail - don't block UI
-              console.error('Failed to save generation to Supabase:', error);
-            }
-          })();
+          // Note: Generation is already saved in backend via async process
+          // No need to save again to Supabase from frontend
         }
       },
 
