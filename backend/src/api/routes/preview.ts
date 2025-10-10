@@ -107,13 +107,14 @@ router.post('/preview', async (req, res) => {
     const forceRegenerate = req.body.forceRegenerate === true;
     if (existingPreviewUrl && !forceRegenerate) {
       console.log(`Preview URL already exists for ${generationId}, returning cached URL`);
-      return res.json({ 
+      res.json({ 
         success: true, 
         data: { 
           previewUrl: existingPreviewUrl,
           cached: true
         } 
       });
+      return;
     }
 
     // 2. Generate the preview with or without retry mechanism
