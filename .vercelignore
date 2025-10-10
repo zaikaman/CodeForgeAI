@@ -15,12 +15,8 @@ adk-ts/.gitignore
 adk-ts/.npmignore
 adk-ts/apps
 adk-ts/packages/tsconfig
-adk-ts/packages/adk/src
-adk-ts/packages/adk/node_modules
 adk-ts/packages/adk/.turbo
 adk-ts/packages/adk/vitest.config.mjs
-adk-ts/packages/adk/tsup.config.ts
-adk-ts/packages/adk/tsconfig.json
 adk-ts/packages/adk/CHANGELOG.md
 adk-ts/packages/adk/README.md
 images

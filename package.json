@@ -15,7 +15,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "copy-adk": "node scripts/copy-adk.js",
-    "postinstall": "npm run copy-adk"
+    "build-adk": "node scripts/build-and-copy-adk.js",
+    "postinstall": "npm run build-adk"
   },
   "keywords": [
     "ai",
