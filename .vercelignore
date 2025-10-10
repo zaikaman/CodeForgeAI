@@ -8,7 +8,9 @@ tests
 *.test.ts
 *.spec.ts
 coverage
-adk-ts
+adk-ts/**
+!adk-ts/packages/adk/dist
+!adk-ts/packages/adk/package.json
 images
 specs
 -p

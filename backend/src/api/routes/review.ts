@@ -4,7 +4,7 @@ import { Router } from 'express';
 
 const router = Router();
 
-router.post('/review', async (req, res) => {
+router.post('/review', async (_req, res) => {
   // const { code } = req.body;
   // const reviewWorkflow = new ReviewWorkflow();
   // const report = await reviewWorkflow.run(code);

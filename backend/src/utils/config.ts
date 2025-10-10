@@ -40,7 +40,7 @@ export function loadConfig(): Config {
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingVars = error.errors.map(err => err.path.join('.')).join(', ')
+      const missingVars = error.issues.map(err => err.path.join('.')).join(', ')
       throw new Error(
         `Environment validation failed: ${missingVars}\\n` +
           'Please check your .env file and ensure all required variables are set.\\n' +

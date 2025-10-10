@@ -20,12 +20,6 @@ interface ChatMessage {
   createdAt?: string;
 }
 
-interface MemoryContext {
-  messages: ChatMessage[];
-  totalTokens: number;
-  messageCount: number;
-}
-
 export class ChatMemoryManager {
   private static readonly MAX_MESSAGES = 20;
   private static readonly APPROX_TOKENS_PER_CHAR = 0.25; // rough estimate
@@ -138,7 +132,7 @@ export class ChatMemoryManager {
     currentMessage: string,
     currentFiles: Array<{ path: string; content: string }>,
     language: string,
-    imageUrls?: string[]
+    _imageUrls?: string[]
   ): Promise<{ contextMessage: string; totalTokens: number }> {
     // Get recent messages (last 20)
     const recentMessages = await this.getRecentMessages(generationId, this.MAX_MESSAGES);

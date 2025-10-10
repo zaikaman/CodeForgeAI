@@ -6,7 +6,11 @@
       "use": "@vercel/node",
       "config": {
         "maxLambdaSize": "50mb",
-        "includeFiles": ["backend/src/**"]
+        "includeFiles": [
+          "backend/src/**",
+          "adk-ts/packages/adk/dist/**",
+          "adk-ts/packages/adk/package.json"
+        ]
       }
     },
     {

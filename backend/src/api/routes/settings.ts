@@ -9,19 +9,20 @@ const userSettingsRepo = new UserSettingsRepository()
  * GET /api/settings
  * Get current user's settings
  */
-router.get('/settings', requireAuth, async (req, res, next) => {
+router.get('/settings', requireAuth, async (req, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     const settings = await userSettingsRepo.getByUserId(userId)
 
     if (!settings) {
       // Return default settings if none exist
-      return res.json({
+      res.json({
         userId,
         theme: 'blue',
         crtEffects: true,
@@ -29,6 +30,7 @@ router.get('/settings', requireAuth, async (req, res, next) => {
         autoScrollChat: true,
         soundEffects: false,
       })
+      return
     }
 
     // Don't send the full API key to the frontend, only indicate if it exists
@@ -48,22 +50,25 @@ router.get('/settings', requireAuth, async (req, res, next) => {
  * PUT /api/settings/api-key
  * Update user's API key
  */
-router.put('/settings/api-key', requireAuth, async (req, res, next) => {
+router.put('/settings/api-key', requireAuth, async (req, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
     const { apiKey } = req.body
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     if (!apiKey || typeof apiKey !== 'string') {
-      return res.status(400).json({ error: 'Invalid API key' })
+      res.status(400).json({ error: 'Invalid API key' })
+      return
     }
 
     // Basic validation for OpenAI API key format
     if (!apiKey.startsWith('sk-')) {
-      return res.status(400).json({ error: 'Invalid OpenAI API key format' })
+      res.status(400).json({ error: 'Invalid OpenAI API key format' })
+      return
     }
 
     await userSettingsRepo.updateApiKey(userId, apiKey)
@@ -78,13 +83,14 @@ router.put('/settings/api-key', requireAuth, async (req, res, next) => {
  * PUT /api/settings/preferences
  * Update user's UI preferences
  */
-router.put('/settings/preferences', requireAuth, async (req, res, next) => {
+router.put('/settings/preferences', requireAuth, async (req, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
     const { theme, crtEffects, phosphorGlow, autoScrollChat, soundEffects } = req.body
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     const preferences: Record<string, any> = {}
@@ -107,12 +113,13 @@ router.put('/settings/preferences', requireAuth, async (req, res, next) => {
  * DELETE /api/settings/api-key
  * Remove user's API key
  */
-router.delete('/settings/api-key', requireAuth, async (req, res, next) => {
+router.delete('/settings/api-key', requireAuth, async (req, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     await userSettingsRepo.updateApiKey(userId, '')
@@ -127,12 +134,13 @@ router.delete('/settings/api-key', requireAuth, async (req, res, next) => {
  * DELETE /api/settings
  * Delete all user settings
  */
-router.delete('/settings', requireAuth, async (req, res, next) => {
+router.delete('/settings', requireAuth, async (req, res, next): Promise<void> => {
   try {
     const userId = (req as any).user?.id
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     await userSettingsRepo.delete(userId)

@@ -152,7 +152,7 @@ export function requireRole(...roles: string[]) {
  */
 export function requireOwnership(
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void {
   if (!req.user) {

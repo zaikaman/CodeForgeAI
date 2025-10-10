@@ -11,7 +11,6 @@ import { DocWeaverAgent } from '../agents/specialized/DocWeaverAgent';
 import { RefactorGuruAgent } from '../agents/specialized/RefactorGuruAgent';
 import { SecuritySentinelAgent } from '../agents/specialized/SecuritySentinelAgent';
 import { PerformanceProfilerAgent } from '../agents/specialized/PerformanceProfilerAgent';
-import fetch from 'node-fetch';
 
 export class GenerateWorkflow {
     private readonly MAX_FIX_ATTEMPTS = 1; // Maximum number of times to try fixing code
@@ -206,6 +205,7 @@ export class GenerateWorkflow {
                 },
                 confidence: 0.1,
                 agentThoughts,
+                requirements: null,
                 error: error.message
             };
         }
@@ -561,8 +561,9 @@ Return the result as JSON with the following structure:
                 const imageParts = await Promise.all(
                     request.imageUrls.map(async (url: string) => {
                         try {
-                            const response = await fetch(url);
-                            const buffer = await response.buffer();
+                            const response = await globalThis.fetch(url);
+                            const arrayBuffer = await response.arrayBuffer();
+                            const buffer = Buffer.from(arrayBuffer);
                             const base64 = buffer.toString('base64');
                             const contentType = response.headers.get('content-type') || 'image/jpeg';
                             

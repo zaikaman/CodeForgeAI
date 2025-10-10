@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from '../../services/ChatMemoryManager';
 import { z } from 'zod';
-import fetch from 'node-fetch';
 
 const router = Router();
 
@@ -55,8 +54,9 @@ router.post('/chat', async (req, res): Promise<void> => {
       const imageParts = await Promise.all(
         imageUrls.map(async (url) => {
           try {
-            const response = await fetch(url);
-            const buffer = await response.buffer();
+            const response = await globalThis.fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
             const base64 = buffer.toString('base64');
             const contentType = response.headers.get('content-type') || 'image/jpeg';
             

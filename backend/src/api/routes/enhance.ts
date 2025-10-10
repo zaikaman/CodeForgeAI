@@ -4,7 +4,7 @@ import { Router } from 'express';
 
 const router = Router();
 
-router.post('/enhance', async (req, res) => {
+router.post('/enhance', async (_req, res) => {
   // const { code } = req.body;
   // const enhanceWorkflow = new EnhanceWorkflow();
   // const diff = await enhanceWorkflow.run(code);

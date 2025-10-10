@@ -4,7 +4,7 @@ import { Router } from 'express';
 
 const router = Router();
 
-router.get('/status', async (req, res) => {
+router.get('/status', async (_req, res) => {
   // const supabase: SupabaseClient = req.app.get('supabase');
   // const { data, error } = await supabase.from('projects').select('id').limit(1);
 

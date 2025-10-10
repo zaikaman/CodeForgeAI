@@ -57,7 +57,7 @@ router.get('/preview/status/:generationId', async (req, res) => {
     }
   } catch (error: any) {
     console.error('Status check error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -178,11 +178,11 @@ router.post('/preview', async (req, res) => {
         console.warn('Failed to persist preview_url:', persistError);
       }
 
-      res.json({ success: true, data: result });
+      return res.json({ success: true, data: result });
     }
   } catch (error: any) {
     console.error('Preview error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
