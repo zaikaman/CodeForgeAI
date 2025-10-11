@@ -601,7 +601,7 @@ function handle(e: Event): void { }  // NO!
 ### Web Server Example:
 
 **Express.js:**
-\`\`\`typescript
+\\\`\\\`\\\`typescript
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -624,7 +624,7 @@ app.post('/api/data', (req: Request, res: Response) => {
 app.listen(port, () => {
   console.log('Server running on port ' + port);
 });
-\`\`\`
+\\\`\\\`\\\`
 
 **⚠️ ULTRA CRITICAL: For Calculator/Todo/UI Apps → USE VITE + REACT (NOT Express):**
 
@@ -717,7 +717,7 @@ Root directory:
 
 **CORRECT vite.config.ts:**
 
-\`\`\`typescript
+\\\`\\\`\\\`typescript
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -731,7 +731,7 @@ export default defineConfig({
     outDir: 'dist'
   }
 })
-\`\`\`
+\\\`\\\`\\\`
 
 **WHY VITE + REACT for Calculator/Todo Apps:**
 1. ✅ Zero path configuration - works instantly
@@ -751,7 +751,7 @@ export default defineConfig({
 
 Use **Vite for frontend + Express for backend API** (separate concerns):
 
-\`\`\`typescript
+\\\`\\\`\\\`typescript
 // backend/src/server.ts
 import express from 'express';
 import cors from 'cors';
@@ -770,19 +770,19 @@ app.post('/api/chat', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(\`API server on port \${port}\`);
+  console.log('API server on port ' + port);
 });
-\`\`\`
+\\\`\\\`\\\`
 
 **Frontend calls backend API:**
-\`\`\`typescript
+\\\`\\\`\\\`typescript
 // Frontend (Vite + React) - runs on port 3000
 const response = await fetch('http://localhost:3001/api/chat', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ message: 'Hello' })
 });
-\`\`\`
+\\\`\\\`\\\`
 
 **CRITICAL: Separate frontend and backend completely:**
 - Frontend: Vite dev server (port 3000)
