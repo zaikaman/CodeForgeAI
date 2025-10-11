@@ -390,6 +390,7 @@ Your response MUST be a single JSON object with this exact structure:
   * Example: If you use "cors", also add "@types/cors"
   * Example: If you use "express", also add "@types/express"
   * Example: If you use "node" APIs, add "@types/node"
+- Pin "typescript" in devDependencies to "^5.4.5" (stable release). Never use "latest", "next", beta tags, or unpublished future versions.
 - Include TypeScript configuration
 - Add build scripts (tsc, vite, webpack, esbuild)
 - Common packages: express, cors, dotenv
@@ -572,6 +573,7 @@ src/
 13. ✓ **DO NOT create empty files - every file must have real code**
 14. ✓ **NEVER create files like src/index.ts with empty content: ""**
 15. ✓ **For Express/Fastify servers: MUST have tsconfig.json + package.json**
+16. ✓ **Pin "typescript" devDependency to "^5.4.5" so npm install succeeds without registry lookup failures**
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**

@@ -5,6 +5,22 @@ import path from 'path';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
 
+const PACKAGE_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
+const TYPESCRIPT_ALLOWED_VERSIONS = new Set([
+  '^5.0.0',
+  '^5.1.6',
+  '^5.2.2',
+  '^5.3.3',
+  '^5.4.5',
+  '~5.4.5',
+  '5.0.0',
+  '5.1.6',
+  '5.2.2',
+  '5.3.3',
+  '5.4.5'
+]);
+const TYPESCRIPT_FALLBACK_VERSION = '^5.4.5';
+
 export interface DeploymentResult {
   success: boolean;
   previewUrl?: string;
@@ -47,7 +63,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     maxRetries?: number
   ): Promise<DeploymentResult> {
     const retries = maxRetries ?? this.maxRetries;
-    let currentFiles = files;
+  let currentFiles = this.sanitizeGeneratedFiles(files);
     let lastError: string = '';
     let lastLogs: string = '';
 
@@ -55,7 +71,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
       console.log(`\n=== Deployment Attempt ${attempt}/${retries} ===`);
       
       try {
-        const result = await this.attemptDeployment(generationId, currentFiles, attempt);
+  const result = await this.attemptDeployment(generationId, currentFiles, attempt);
         
         if (result.success) {
           console.log(`✓ Deployment successful on attempt ${attempt}`);
@@ -98,7 +114,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         }
 
         console.log(`✓ ChatAgent provided fixes. Retrying deployment...`);
-        currentFiles = fixedFiles;
+  currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
 
       } catch (error: any) {
         lastError = error.message || 'Unexpected error during deployment';
@@ -120,7 +136,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
           console.log(`\n��� Attempting to fix unexpected error with ChatAgent...`);
           const fixedFiles = await this.fixCodeWithAgent(currentFiles, lastError, lastLogs, attempt);
           if (fixedFiles && fixedFiles.length > 0) {
-            currentFiles = fixedFiles;
+            currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
           } else {
             return {
               success: false,
@@ -435,7 +451,7 @@ Return the complete fixed codebase.`;
       }
 
       console.log(`✓ All ${response.files.length} files validated successfully`);
-      return response.files;
+      return this.sanitizeGeneratedFiles(response.files);
 
     } catch (error: any) {
       console.error('✗ Error getting fixes from ChatAgent:');
@@ -446,6 +462,115 @@ Return the complete fixed codebase.`;
       }
       return null;
     }
+  }
+
+  private sanitizeGeneratedFiles(files: Array<{ path: string; content: string }>): Array<{ path: string; content: string }> {
+    const hasTypeScriptSources = files.some(file => {
+      const normalizedPath = this.normalizeFilePath(file.path).toLowerCase();
+      return normalizedPath.endsWith('.ts') || normalizedPath.endsWith('.tsx');
+    });
+
+    const sanitized = files.map(file => ({ ...file }));
+    const packageJsonIndex = sanitized.findIndex(file => this.normalizeFilePath(file.path).toLowerCase() === 'package.json');
+
+    if (packageJsonIndex === -1) {
+      return sanitized;
+    }
+
+    const packageFile = sanitized[packageJsonIndex];
+    let parsedPackage: any;
+
+    try {
+      parsedPackage = JSON.parse(packageFile.content);
+    } catch (error) {
+      console.warn('⚠ Could not parse package.json for sanitization:', error);
+      return sanitized;
+    }
+
+    let packageChanged = false;
+
+    packageChanged = this.ensureTypeScriptDependency(parsedPackage, hasTypeScriptSources) || packageChanged;
+
+    if (packageChanged) {
+      sanitized[packageJsonIndex] = {
+        ...packageFile,
+        content: JSON.stringify(parsedPackage, null, 2)
+      };
+      console.log('✓ Applied package.json sanitization heuristics');
+    }
+
+    return sanitized;
+  }
+
+  private ensureTypeScriptDependency(pkg: any, hasTypeScriptSources: boolean): boolean {
+    let changed = false;
+    const dependencyInfo = this.getDependencyInfo(pkg, 'typescript');
+
+    if (!dependencyInfo && hasTypeScriptSources) {
+      this.setDependencyVersion(pkg, 'typescript', TYPESCRIPT_FALLBACK_VERSION, 'devDependencies');
+      console.log('✓ Added TypeScript devDependency with stable version');
+      changed = true;
+    }
+
+    const normalized = this.normalizeDependencyVersion(pkg, 'typescript', TYPESCRIPT_FALLBACK_VERSION, dependencyInfo?.section);
+    return changed || normalized;
+  }
+
+  private normalizeDependencyVersion(
+    pkg: any,
+    dependencyName: string,
+    fallbackVersion: string,
+    existingSection?: typeof PACKAGE_SECTIONS[number]
+  ): boolean {
+    const info = this.getDependencyInfo(pkg, dependencyName);
+    if (!info) {
+      return false;
+    }
+
+    const rawVersion = String(info.version).trim();
+    const isPlaceholder = /latest|next|beta|alpha|rc|\*|workspace:/i.test(rawVersion) || rawVersion.length === 0;
+    const isAllowed = TYPESCRIPT_ALLOWED_VERSIONS.has(rawVersion);
+
+    if (dependencyName === 'typescript' && (!isAllowed || isPlaceholder)) {
+      this.setDependencyVersion(pkg, dependencyName, fallbackVersion, existingSection || info.section);
+      console.log(`✓ Normalized ${dependencyName} version from "${rawVersion}" to "${fallbackVersion}"`);
+      return true;
+    }
+
+    return false;
+  }
+
+  private getDependencyInfo(
+    pkg: any,
+    dependencyName: string
+  ): { section: typeof PACKAGE_SECTIONS[number]; version: string } | null {
+    for (const section of PACKAGE_SECTIONS) {
+      const bucket = pkg[section];
+      if (bucket && typeof bucket === 'object' && dependencyName in bucket) {
+        return { section, version: String(bucket[dependencyName]) };
+      }
+    }
+    return null;
+  }
+
+  private setDependencyVersion(
+    pkg: any,
+    dependencyName: string,
+    version: string,
+    preferredSection: typeof PACKAGE_SECTIONS[number] = 'devDependencies'
+  ): void {
+    const info = this.getDependencyInfo(pkg, dependencyName);
+    const targetSection = info?.section || preferredSection;
+
+    if (!pkg[targetSection] || typeof pkg[targetSection] !== 'object') {
+      pkg[targetSection] = {};
+    }
+
+    pkg[targetSection][dependencyName] = version;
+  }
+
+  private normalizeFilePath(filePath: string): string {
+    return filePath.replace(/\\/g, '/');
   }
 
   /**
