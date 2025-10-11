@@ -79,8 +79,10 @@ export const GenerateSessionPage: React.FC = () => {
           
           // If we got a preview URL from backend, set it
           if (response.data.previewUrl && !previewUrl) {
+            const url = withCacheBust(response.data.previewUrl);
             console.log('✅ Found preview URL from backend:', response.data.previewUrl);
-            setPreviewUrl(withCacheBust(response.data.previewUrl));
+            console.log('📍 Setting iframe src:', url);
+            setPreviewUrl(url);
             setDeploymentStatus(response.data.deploymentStatus === 'deployed' ? 'ready' : 'deploying');
           }
           
@@ -845,7 +847,24 @@ export const GenerateSessionPage: React.FC = () => {
                     key={iframeKey} 
                     src={previewUrl} 
                     title="Preview"
-                    style={{ opacity: deploymentStatus === 'deploying' ? 0.3 : 1 }}
+                    width="100%"
+                    height="100%"
+                    style={{ 
+                      opacity: deploymentStatus === 'deploying' ? 0.3 : 1,
+                      border: '1px solid rgba(0, 255, 0, 0.3)',
+                      background: '#000'
+                    }}
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+                    onLoad={() => {
+                      console.log('✅ Iframe loaded successfully:', previewUrl);
+                      if (deploymentStatus === 'deploying') {
+                        setDeploymentStatus('ready');
+                      }
+                    }}
+                    onError={(e) => {
+                      console.error('❌ Iframe failed to load:', previewUrl, e);
+                      setDeploymentStatus('error');
+                    }}
                   />
                 </>
               ) : (
