@@ -293,7 +293,7 @@ export class ComprehensiveValidator {
   private detectCommonMistakes(file: GeneratedFile, sourceFile: ts.SourceFile): ValidationError[] {
     const errors: ValidationError[] = [];
 
-    // Check for className{...} instead of className={...}
+    // Check 1: className{...} instead of className={...}
     const classNameRegex = /className\{[^=]/g;
     let match;
     while ((match = classNameRegex.exec(file.content)) !== null) {
@@ -311,7 +311,7 @@ export class ComprehensiveValidator {
       });
     }
 
-    // Check for module.exports in ESM
+    // Check 2: module.exports in ESM
     if (file.content.includes('module.exports') && this.isEsmProject(file)) {
       errors.push({
         severity: 'critical',
@@ -321,6 +321,61 @@ export class ComprehensiveValidator {
         message: 'CommonJS "module.exports" used in ES module. Use "export default" instead.',
         fixable: true,
         fixStrategy: 'module_converter'
+      });
+    }
+
+    // Check 3: Router.useRouter() pattern (wrong Next.js hook usage)
+    if (file.content.includes('Router.useRouter()')) {
+      errors.push({
+        severity: 'critical',
+        layer: 'static',
+        category: 'syntax',
+        file: file.path,
+        message: 'Property \'useRouter\' does not exist on type \'() => NextRouter\'. Import and use useRouter() directly.',
+        fixable: true,
+        fixStrategy: 'syntax_fixer'
+      });
+    }
+
+    // Check 4: Problematic template strings with nested backticks
+    // Pattern: `...${arr.map(x => `...`).join('...')}...`
+    const nestedTemplateRegex = /`[^`]*\$\{[^}]*\.map\([^)]+\s*=>\s*`[^`]*`[^}]*\}[^`]*`/g;
+    while ((match = nestedTemplateRegex.exec(file.content)) !== null) {
+      const { line } = sourceFile.getLineAndCharacterOfPosition(match.index);
+      errors.push({
+        severity: 'high',
+        layer: 'static',
+        category: 'syntax',
+        file: file.path,
+        line: line + 1,
+        message: 'Potentially problematic nested template string. May cause "Unterminated string literal" error.',
+        fixable: true,
+        fixStrategy: 'syntax_fixer'
+      });
+    }
+
+    // Check 5: Missing import for hooks
+    if (file.content.includes('useRouter()') && !file.content.match(/import.*useRouter.*from ['"]next\/router['"]/)) {
+      errors.push({
+        severity: 'critical',
+        layer: 'static',
+        category: 'syntax',
+        file: file.path,
+        message: 'useRouter() is used but not imported from \'next/router\'',
+        fixable: true,
+        fixStrategy: 'syntax_fixer'
+      });
+    }
+
+    if (file.content.includes('useState(') && !file.content.match(/import.*useState.*from ['"]react['"]/)) {
+      errors.push({
+        severity: 'critical',
+        layer: 'static',
+        category: 'syntax',
+        file: file.path,
+        message: 'useState() is used but not imported from \'react\'',
+        fixable: true,
+        fixStrategy: 'syntax_fixer'
       });
     }
 

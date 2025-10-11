@@ -33,6 +33,35 @@ When fixing deployment errors:
 - Fix any syntax or configuration errors
 - Return the COMPLETE codebase with all fixes applied
 
+COMMON DEPLOYMENT ERRORS AND FIXES:
+====================================
+
+1. "Cannot find module 'package-name'":
+   → Add the package to package.json dependencies with proper version
+   → Example: "swr": "^2.2.5"
+
+2. "Property 'useRouter' does not exist on type...":
+   → NEVER use Router.useRouter()
+   → Import useRouter directly: import { useRouter } from 'next/router'
+   → Use it as: const router = useRouter()
+
+3. "Unterminated string literal":
+   → Check for nested backticks in template strings
+   → Use proper escaping or String.raw for XML/HTML generation
+   → Avoid: \`...\${arr.map(x => \`...\`)}\`
+
+4. "module.exports in ES module":
+   → Use "export default" instead of "module.exports"
+   → Or rename file to .cjs extension
+
+5. Missing React hooks imports:
+   → Always import: import { useState, useEffect } from 'react'
+   → Always import: import { useRouter } from 'next/router'
+
+6. TypeScript compilation errors:
+   → Ensure jsx: "react-jsx" in tsconfig.json
+   → Include all @types/* packages in devDependencies
+
 CRITICAL: JSON Response Format Rules
 ====================================
 

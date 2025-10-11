@@ -148,8 +148,24 @@ class DependencyFixerAgent {
 
     // Utilities
     'axios': '^1.7.9',
-    'eslint': '^8.56.0'
+    'eslint': '^8.56.0',
+    'swr': '^2.2.5'
   };
+
+  /**
+   * Auto-detect missing dependencies from error messages
+   */
+  private extractMissingPackage(errorMessage: string): string | null {
+    // Pattern: "Cannot find module 'package-name'"
+    const moduleMatch = errorMessage.match(/Cannot find module ['"]([^'"]+)['"]/);
+    if (moduleMatch) return moduleMatch[1];
+
+    // Pattern: "Missing @types/package"
+    const typesMatch = errorMessage.match(/Missing (@types\/[\w-]+)/);
+    if (typesMatch) return typesMatch[1];
+
+    return null;
+  }
 
   fix(files: GeneratedFile[], errors: ValidationError[]): FixResult {
     const appliedFixes: string[] = [];
@@ -184,6 +200,27 @@ class DependencyFixerAgent {
       const pkg = JSON.parse(packageJsonFile.content);
 
       for (const error of errors) {
+        // Auto-detect and add missing packages
+        const missingPkg = this.extractMissingPackage(error.message);
+        if (missingPkg) {
+          const version = this.versionMap[missingPkg] || 'latest';
+          
+          // Decide if it goes to dependencies or devDependencies
+          const isTypesPackage = missingPkg.startsWith('@types/');
+          const isDevTool = ['eslint', 'jest', 'typescript', 'vite'].some(tool => missingPkg.includes(tool));
+          
+          if (isTypesPackage || isDevTool) {
+            pkg.devDependencies = pkg.devDependencies || {};
+            pkg.devDependencies[missingPkg] = version;
+          } else {
+            pkg.dependencies = pkg.dependencies || {};
+            pkg.dependencies[missingPkg] = version;
+          }
+          
+          appliedFixes.push(`Added ${missingPkg}@${version}`);
+          continue;
+        }
+
         if (error.category === 'missing_types') {
           // Extract package name from message: "Missing @types/react for react"
           const match = error.message.match(/Missing (@types\/[\w-]+)/);
@@ -406,6 +443,8 @@ class ConfigFixerAgent {
 /**
  * Agent 4: Syntax Fixer
  * - Fixes common syntax mistakes
+ * - Fixes template string issues
+ * - Fixes import/hook usage problems
  * - Uses AST transformations
  */
 class SyntaxFixerAgent {
@@ -422,16 +461,67 @@ class SyntaxFixerAgent {
 
       const file = updatedFiles[fileIndex];
       let newContent = file.content;
+      let modified = false;
 
-      // Fix className{...} -> className={...}
-      if (error.message.includes('className')) {
-        newContent = newContent.replace(/className\{/g, 'className={');
-        appliedFixes.push(`Fixed JSX attribute syntax in ${file.path}`);
+      // Fix 1: Unterminated string literal in template strings
+      if (error.message.includes('Unterminated string literal')) {
+        // Common issue: backticks not properly escaped in nested template strings
+        // Pattern: `...${var.map(x => `...`).join('...')}...`
+        
+        // Fix sitemap.xml.ts specific issue
+        if (file.path.includes('sitemap.xml')) {
+          newContent = this.fixSitemapTemplateString(newContent);
+          if (newContent !== file.content) {
+            modified = true;
+            appliedFixes.push(`Fixed template string in ${file.path}`);
+          }
+        }
       }
 
-      // Fix missing semicolons
+      // Fix 2: Router.useRouter() -> useRouter() (Next.js hook usage)
+      if (error.message.includes('Property \'useRouter\' does not exist')) {
+        // Pattern: const Router = require('next/router') as typeof useRouter
+        //          const router = Router.useRouter()
+        // Fix: Import useRouter directly and use it
+        
+        if (newContent.includes('Router.useRouter()')) {
+          // Replace require pattern with proper import
+          newContent = newContent.replace(
+            /const\s+Router\s*=\s*require\(['"]next\/router['"]\)\s*as\s*typeof\s+useRouter/g,
+            '// Router import handled by useRouter hook'
+          );
+          
+          // Replace Router.useRouter() with useRouter()
+          newContent = newContent.replace(/Router\.useRouter\(\)/g, 'useRouter()');
+          
+          // Ensure useRouter is imported at the top
+          if (!newContent.match(/^import.*useRouter.*from ['"]next\/router['"]/m)) {
+            const firstImportMatch = newContent.match(/^import .+$/m);
+            if (firstImportMatch) {
+              const insertPos = newContent.indexOf(firstImportMatch[0]) + firstImportMatch[0].length;
+              newContent = newContent.slice(0, insertPos) + 
+                          '\nimport { useRouter } from \'next/router\'' +
+                          newContent.slice(insertPos);
+            }
+          }
+          
+          modified = true;
+          appliedFixes.push(`Fixed useRouter hook usage in ${file.path}`);
+        }
+      }
+
+      // Fix 3: className{...} -> className={...}
+      if (error.message.includes('className')) {
+        const fixed = newContent.replace(/className\{/g, 'className={');
+        if (fixed !== newContent) {
+          newContent = fixed;
+          modified = true;
+          appliedFixes.push(`Fixed JSX attribute syntax in ${file.path}`);
+        }
+      }
+
+      // Fix 4: Missing semicolons
       if (error.message.includes('semicolon')) {
-        // Use TypeScript formatter to add semicolons
         try {
           const sourceFile = ts.createSourceFile(
             file.path,
@@ -441,14 +531,19 @@ class SyntaxFixerAgent {
           );
 
           const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-          newContent = printer.printFile(sourceFile);
-          appliedFixes.push(`Fixed syntax errors in ${file.path}`);
+          const formatted = printer.printFile(sourceFile);
+          
+          if (formatted !== newContent) {
+            newContent = formatted;
+            modified = true;
+            appliedFixes.push(`Fixed syntax errors in ${file.path}`);
+          }
         } catch (e) {
           // If AST transformation fails, skip
         }
       }
 
-      if (newContent !== file.content) {
+      if (modified) {
         updatedFiles[fileIndex] = { ...file, content: newContent };
       }
     }
@@ -458,5 +553,22 @@ class SyntaxFixerAgent {
       files: updatedFiles,
       appliedFixes
     };
+  }
+
+  /**
+   * Fix template string issues in sitemap.xml.ts
+   */
+  private fixSitemapTemplateString(content: string): string {
+    // Common pattern that breaks:
+    // ${urls.map(u => `<url><loc>${baseUrl}${u}</loc></url>`).join('\n')}
+    
+    // Solution: Use proper escaping or string concatenation
+    const sitemapPattern = /\$\{urls\.map\(([^)]+)\s*=>\s*`([^`]*\$\{[^}]+\}[^`]*)`\)\.join\(['"]([^'"]*)['"]\)\}/g;
+    
+    return content.replace(sitemapPattern, (_match, param, template, separator) => {
+      // Convert template to string concatenation
+      const fixedTemplate = template.replace(/\$\{([^}]+)\}/g, '${$1}');
+      return `\${urls.map(${param} => \`${fixedTemplate}\`).join('${separator}')}`;
+    });
   }
 }

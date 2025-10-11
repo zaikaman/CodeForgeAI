@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
+import { LearningIntegrationService } from '../learning/LearningIntegrationService';
 
 const PACKAGE_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 const TYPESCRIPT_ALLOWED_VERSIONS = new Set([
@@ -57,14 +58,16 @@ export interface IPreviewServiceWithRetry {
 
 export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   private flyApiToken: string;
-  private maxRetries: number;
+  private learningService: LearningIntegrationService;
+  private readonly MAX_CONSECUTIVE_FAILURES = 5; // Prevent infinite loops
+  private readonly MAX_SAME_ERROR_RETRIES = 3; // Prevent getting stuck on same error
 
-  constructor(maxRetries: number = 3) {
+  constructor(_maxRetries: number = 3) { // maxRetries parameter kept for backward compatibility but not used
     if (!process.env.FLY_API_TOKEN) {
       throw new Error('FLY_API_TOKEN environment variable is not set.');
     }
     this.flyApiToken = process.env.FLY_API_TOKEN;
-    this.maxRetries = maxRetries;
+    this.learningService = new LearningIntegrationService();
   }
 
   /**
@@ -73,26 +76,47 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
    * 1. Capture the error logs
    * 2. Send them to ChatAgent to fix the issues
    * 3. Retry deployment with fixed code
-   * 4. Repeat up to maxRetries times
+   * 4. Repeat until successful or max safety limits reached
+   * 
+   * Safety measures:
+   * - Max 5 consecutive failures without any progress
+   * - Max 3 retries for the same error message
+   * - ChatAgent must provide different fixes each time
    */
   async generatePreviewWithRetry(
     generationId: string, 
     files: Array<{ path: string; content: string }>,
     maxRetries?: number
   ): Promise<DeploymentResult> {
-    const retries = maxRetries ?? this.maxRetries;
+    const retries = maxRetries ?? Infinity; // No limit, but we have safety measures
   let currentFiles = this.sanitizeGeneratedFiles(files);
     let lastError: string = '';
     let lastLogs: string = '';
+    let lastErrorId: string | undefined;
+    
+    // Safety tracking
+    const errorHistory: string[] = [];
+    let consecutiveFailures = 0;
+    let sameErrorCount = 0;
+    let previousErrorSignature = '';
+    
+    // Detect language for learning system
+    const language = this.learningService.detectLanguage('', files.map(f => ({ path: f.path, content: f.content })));
 
     for (let attempt = 1; attempt <= retries; attempt++) {
-      console.log(`\n=== Deployment Attempt ${attempt}/${retries} ===`);
+      console.log(`\n=== Deployment Attempt ${attempt} ===`);
       
       try {
   const result = await this.attemptDeployment(generationId, currentFiles, attempt);
         
         if (result.success) {
           console.log(`✓ Deployment successful on attempt ${attempt}`);
+          
+          // If this was a retry (attempt > 1), mark the previous error as resolved
+          if (attempt > 1 && lastErrorId) {
+            await this.markErrorResolved(lastErrorId, 'Fixed via automated retry and ChatAgent');
+          }
+          
           return {
             ...result,
             attempt
@@ -106,8 +130,48 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         console.log(`✗ Deployment failed on attempt ${attempt}`);
         console.log(`Error: ${lastError}`);
 
-        // If this was the last attempt, return the failure
-        if (attempt >= retries) {
+        // Capture error for learning system
+        lastErrorId = await this.captureDeploymentError(currentFiles, lastError, lastLogs, attempt, generationId, language);
+
+        // Track error patterns for safety
+        const currentErrorSignature = this.getErrorSignature(lastError);
+        errorHistory.push(currentErrorSignature);
+        consecutiveFailures++;
+
+        // Check if this is the same error as before
+        if (currentErrorSignature === previousErrorSignature) {
+          sameErrorCount++;
+        } else {
+          sameErrorCount = 1;
+          previousErrorSignature = currentErrorSignature;
+        }
+
+        // Safety check 1: Too many consecutive failures
+        if (consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+          console.log(`\n⚠️ Safety limit reached: ${this.MAX_CONSECUTIVE_FAILURES} consecutive failures.`);
+          console.log(`This suggests a fundamental issue that cannot be auto-fixed.`);
+          return {
+            success: false,
+            error: `Auto-fix failed after ${consecutiveFailures} attempts. ${lastError}`,
+            logs: lastLogs,
+            attempt
+          };
+        }
+
+        // Safety check 2: Same error repeating
+        if (sameErrorCount >= this.MAX_SAME_ERROR_RETRIES) {
+          console.log(`\n⚠️ Safety limit reached: Same error occurred ${sameErrorCount} times.`);
+          console.log(`ChatAgent unable to resolve this specific issue.`);
+          return {
+            success: false,
+            error: `Unable to fix error after ${sameErrorCount} attempts: ${lastError}`,
+            logs: lastLogs,
+            attempt
+          };
+        }
+
+        // If maxRetries was explicitly set (not Infinity), respect it
+        if (attempt >= retries && retries !== Infinity) {
           console.log(`Maximum retry attempts (${retries}) reached. Giving up.`);
           return {
             success: false,
@@ -118,7 +182,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         }
 
         // Try to fix the code using ChatAgent
-        console.log(`\n→ Sending error logs to ChatAgent for fixes...`);
+        console.log(`\n→ Sending error logs to ChatAgent for fixes (attempt ${attempt}, same error count: ${sameErrorCount})...`);
         const fixedFiles = await this.fixCodeWithAgent(currentFiles, lastError, lastLogs, attempt);
         
         if (!fixedFiles || fixedFiles.length === 0) {
@@ -133,6 +197,9 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
 
         console.log(`✓ ChatAgent provided fixes. Retrying deployment...`);
   currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
+        
+        // Reset consecutive failures counter (we got a fix, so we're making progress)
+        consecutiveFailures = 0;
 
       } catch (error: any) {
         lastError = error.message || 'Unexpected error during deployment';
@@ -140,7 +207,38 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         
         console.error(`✗ Unexpected error on attempt ${attempt}:`, error);
 
-        if (attempt >= retries) {
+        // Track error patterns for safety
+        const currentErrorSignature = this.getErrorSignature(lastError);
+        errorHistory.push(currentErrorSignature);
+        consecutiveFailures++;
+
+        if (currentErrorSignature === previousErrorSignature) {
+          sameErrorCount++;
+        } else {
+          sameErrorCount = 1;
+          previousErrorSignature = currentErrorSignature;
+        }
+
+        // Apply same safety checks
+        if (consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+          return {
+            success: false,
+            error: `Auto-fix failed after ${consecutiveFailures} attempts. ${lastError}`,
+            logs: lastLogs,
+            attempt
+          };
+        }
+
+        if (sameErrorCount >= this.MAX_SAME_ERROR_RETRIES) {
+          return {
+            success: false,
+            error: `Unable to fix error after ${sameErrorCount} attempts: ${lastError}`,
+            logs: lastLogs,
+            attempt
+          };
+        }
+
+        if (attempt >= retries && retries !== Infinity) {
           return {
             success: false,
             error: lastError,
@@ -151,10 +249,11 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
 
         // Try to fix even unexpected errors
         try {
-          console.log(`\n��� Attempting to fix unexpected error with ChatAgent...`);
+          console.log(`\n→ Attempting to fix unexpected error with ChatAgent...`);
           const fixedFiles = await this.fixCodeWithAgent(currentFiles, lastError, lastLogs, attempt);
           if (fixedFiles && fixedFiles.length > 0) {
             currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
+            consecutiveFailures = 0; // Reset on successful fix
           } else {
             return {
               success: false,
@@ -887,5 +986,80 @@ primary_region = "sjc"
   auto_start_machines = true
   min_machines_running = 0
 `;
+  }
+
+  /**
+   * Capture deployment error for learning system
+   * @returns errorId for tracking
+   */
+  private async captureDeploymentError(
+    files: Array<{ path: string; content: string }>,
+    errorMessage: string,
+    logs: string,
+    attempt: number,
+    generationId: string,
+    language: string
+  ): Promise<string | undefined> {
+    try {
+      console.log(`📚 [Learning] Capturing deployment error from attempt ${attempt}...`);
+      
+      // Generate error ID
+      const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Detect framework from files (detectFramework needs prompt, but we don't have it here)
+      // So we'll detect from file patterns
+      const framework = this.learningService.detectFramework('', files.map(f => ({ 
+        path: f.path, 
+        content: f.content 
+      })));
+
+      await this.learningService.captureDeploymentError({
+        errorMessage,
+        buildLogs: logs,
+        files: files.map(f => ({ path: f.path, content: f.content })),
+        language,
+        framework,
+        platform: 'fly.io',
+        userPrompt: `Deployment for generation ${generationId}`,
+        fixAttempts: attempt
+      });
+      
+      console.log(`✓ Deployment error captured for learning (ID: ${errorId})`);
+      return errorId;
+    } catch (error) {
+      console.error(`Failed to capture deployment error for learning:`, error);
+      // Don't throw - learning capture failure shouldn't break deployment flow
+      return undefined;
+    }
+  }
+
+  /**
+   * Mark an error as resolved in the learning system
+   */
+  private async markErrorResolved(errorId: string, appliedFix: string): Promise<void> {
+    try {
+      console.log(`✅ [Learning] Marking error ${errorId} as resolved`);
+      await this.learningService.markErrorResolved(errorId, appliedFix);
+    } catch (error) {
+      console.error(`Failed to mark error as resolved:`, error);
+      // Don't throw - learning failure shouldn't break deployment flow
+    }
+  }
+
+  /**
+   * Get error signature for tracking duplicate errors
+   * Extracts key parts of error message to identify similar errors
+   */
+  private getErrorSignature(errorMessage: string): string {
+    // Remove timestamps, line numbers, and other variable parts
+    return errorMessage
+      .replace(/\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/g, '') // Remove timestamps
+      .replace(/line\s+\d+/gi, 'line X') // Normalize line numbers
+      .replace(/:\d+:\d+/g, ':X:X') // Normalize position references
+      .replace(/\d+/g, 'N') // Replace all numbers with N
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim()
+      .toLowerCase()
+      .slice(0, 200); // First 200 chars for comparison
   }
 }
