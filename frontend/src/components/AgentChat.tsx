@@ -29,11 +29,23 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
 
+  // Filter out invalid messages (no content, invalid timestamp, etc)
+  const validMessages = messages.filter(msg => {
+    // Must have content
+    if (!msg.content || msg.content.trim() === '') return false;
+    
+    // Must have valid timestamp
+    const dateObj = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
+    if (isNaN(dateObj.getTime())) return false;
+    
+    return true;
+  });
+
   useEffect(() => {
     if (autoScroll && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages, autoScroll])
+  }, [validMessages, autoScroll])
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
@@ -113,7 +125,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
 
       {/* Chat Messages */}
       <div className="chat-messages" onScroll={handleScroll}>
-        {messages.length === 0 ? (
+        {validMessages.length === 0 ? (
           <div className="chat-empty">
             <pre className="ascii-logo phosphor-glow">
 {`    ╔═══════════════════════════════════╗
@@ -128,7 +140,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             </pre>
           </div>
         ) : (
-          messages.map((message, index) => (
+          validMessages.map((message, index) => (
             <div
               key={message.id}
               className={`chat-message ${message.role} ${getMessageColor(message.role)}`}
@@ -213,7 +225,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       {/* Chat Footer */}
       <div className="chat-footer">
         <div className="footer-stats">
-          <span className="text-muted">MESSAGES: {messages.length}</span>
+          <span className="text-muted">MESSAGES: {validMessages.length}</span>
           <span className="text-muted">STATUS: {isStreaming ? 'ACTIVE' : 'STANDBY'}</span>
           <span className="text-muted">
             SCROLL: {autoScroll ? 'AUTO' : 'MANUAL'}

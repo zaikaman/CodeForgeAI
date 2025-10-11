@@ -265,16 +265,28 @@ export const GenerateSessionPage: React.FC = () => {
     const loadChatHistory = async () => {
       if (!id || chatHistoryLoaded) return;
       
+      // Don't reload if generation already has messages
+      if (generation?.agentMessages && generation.agentMessages.length > 0) {
+        console.log('⏭️ Skipping chat history load - messages already exist');
+        setChatHistoryLoaded(true);
+        return;
+      }
+      
       try {
         const response = await apiClient.getChatHistory(id);
         if (response.success && response.data?.messages) {
+          // Filter out invalid messages before converting
+          const validDbMessages = response.data.messages.filter(msg => 
+            msg.content && msg.content.trim() !== '' && msg.createdAt
+          );
+          
           // Convert stored messages to AgentMessage format
-          const historyMessages: AgentMessage[] = response.data.messages.map((msg) => ({
+          const historyMessages: AgentMessage[] = validDbMessages.map((msg) => ({
             id: msg.id,
             agent: msg.role === 'user' ? 'User' : 'ChatAgent',
             role: msg.role === 'assistant' ? 'agent' : msg.role as 'user' | 'system',
             content: msg.content,
-            timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+            timestamp: new Date(msg.createdAt),
             imageUrls: msg.imageUrls,
           }));
 
@@ -284,7 +296,7 @@ export const GenerateSessionPage: React.FC = () => {
           });
 
           setChatHistoryLoaded(true);
-          console.log(`✅ Loaded ${historyMessages.length} chat messages from history`);
+          console.log(`✅ Loaded ${historyMessages.length} valid chat messages from history (filtered ${response.data.messages.length - validDbMessages.length} invalid)`);
         }
       } catch (error) {
         console.error('Failed to load chat history:', error);
@@ -292,7 +304,7 @@ export const GenerateSessionPage: React.FC = () => {
     };
 
     loadChatHistory();
-  }, [id, chatHistoryLoaded, addMessageToGeneration]);
+  }, [id, chatHistoryLoaded, generation?.agentMessages, addMessageToGeneration]);
 
   // Auto-select first file when generation completes
   useEffect(() => {
