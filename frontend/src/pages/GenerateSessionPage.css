@@ -584,6 +584,26 @@
   }
 }
 
+/* Generation Loading Overlay */
+.generation-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.generation-loading-overlay .terminal-window {
+  max-width: 600px;
+  animation: fadeIn 0.5s ease-in;
+}
+
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   .chat-panel {

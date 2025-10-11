@@ -67,64 +67,122 @@ export const GenerateSessionPage: React.FC = () => {
 
   // Fetch generation data from backend on page load (to get preview_url and latest data)
   // Also creates store entry if generation doesn't exist locally yet
+  // AND polls for updates if generation is still processing
   useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isMounted = true;
+
     const fetchGenerationData = async () => {
-      if (!id) return;
+      if (!id || !isMounted) return;
       
       try {
         console.log('🔄 Fetching generation data from backend...');
         const response = await apiClient.getGenerationStatus(id);
         
-        if (response.success && response.data) {
-          console.log('✅ Fetched generation data:', response.data);
+        if (!response.success || !response.data) {
+          // Failed to get status
+          if (response.error?.includes('Authentication required')) {
+            console.error('❌ Authentication required - user may need to log in again');
+            setTimeout(() => navigate('/login'), 2000);
+            return;
+          }
           
-          // If generation doesn't exist in store yet, create it
+          // Generation not found
+          console.error('❌ Failed to get generation status:', response.error);
           if (!generation) {
-            console.log('📝 Creating store entry for generation', id);
-            const storeState = useGenerationStore.getState();
-            storeState.startGenerationWithId(id, {
-              prompt: response.data.prompt || '',
-              targetLanguage: response.data.targetLanguage || 'typescript',
-              complexity: response.data.complexity || 'moderate',
-              agents: ['CodeGenerator'],
-            });
-            
-            // If generation is complete, update the store with response data
-            if (response.data.status === 'completed') {
-              storeState.completeGeneration(id, response.data);
-            }
+            setTimeout(() => navigate('/generate'), 2000);
+          }
+          return;
+        }
+        
+        console.log('✅ Fetched generation data:', response.data);
+        
+        // If generation doesn't exist in store yet, create it
+        if (!generation) {
+          console.log('📝 Creating store entry for generation', id);
+          const storeState = useGenerationStore.getState();
+          storeState.startGenerationWithId(id, {
+            prompt: response.data.prompt || '',
+            targetLanguage: response.data.targetLanguage || 'typescript',
+            complexity: response.data.complexity || 'moderate',
+            agents: ['CodeGenerator'],
+          });
+          
+          // If generation is complete, update the store with response data
+          if (response.data.status === 'completed') {
+            storeState.completeGeneration(id, response.data);
+          }
+        }
+        
+        // Set deployment status based on backend data
+        const backendDeploymentStatus = response.data.deploymentStatus;
+        if (backendDeploymentStatus === 'deployed') {
+          setDeploymentStatus('ready');
+        } else if (backendDeploymentStatus === 'deploying') {
+          setDeploymentStatus('deploying');
+          console.log('🚀 Deployment is in progress, will start polling...');
+        } else if (backendDeploymentStatus === 'failed') {
+          setDeploymentStatus('error');
+        }
+        
+        // If we got a preview URL from backend, set it
+        if (response.data.previewUrl && !previewUrl) {
+          const url = withCacheBust(response.data.previewUrl);
+          console.log('✅ Found preview URL from backend:', response.data.previewUrl);
+          console.log('📍 Setting iframe src:', url);
+          setPreviewUrl(url);
+        }
+        
+        // Update store with latest data if needed
+        if (response.data.files) {
+          updateGenerationFiles(id, response.data.files);
+        }
+        
+        // If generation is still processing, continue polling
+        const status = response.data.status;
+        if (status === 'pending' || status === 'processing') {
+          console.log(`📊 Generation status: ${status} - will continue polling...`);
+          setIsGenerating(true);
+          
+          // Continue polling if not already polling
+          if (!pollInterval && isMounted) {
+            pollInterval = setInterval(() => {
+              fetchGenerationData();
+            }, 3000); // Poll every 3 seconds
+          }
+        } else if (status === 'completed') {
+          console.log('✅ Generation completed!');
+          setIsGenerating(false);
+          
+          // Stop polling
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
           }
           
-          // Set deployment status based on backend data
-          const backendDeploymentStatus = response.data.deploymentStatus;
-          if (backendDeploymentStatus === 'deployed') {
-            setDeploymentStatus('ready');
-          } else if (backendDeploymentStatus === 'deploying') {
-            setDeploymentStatus('deploying');
-            console.log('🚀 Deployment is in progress, will start polling...');
-          } else if (backendDeploymentStatus === 'failed') {
-            setDeploymentStatus('error');
-          }
+          // Update store with complete data
+          const storeState = useGenerationStore.getState();
+          storeState.completeGeneration(id, response.data);
+        } else if (status === 'failed') {
+          console.error('❌ Generation failed:', response.data.error);
+          setIsGenerating(false);
           
-          // If we got a preview URL from backend, set it
-          if (response.data.previewUrl && !previewUrl) {
-            const url = withCacheBust(response.data.previewUrl);
-            console.log('✅ Found preview URL from backend:', response.data.previewUrl);
-            console.log('📍 Setting iframe src:', url);
-            setPreviewUrl(url);
+          // Stop polling
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
           }
-          
-          // Update store with latest data if needed
-          if (response.data.files) {
-            updateGenerationFiles(id, response.data.files);
-          }
-        } else {
-          // Generation not found on backend - might have been deleted
-          console.error('❌ Generation not found on backend:', id);
-          setTimeout(() => navigate('/generate'), 2000); // Redirect after 2 seconds
         }
       } catch (error: any) {
         console.error('Failed to fetch generation data:', error);
+        
+        // Check for authentication errors
+        if (error?.status === 401 || error?.message?.includes('Authentication')) {
+          console.error('❌ Authentication error - redirecting to login');
+          setTimeout(() => navigate('/login'), 2000);
+          return;
+        }
+        
         // Don't redirect on network errors - user might be offline
         if (error?.status === 404) {
           console.error('❌ Generation 404 - redirecting to /generate');
@@ -133,7 +191,16 @@ export const GenerateSessionPage: React.FC = () => {
       }
     };
     
+    // Initial fetch
     fetchGenerationData();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
   }, [id]); // Only run once on mount
 
   // Load chat history when page loads
@@ -683,6 +750,42 @@ export const GenerateSessionPage: React.FC = () => {
   return (
     <Layout className="generate-session-layout">
       <div className="generate-session-page">
+        {/* Loading Overlay when generation is processing */}
+        {isGenerating && !generation?.response?.files && (
+          <div className="generation-loading-overlay">
+            <div className="terminal-window">
+              <div className="terminal-header">
+                <div className="terminal-button close"></div>
+                <div className="terminal-button minimize"></div>
+                <div className="terminal-button maximize"></div>
+                <div className="terminal-title">GENERATION IN PROGRESS</div>
+              </div>
+              <div className="terminal-content">
+                <pre className="ascii-logo phosphor-glow">
+{`    ╔═══════════════════════════════════╗
+    ║                                   ║
+    ║     AI AGENTS ARE WORKING...      ║
+    ║                                   ║
+    ║   ►  Analyzing your prompt...     ║
+    ║   ►  Planning architecture...     ║
+    ║   ►  Generating code...           ║
+    ║                                   ║
+    ║   This may take 1-3 minutes       ║
+    ║                                   ║
+    ╚═══════════════════════════════════╝`}
+                </pre>
+                <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                  <div className="deployment-spinner">
+                    <div className="spinner-dot"></div>
+                    <div className="spinner-dot"></div>
+                    <div className="spinner-dot"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Left Panel - Chat (1/4 width) */}
         <div className="chat-panel">
           <AgentChat 
