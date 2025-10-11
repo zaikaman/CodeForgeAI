@@ -59,10 +59,10 @@ export interface IPreviewServiceWithRetry {
 export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   private flyApiToken: string;
   private learningService: LearningIntegrationService;
-  private readonly MAX_CONSECUTIVE_FAILURES = 5; // Prevent infinite loops
-  private readonly MAX_SAME_ERROR_RETRIES = 3; // Prevent getting stuck on same error
+  private readonly MAX_CONSECUTIVE_FAILURES = 10; // Prevent infinite loops (10 attempts max)
+  private readonly MAX_SAME_ERROR_RETRIES = 5; // Prevent getting stuck on same error (5 times max)
 
-  constructor(_maxRetries: number = 3) { // maxRetries parameter kept for backward compatibility but not used
+  constructor(_maxRetries: number = 10) { // maxRetries parameter kept for backward compatibility but not used
     if (!process.env.FLY_API_TOKEN) {
       throw new Error('FLY_API_TOKEN environment variable is not set.');
     }
@@ -88,7 +88,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     files: Array<{ path: string; content: string }>,
     maxRetries?: number
   ): Promise<DeploymentResult> {
-    const retries = maxRetries ?? Infinity; // No limit, but we have safety measures
+    const retries = maxRetries ?? 10; // Default 10 attempts with safety measures
   let currentFiles = this.sanitizeGeneratedFiles(files);
     let lastError: string = '';
     let lastLogs: string = '';
@@ -1018,10 +1018,41 @@ Return the complete fixed codebase.`;
     // Deploy (this will update existing app or deploy new one)
     const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir);
 
-    if (deployResult.code !== 0) {
+    const fullOutput = deployResult.stderr + '\n' + deployResult.stdout;
+    
+    // Check for deployment failures - Fly.io may return code 0 even on build failures!
+    // We need to check output for error indicators
+    const errorIndicators = [
+      'error during build:',
+      'RollupError:',
+      'Build failed',
+      'error Command failed',
+      'npm ERR!',
+      'yarn error',
+      'ERROR:',
+      'FAILED',
+      'Could not resolve',
+      'Module not found',
+      'Cannot find module',
+      'SyntaxError:',
+      'TypeError:',
+      'ReferenceError:',
+      'compilation failed',
+      'build process failed'
+    ];
+    
+    const hasError = errorIndicators.some(indicator => 
+      fullOutput.toLowerCase().includes(indicator.toLowerCase())
+    );
+    
+    if (deployResult.code !== 0 || hasError) {
         // Create a detailed error with both stdout and stderr
-        const error: any = new Error(`flyctl deploy failed with code ${deployResult.code}`);
-        error.deploymentLogs = deployResult.stderr + '\n' + deployResult.stdout;
+        const error: any = new Error(
+          hasError 
+            ? `Fly.io build failed: ${errorIndicators.find(ind => fullOutput.toLowerCase().includes(ind.toLowerCase()))}`
+            : `flyctl deploy failed with code ${deployResult.code}`
+        );
+        error.deploymentLogs = fullOutput;
         throw error;
     }
   }
