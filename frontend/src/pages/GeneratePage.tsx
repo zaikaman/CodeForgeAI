@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { GenerationForm, GenerationOptions } from '../components/GenerationForm';
@@ -8,11 +8,11 @@ import './GeneratePage.css';
 
 export const GeneratePage: React.FC = () => {
   const navigate = useNavigate();
-  const { isGenerating, currentGeneration, generate } = useGeneration();
+  const { isGenerating, generate } = useGeneration();
 
   const handleGenerate = async (options: GenerationOptions) => {
     try {
-      await generate({
+      const generationId = await generate({
         prompt: options.prompt,
         projectContext: options.projectContext,
         targetLanguage: options.targetLanguage,
@@ -20,17 +20,18 @@ export const GeneratePage: React.FC = () => {
         agents: options.agents,
         imageUrls: options.imageUrls,
       });
+      
+      // Navigate with the backend UUID
+      if (generationId) {
+        console.log(`[GeneratePage] Navigating to /generate/${generationId}`);
+        navigate(`/generate/${generationId}`);
+      }
     } catch (error) {
       console.error('Generation failed:', error);
     }
   };
 
-  // Navigate to session page when generation starts
-  useEffect(() => {
-    if (currentGeneration?.id) {
-      navigate(`/generate/${currentGeneration.id}`);
-    }
-  }, [currentGeneration?.id, navigate]);
+  // Removed auto-navigation useEffect - we navigate manually after getting ID
 
   return (
     <Layout className="generate-page-layout">

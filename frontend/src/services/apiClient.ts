@@ -36,6 +36,9 @@ export interface GenerateResponse {
   id?: string
   status?: 'pending' | 'processing' | 'completed' | 'failed'
   message?: string
+  prompt?: string
+  targetLanguage?: string
+  complexity?: 'simple' | 'moderate' | 'complex'
   files?: Array<{
     path: string
     content: string
@@ -48,6 +51,8 @@ export interface GenerateResponse {
   error?: string
   previewUrl?: string
   deploymentStatus?: 'pending' | 'deploying' | 'deployed' | 'failed'
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ReviewRequest {

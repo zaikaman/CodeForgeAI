@@ -13,7 +13,7 @@ export interface UseGenerationReturn {
   error: string | null
 
   // Actions
-  generate: (request: GenerateRequest) => Promise<void>
+  generate: (request: GenerateRequest) => Promise<string | null>
   cancel: () => void
   clear: () => void
 }
@@ -26,7 +26,7 @@ export const useGeneration = (): UseGenerationReturn => {
     isGenerating,
     progress,
     agentMessages,
-    startGeneration,
+    startGenerationWithId,
     completeGeneration,
     failGeneration,
     clearCurrent,
@@ -35,50 +35,65 @@ export const useGeneration = (): UseGenerationReturn => {
   const { setLoading, showToast } = useUIStore()
 
   const generate = useCallback(
-    async (request: GenerateRequest) => {
+    async (request: GenerateRequest): Promise<string | null> => {
       try {
         setError(null)
         setLoading(true, 'Initializing code generation...')
 
-        // Start generation in store (temporary local ID)
-        let localGenerationId = startGeneration(request)
-
-        // Call API with polling support
-        const response = await apiClient.generateAndWait(request, {
-          onStatusChange: (status) => {
-            // Update loading message based on status
-            switch (status) {
-              case 'pending':
-                setLoading(true, 'Generation queued, waiting to start...')
-                break
-              case 'processing':
-                setLoading(true, 'Generating code with AI agents...')
-                break
-              case 'completed':
-                setLoading(true, 'Finalizing generation...')
-                break
-              case 'failed':
-                setLoading(true, 'Generation encountered an error...')
-                break
-              default:
-                setLoading(true, 'Processing...')
-            }
-          },
-          pollInterval: 2000, // Poll every 2 seconds
-          timeout: 300000, // 5 minutes timeout
-        })
-
-        if (!response.success || !response.data) {
-          throw new Error(response.error || 'Generation failed')
+        // First, call API to create generation and get backend UUID
+        const startResponse = await apiClient.generate(request)
+        
+        if (!startResponse.success || !startResponse.data?.id) {
+          throw new Error(startResponse.error || 'Failed to start generation')
         }
 
-        // Use the generation ID from backend response (not local ID)
-        const backendGenerationId = response.data.id || localGenerationId
+        const backendGenerationId = startResponse.data.id
+        console.log(`[useGeneration] Backend created generation with ID: ${backendGenerationId}`)
         
-        // Complete generation with backend ID
-        completeGeneration(backendGenerationId, response.data)
+        // Create store entry with backend UUID
+        startGenerationWithId(backendGenerationId, request)
 
-        showToast('success', 'Code generated successfully!')
+        // Now poll for completion using the backend UUID
+        setLoading(true, 'Generation queued, waiting to start...')
+        
+        const pollInterval = 2000 // 2 seconds
+        const timeout = 300000 // 5 minutes
+        const startTime = Date.now()
+
+        // Poll until complete
+        const pollForCompletion = async (): Promise<void> => {
+          while (Date.now() - startTime < timeout) {
+            const statusResponse = await apiClient.getGenerationStatus(backendGenerationId)
+            
+            if (!statusResponse.success || !statusResponse.data) {
+              throw new Error('Failed to get generation status')
+            }
+
+            const { status } = statusResponse.data
+
+            // Update loading message based on status
+            if (status === 'pending') {
+              setLoading(true, 'Generation queued, waiting to start...')
+            } else if (status === 'processing') {
+              setLoading(true, 'Generating code with AI agents...')
+            } else if (status === 'completed') {
+              setLoading(true, 'Finalizing generation...')
+              completeGeneration(backendGenerationId, statusResponse.data)
+              showToast('success', 'Code generated successfully!')
+              return
+            } else if (status === 'failed') {
+              throw new Error(statusResponse.data.error || 'Generation failed')
+            }
+
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, pollInterval))
+          }
+
+          throw new Error('Generation timeout - process took too long')
+        }
+
+        await pollForCompletion()
+        return backendGenerationId
       } catch (err: any) {
         const errorMessage = err.message || 'Failed to generate code'
         setError(errorMessage)
@@ -90,11 +105,12 @@ export const useGeneration = (): UseGenerationReturn => {
         }
         
         showToast('error', errorMessage)
+        return null
       } finally {
         setLoading(false)
       }
     },
-    [startGeneration, completeGeneration, failGeneration, currentGeneration, setLoading, showToast]
+    [startGenerationWithId, completeGeneration, failGeneration, setLoading, showToast]
   )
 
   const cancel = useCallback(() => {

@@ -28,6 +28,7 @@ interface GenerationState {
 
   // Actions
   startGeneration: (request: GenerateRequest) => string
+  startGenerationWithId: (generationId: string, request: GenerateRequest) => void
   updateProgress: (progress: number) => void
   addAgentMessage: (message: AgentMessage) => void
   completeGeneration: (generationId: string, response: GenerateResponse) => void
@@ -53,7 +54,7 @@ export const useGenerationStore = create<GenerationState>()(
       agentMessages: [],
       history: [],
 
-      // Start a new generation
+      // Start a new generation (legacy - creates local ID)
       startGeneration: (request: GenerateRequest) => {
         const generationId = `gen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -75,6 +76,26 @@ export const useGenerationStore = create<GenerationState>()(
         })
 
         return generationId
+      },
+
+      // Start a new generation with backend-provided ID
+      startGenerationWithId: (generationId: string, request: GenerateRequest) => {
+        const newGeneration: GenerationHistoryEntry = {
+          id: generationId,
+          prompt: request.prompt,
+          request,
+          response: null,
+          status: 'generating',
+          agentMessages: [],
+          startedAt: new Date(),
+        }
+
+        set({
+          currentGeneration: newGeneration,
+          isGenerating: true,
+          progress: 0,
+          agentMessages: [],
+        })
       },
 
       // Update progress

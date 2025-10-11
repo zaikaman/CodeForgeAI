@@ -66,6 +66,7 @@ export const GenerateSessionPage: React.FC = () => {
   }, [id, currentGeneration, history, getGenerationById]);
 
   // Fetch generation data from backend on page load (to get preview_url and latest data)
+  // Also creates store entry if generation doesn't exist locally yet
   useEffect(() => {
     const fetchGenerationData = async () => {
       if (!id) return;
@@ -76,6 +77,23 @@ export const GenerateSessionPage: React.FC = () => {
         
         if (response.success && response.data) {
           console.log('✅ Fetched generation data:', response.data);
+          
+          // If generation doesn't exist in store yet, create it
+          if (!generation) {
+            console.log('📝 Creating store entry for generation', id);
+            const storeState = useGenerationStore.getState();
+            storeState.startGenerationWithId(id, {
+              prompt: response.data.prompt || '',
+              targetLanguage: response.data.targetLanguage || 'typescript',
+              complexity: response.data.complexity || 'moderate',
+              agents: ['CodeGenerator'],
+            });
+            
+            // If generation is complete, update the store with response data
+            if (response.data.status === 'completed') {
+              storeState.completeGeneration(id, response.data);
+            }
+          }
           
           // Set deployment status based on backend data
           const backendDeploymentStatus = response.data.deploymentStatus;
@@ -97,24 +115,26 @@ export const GenerateSessionPage: React.FC = () => {
           }
           
           // Update store with latest data if needed
-          if (response.data.files && generation) {
+          if (response.data.files) {
             updateGenerationFiles(id, response.data.files);
           }
+        } else {
+          // Generation not found on backend - might have been deleted
+          console.error('❌ Generation not found on backend:', id);
+          setTimeout(() => navigate('/generate'), 2000); // Redirect after 2 seconds
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to fetch generation data:', error);
+        // Don't redirect on network errors - user might be offline
+        if (error?.status === 404) {
+          console.error('❌ Generation 404 - redirecting to /generate');
+          setTimeout(() => navigate('/generate'), 2000);
+        }
       }
     };
     
     fetchGenerationData();
   }, [id]); // Only run once on mount
-  
-  // Redirect if generation not found
-  useEffect(() => {
-    if (id && !generation) {
-      navigate('/generate');
-    }
-  }, [id, generation, navigate]);
 
   // Load chat history when page loads
   useEffect(() => {
