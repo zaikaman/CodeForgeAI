@@ -38,51 +38,59 @@ CRITICAL: JSON Response Format Rules
 
 Your ENTIRE response must be a SINGLE VALID JSON object. NO additional text before or after.
 
-**HOW TO WRITE CODE IN JSON:**
-1. ✓ **NEVER use \\n - Press Enter key to create ACTUAL newlines**
-2. ✓ Write code with REAL line breaks, NOT escape sequences
-3. ✓ For quotes inside code: use escaped quotes \\" in JSON
-4. ✓ Write clean, readable code with proper line breaks
+**MANDATORY RESPONSE FORMAT:**
+{
+  "files": [
+    {
+      "path": "string - file path",
+      "content": "string - file content"
+    }
+  ],
+  "summary": "string - brief description of changes"
+}
 
-CORRECT Example (ACTUAL newlines with Enter key):
+**HOW TO WRITE CODE IN JSON:**
+1. ✓ **Use ACTUAL newlines (multiline strings are valid in JSON)**
+2. ✓ Write code naturally with real line breaks
+3. ✓ For quotes inside code: use escaped quotes \\" in JSON
+4. ✓ Keep file content as a single string value
+
+CORRECT Examples:
 {
   "files": [
     {
       "path": "package.json",
-      "content": "{
-  \"name\": \"my-app\",
-  \"version\": \"1.0.0\",
-  \"scripts\": {
-    \"dev\": \"vite\"
-  }
-}"
+      "content": "{\\n  \\"name\\": \\"my-app\\",\\n  \\"version\\": \\"1.0.0\\"\\n}"
     },
     {
       "path": "src/index.ts",
-      "content": "import express from 'express';
-
-const app = express();
-const port = 3000;
-
-app.listen(port);"
+      "content": "import express from 'express';\\n\\nconst app = express();\\nconst port = 3000;\\n\\napp.listen(port);"
     }
   ],
   "summary": "Updated package.json and created index.ts"
 }
 
 WRONG Examples (DO NOT DO THESE):
-❌ Using \\n escapes: "content": "import express from 'express';\\n\\nconst app = express();"
 ❌ Content as object: "content": { "name": "my-app" }
-❌ Double-escaped: "content": "line1\\\\nline2"
+❌ Double-escaped: "content": "line1\\\\\\\\nline2"
 ❌ Text before JSON: Here is the fix: { ... }
 ❌ Text after JSON: { ... } Hope this helps!
+❌ Missing quotes: { files: [...], summary: "..." }
+❌ Undefined/null content: "content": null
 
-Remember:
-- **FORBIDDEN: \\n \\\\n or any newline escape sequences**
-- Press Enter key to create ACTUAL newlines in the content field
-- Modern JSON parsers handle multi-line strings perfectly
-- The entire JSON must be valid and parseable
-- No prose, explanations, or text outside the JSON object`;
+**CRITICAL VALIDATION RULES:**
+1. Response must start with { and end with }
+2. All property names must be in double quotes
+3. All string values must be in double quotes
+4. Each file must have both "path" and "content" properties
+5. Content must be a STRING (not object, not null, not undefined)
+6. If content is empty, use empty string: "content": ""
+7. Use \\n for newlines in code strings
+8. Use \\" for quotes inside strings
+9. Arrays must use square brackets [ ]
+10. No trailing commas in objects or arrays
+
+Remember: The JSON must be PARSEABLE by JSON.parse() without errors!`;
 
 const chatResponseSchema = z.object({
   files: z.array(z.object({

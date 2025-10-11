@@ -143,16 +143,59 @@ router.get('/chat/:jobId', async (req, res): Promise<void> => {
 
     // Include result if completed
     if (job.status === 'completed' && job.result) {
-      responseData.data.files = job.result.files;
+      // Validate that files are properly formatted before sending
+      try {
+        if (job.result.files && Array.isArray(job.result.files)) {
+          // Ensure all files have valid path and content
+          const validatedFiles = job.result.files.map((file: any) => {
+            if (!file.path || typeof file.path !== 'string') {
+              throw new Error('Invalid file path');
+            }
+            if (file.content === undefined || file.content === null) {
+              throw new Error(`File ${file.path} has no content`);
+            }
+            if (typeof file.content !== 'string') {
+              return {
+                path: file.path,
+                content: JSON.stringify(file.content, null, 2)
+              };
+            }
+            return {
+              path: file.path,
+              content: file.content
+            };
+          });
+          
+          responseData.data.files = validatedFiles;
+        }
+      } catch (validationError: any) {
+        console.error('[ChatRoute] File validation error:', validationError);
+        responseData.data.error = `File validation failed: ${validationError.message}`;
+        responseData.data.status = 'error';
+        delete responseData.data.files;
+      }
+      
       responseData.data.agentThought = {
         agent: 'ChatAgent',
-        thought: job.result.summary,
+        thought: job.result.summary || 'Changes applied successfully',
       };
     }
 
     // Include error if failed
     if (job.status === 'error') {
       responseData.data.error = job.error;
+    }
+
+    // Final validation: ensure response is JSON-serializable
+    try {
+      JSON.stringify(responseData);
+    } catch (jsonError: any) {
+      console.error('[ChatRoute] Response is not JSON-serializable:', jsonError);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error: Invalid response format',
+      });
+      return;
     }
 
     res.json(responseData);

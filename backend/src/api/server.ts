@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import { errorHandler } from './middleware/errorHandler';
 import { apiRateLimiter } from './middleware/rateLimiter';
+import { ensureJsonResponse } from './middleware/jsonResponse';
 
 // Import routes
 import onboardRouter from './routes/onboard';
@@ -68,6 +69,7 @@ app.use(cors({
 
 // Middleware
 app.use(express.json());
+app.use(ensureJsonResponse); // Ensure all responses are JSON
 app.use('/api', apiRateLimiter);
 
 // Routes

@@ -103,6 +103,17 @@ class GenerationQueue {
       // Auto-deploy to Fly.io if enabled and FLY_API_TOKEN is set
       if (job.autoPreview !== false && process.env.FLY_API_TOKEN && result.files && result.files.length > 0) {
         console.log(`[GenerationQueue] Auto-deploying preview for job ${id}...`);
+        
+        // Set deployment status to 'deploying' BEFORE starting deployment
+        await supabase
+          .from('generations')
+          .update({ 
+            deployment_status: 'deploying',
+            deployment_started_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
+        
         try {
           const previewService = new PreviewServiceWithRetry(3);
           const previewResult = await previewService.generatePreviewWithRetry(
@@ -112,21 +123,46 @@ class GenerationQueue {
           );
 
           if (previewResult.success && previewResult.previewUrl) {
-            // Update preview_url in database
+            // Update preview_url and deployment_status in database
             await supabase
               .from('generations')
               .update({ 
                 preview_url: previewResult.previewUrl,
+                deployment_status: 'deployed',
+                deployment_completed_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               })
               .eq('id', id);
             
             console.log(`[GenerationQueue] ✓ Preview deployed successfully: ${previewResult.previewUrl}`);
           } else {
+            // Update deployment_status to 'failed'
+            await supabase
+              .from('generations')
+              .update({ 
+                deployment_status: 'failed',
+                deployment_error: previewResult.error || 'Unknown deployment error',
+                deployment_completed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', id);
+            
             console.warn(`[GenerationQueue] ✗ Preview deployment failed:`, previewResult.error);
           }
         } catch (previewError: any) {
           console.error(`[GenerationQueue] Preview deployment error:`, previewError.message);
+          
+          // Update deployment_status to 'failed'
+          await supabase
+            .from('generations')
+            .update({ 
+              deployment_status: 'failed',
+              deployment_error: previewError.message,
+              deployment_completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+          
           // Don't fail the job if preview deployment fails
         }
       } else if (!process.env.FLY_API_TOKEN) {

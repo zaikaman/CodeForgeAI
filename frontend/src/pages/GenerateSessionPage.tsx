@@ -77,13 +77,23 @@ export const GenerateSessionPage: React.FC = () => {
         if (response.success && response.data) {
           console.log('✅ Fetched generation data:', response.data);
           
+          // Set deployment status based on backend data
+          const backendDeploymentStatus = response.data.deploymentStatus;
+          if (backendDeploymentStatus === 'deployed') {
+            setDeploymentStatus('ready');
+          } else if (backendDeploymentStatus === 'deploying') {
+            setDeploymentStatus('deploying');
+            console.log('🚀 Deployment is in progress, will start polling...');
+          } else if (backendDeploymentStatus === 'failed') {
+            setDeploymentStatus('error');
+          }
+          
           // If we got a preview URL from backend, set it
           if (response.data.previewUrl && !previewUrl) {
             const url = withCacheBust(response.data.previewUrl);
             console.log('✅ Found preview URL from backend:', response.data.previewUrl);
             console.log('📍 Setting iframe src:', url);
             setPreviewUrl(url);
-            setDeploymentStatus(response.data.deploymentStatus === 'deployed' ? 'ready' : 'deploying');
           }
           
           // Update store with latest data if needed
@@ -217,11 +227,19 @@ export const GenerateSessionPage: React.FC = () => {
       const data = await apiClient.checkPreviewStatus(generationId);
 
       if (data.success && data.data) {
+        console.log('📊 Poll result:', data.data.status, 'ready:', data.data.ready, 'previewUrl:', data.data.previewUrl);
+        
         // Set preview URL if available
-        if (data.data.previewUrl && !previewUrl) {
-          console.log('✅ Found preview URL from database:', data.data.previewUrl);
-          setPreviewUrl(withCacheBust(data.data.previewUrl));
-          setActiveTab('preview'); // Switch to preview tab
+        if (data.data.previewUrl) {
+          const newPreviewUrl = data.data.previewUrl;
+          setPreviewUrl((currentUrl) => {
+            if (!currentUrl) {
+              console.log('✅ Found preview URL from polling:', newPreviewUrl);
+              setActiveTab('preview'); // Switch to preview tab
+              return withCacheBust(newPreviewUrl);
+            }
+            return currentUrl;
+          });
         }
 
         if (data.data.ready) {
@@ -240,6 +258,7 @@ export const GenerateSessionPage: React.FC = () => {
         } else if (data.data.status === 'deploying') {
           // Still deploying, no URL yet
           setDeploymentStatus('deploying');
+          console.log('🔄 Still deploying...');
         }
       } else if (!data.success && data.error) {
         // API returned error but responded - this might be temporary
@@ -274,7 +293,7 @@ export const GenerateSessionPage: React.FC = () => {
         setDeploymentStatus('error');
       }
     }
-  }, [previewUrl]);
+  }, []); // Remove previewUrl dependency to avoid recreating callback
 
   // Start polling when deployment is in progress (not just when preview URL exists)
   useEffect(() => {
