@@ -166,7 +166,7 @@ class ApiClient {
               console.warn('⚠️ [apiClient] HTML preview:', data.substring(0, 500))
               return {
                 success: false,
-                data: null,
+                data: undefined, // Keep consistent with ApiResponse type
                 error: 'Server returned HTML instead of JSON. Backend may not be available.',
                 isHtmlResponse: true
               }
@@ -174,18 +174,45 @@ class ApiClient {
             
             // Try to parse as JSON
             try {
-              return JSON.parse(data)
+              const parsed = JSON.parse(data)
+              // Ensure parsed response has expected structure
+              if (typeof parsed === 'object' && parsed !== null) {
+                // If backend already returned {success, data}, use it as is
+                if ('success' in parsed) {
+                  return parsed
+                }
+                // If backend returned raw data, wrap it
+                return {
+                  success: true,
+                  data: parsed
+                }
+              }
+              return parsed
             } catch (e) {
               console.error('❌ [apiClient] Failed to parse response as JSON:', e)
               console.error('❌ [apiClient] Raw data preview:', data.substring(0, 500))
               return {
                 success: false,
-                data: null,
+                data: undefined, // Keep consistent
                 error: 'Invalid JSON response from server',
                 rawData: data.substring(0, 200)
               }
             }
           }
+          
+          // Data is already an object (parsed by axios default)
+          if (typeof data === 'object' && data !== null) {
+            // Ensure it has expected structure
+            if ('success' in data) {
+              return data
+            }
+            // Wrap raw object
+            return {
+              success: true,
+              data: data
+            }
+          }
+          
           return data
         }
       ]
@@ -356,6 +383,21 @@ class ApiClient {
   async getGenerationStatus(generationId: string, includeFull = false): Promise<ApiResponse<GenerateResponse>> {
     const params = includeFull ? { full: 'true' } : {};
     const response = await this.client.get(`/api/generate/${generationId}`, { params })
+    
+    // Debug logging
+    console.log('🔍 [apiClient.getGenerationStatus] Raw axios response:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      dataType: typeof response.data,
+      dataKeys: response.data ? Object.keys(response.data) : 'NO DATA',
+      hasSuccess: 'success' in (response.data || {}),
+      hasData: 'data' in (response.data || {}),
+      successValue: response.data?.success,
+      dataValue: response.data?.data,
+      fullResponseData: response.data,
+    });
+    
     return response.data
   }
 
