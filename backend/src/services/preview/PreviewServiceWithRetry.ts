@@ -401,13 +401,38 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     } catch (error: any) {
       // Capture deployment logs for debugging
       let logs = error.deploymentLogs || '';
+      let errorMessage = error.message || 'Deployment failed';
       
       // If no deployment logs in error, try to fetch them
       if (!logs) {
         try {
+          console.log('→ Fetching deployment logs...');
           logs = await this.getDeploymentLogs(appName);
         } catch (logError) {
           console.warn('Could not retrieve deployment logs:', logError);
+        }
+      }
+
+      // For crash errors, try to get machine-specific logs
+      if (errorMessage.includes('crashing') || errorMessage.includes('smoke checks')) {
+        try {
+          // Extract machine ID from error message if present
+          const machineIdMatch = errorMessage.match(/[0-9a-f]{14}/);
+          if (machineIdMatch) {
+            const machineId = machineIdMatch[0];
+            console.log(`→ Fetching logs for crashed machine ${machineId}...`);
+            const machineLogsResult = await this.runCommand(
+              'flyctl',
+              ['logs', '--app', appName, '--instance', machineId],
+              process.cwd()
+            );
+            if (machineLogsResult.code === 0 && machineLogsResult.stdout) {
+              logs = `Machine ${machineId} logs:\n${machineLogsResult.stdout}\n\n${logs}`;
+              console.log(`✓ Retrieved ${machineLogsResult.stdout.length} chars of machine logs`);
+            }
+          }
+        } catch (machineLogError) {
+          console.warn('Could not retrieve machine-specific logs:', machineLogError);
         }
       }
 
@@ -420,7 +445,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
 
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
         logs: logs
       };
     } finally {

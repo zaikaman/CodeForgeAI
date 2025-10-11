@@ -399,16 +399,205 @@ export class ErrorLearningSystem {
     return {
       version: '1.0.0',
       lastUpdated: new Date(),
-      patterns: [],
-      languageSpecificRules: {},
-      frameworkSpecificRules: {},
-      platformSpecificRules: {},
+      patterns: [
+        // Common deployment crash patterns
+        {
+          id: 'pattern_deployment_crash_001',
+          category: 'deployment_crash',
+          languages: ['typescript', 'javascript', 'python', 'go', 'rust'],
+          frameworks: [],
+          platforms: ['fly.io', 'heroku', 'railway'],
+          errorSignatures: [
+            'smoke checks.*failed.*crashing',
+            'app.*appears to be crashing',
+            'deployment.*failed.*crash'
+          ],
+          commonCauses: [
+            'Missing or incorrect start command',
+            'Application exits immediately after startup',
+            'Missing required environment variables',
+            'Port binding issues',
+            'Uncaught exception during initialization'
+          ],
+          preventionRules: [
+            'Always verify the start command matches the main entry point',
+            'Ensure the application binds to 0.0.0.0 (not localhost or 127.0.0.1)',
+            'Add proper error handling in application initialization',
+            'Check that all required dependencies are installed',
+            'Verify PORT environment variable is read from process.env.PORT',
+            'Add health check endpoint that responds to GET /',
+            'Ensure application stays running (no process.exit() in initialization)'
+          ],
+          fixStrategies: [
+            'Fix package.json start script to use correct entry point',
+            'Change server listen from localhost to 0.0.0.0',
+            'Add try-catch around initialization code',
+            'Add missing dependencies to package.json',
+            'Use process.env.PORT || 8080 for port configuration'
+          ],
+          occurrenceCount: 0,
+          successRate: 0.75,
+          lastSeen: new Date(),
+          examples: ['smoke checks for 6e827563f47798 failed: the app appears to be crashing']
+        },
+        {
+          id: 'pattern_health_check_fail_001',
+          category: 'deployment_health_check_failed',
+          languages: ['typescript', 'javascript', 'python', 'go'],
+          frameworks: ['express', 'fastapi', 'next.js'],
+          platforms: ['fly.io', 'railway'],
+          errorSignatures: [
+            'health check.*failed',
+            'smoke checks.*failed',
+            'failed.*respond.*health'
+          ],
+          commonCauses: [
+            'No route handler for root path /',
+            'Application not listening on correct port',
+            'Health check timeout too short',
+            'Application takes too long to start'
+          ],
+          preventionRules: [
+            'Always add a GET / route that returns 200 OK',
+            'Ensure server starts before health check runs',
+            'Keep initialization code fast and async',
+            'Return simple JSON response from health endpoint'
+          ],
+          fixStrategies: [
+            'Add app.get("/", (req, res) => res.json({ status: "ok" }))',
+            'Reduce startup time by deferring heavy initialization',
+            'Increase health check grace period in fly.toml'
+          ],
+          occurrenceCount: 0,
+          successRate: 0.85,
+          lastSeen: new Date(),
+          examples: ['Health check on port 8080 failed']
+        },
+        {
+          id: 'pattern_missing_dependency_001',
+          category: 'missing_dependency',
+          languages: ['typescript', 'javascript', 'python'],
+          frameworks: [],
+          platforms: ['fly.io', 'vercel', 'heroku'],
+          errorSignatures: [
+            'cannot find module',
+            'module not found',
+            'no module named',
+            'modulenotfounderror'
+          ],
+          commonCauses: [
+            'Dependency not listed in package.json or requirements.txt',
+            'Import path typo',
+            'Missing devDependencies in production build'
+          ],
+          preventionRules: [
+            'Always add imports to dependencies in package.json',
+            'Use correct import paths relative to project structure',
+            'Move build tools from devDependencies to dependencies if needed at runtime',
+            'Double-check spelling of module names'
+          ],
+          fixStrategies: [
+            'Add missing module to package.json dependencies',
+            'Fix import path to match actual file location',
+            'Move typescript/build tools to dependencies if used in start script'
+          ],
+          occurrenceCount: 0,
+          successRate: 0.95,
+          lastSeen: new Date(),
+          examples: ['Error: Cannot find module \'express\'']
+        },
+        {
+          id: 'pattern_port_binding_001',
+          category: 'port_conflict',
+          languages: ['typescript', 'javascript', 'python', 'go'],
+          frameworks: ['express', 'fastapi', 'gin'],
+          platforms: ['fly.io', 'railway', 'heroku'],
+          errorSignatures: [
+            'eaddrinuse',
+            'address already in use',
+            'port.*already.*use',
+            'bind.*failed'
+          ],
+          commonCauses: [
+            'Hardcoded port instead of using environment variable',
+            'Multiple servers trying to bind to same port',
+            'Previous instance not cleaned up'
+          ],
+          preventionRules: [
+            'Always use process.env.PORT for port configuration',
+            'Provide a fallback default port (e.g., 8080)',
+            'Only create one server instance',
+            'Use PORT=0.0.0.0:${PORT} in fly.toml'
+          ],
+          fixStrategies: [
+            'Change port to: const port = process.env.PORT || 8080',
+            'Ensure only one server.listen() call',
+            'Update fly.toml to use [[services.ports]] correctly'
+          ],
+          occurrenceCount: 0,
+          successRate: 0.90,
+          lastSeen: new Date(),
+          examples: ['Error: listen EADDRINUSE: address already in use :::3000']
+        }
+      ],
+      languageSpecificRules: {
+        'typescript': [
+          'Use strict type checking to catch errors early',
+          'Compile TypeScript before deployment (include typescript as dependency)',
+          'Set "module": "commonjs" or "nodenext" in tsconfig.json for Node.js'
+        ],
+        'javascript': [
+          'Use ES modules or CommonJS consistently throughout project',
+          'Avoid mixing require() and import statements'
+        ],
+        'python': [
+          'Include all imports in requirements.txt with versions',
+          'Use __name__ == "__main__" guard for executable scripts',
+          'Set PYTHONUNBUFFERED=1 for better logging'
+        ]
+      },
+      frameworkSpecificRules: {
+        'express': [
+          'Always define a GET / route for health checks',
+          'Use app.listen(PORT, "0.0.0.0") not localhost',
+          'Add error handling middleware with app.use((err, req, res, next) => ...)'
+        ],
+        'next.js': [
+          'Use "next start" not "next dev" in production',
+          'Set NODE_ENV=production',
+          'Include all required dependencies including next itself'
+        ],
+        'fastapi': [
+          'Use uvicorn with --host 0.0.0.0',
+          'Include uvicorn[standard] in requirements.txt',
+          'Add @app.get("/") health check endpoint'
+        ]
+      },
+      platformSpecificRules: {
+        'fly.io': [
+          'Bind to 0.0.0.0 not localhost',
+          'Use internal_port = 8080 in fly.toml [[services]]',
+          'Add health check endpoint at GET /',
+          'Keep app startup time under 60 seconds',
+          'Use process.env.PORT for port configuration'
+        ],
+        'heroku': [
+          'Use process.env.PORT for port',
+          'Define Procfile with web process type',
+          'Include engines field in package.json with Node version'
+        ]
+      },
       globalBestPractices: [
         'Always validate generated code before deployment',
         'Include all dependencies with proper versions',
         'Follow language-specific conventions and idioms',
         'Write defensive code with proper error handling',
-        'Test code in target environment before finalizing'
+        'Test code in target environment before finalizing',
+        'Bind servers to 0.0.0.0 not localhost for cloud deployments',
+        'Use environment variables for configuration (PORT, NODE_ENV, etc.)',
+        'Add health check endpoints that respond to GET /',
+        'Keep application startup fast and non-blocking',
+        'Handle errors gracefully without crashing the process'
       ]
     };
   }

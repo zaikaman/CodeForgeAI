@@ -102,6 +102,24 @@ export class LearningIntegrationService {
   private classifyError(errorMessage: string): string {
     const msg = errorMessage.toLowerCase();
 
+    // Deployment-specific errors
+    if (msg.includes('smoke checks') && msg.includes('crashing')) {
+      return 'deployment_crash';
+    }
+    if (msg.includes('smoke checks') && msg.includes('failed')) {
+      return 'deployment_health_check_failed';
+    }
+    if (msg.includes('deployment') && msg.includes('failed')) {
+      return 'deployment_failed';
+    }
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+      return 'deployment_timeout';
+    }
+    if (msg.includes('health check')) {
+      return 'health_check_failed';
+    }
+    
+    // Build and compile errors
     if (msg.includes('cannot find module') || msg.includes('module not found')) {
       return 'missing_dependency';
     }
@@ -123,7 +141,26 @@ export class LearningIntegrationService {
     if (msg.includes('build') || msg.includes('compilation')) {
       return 'build_error';
     }
+    
+    // Runtime errors
     if (msg.includes('port') || msg.includes('eaddrinuse')) {
+      return 'port_conflict';
+    }
+    if (msg.includes('econnrefused') || msg.includes('connection refused')) {
+      return 'connection_error';
+    }
+    if (msg.includes('segmentation fault') || msg.includes('segfault')) {
+      return 'segfault';
+    }
+    if (msg.includes('out of memory') || msg.includes('oom')) {
+      return 'out_of_memory';
+    }
+    if (msg.includes('exit code') && !msg.includes('exit code 0')) {
+      return 'process_exit_error';
+    }
+    
+    // General runtime
+    if (msg.includes('runtime') || msg.includes('exception')) {
       return 'runtime_error';
     }
 
