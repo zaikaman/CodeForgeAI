@@ -406,7 +406,7 @@ IMPORTANT:
    */
   private fixTsconfigJsx(
     files: GeneratedFile[],
-    errors: ValidationError[]
+    _errors: ValidationError[]
   ): GeneratedFile[] {
     const tsconfigFile = files.find(f => f.path === 'tsconfig.json');
     if (!tsconfigFile) return files;

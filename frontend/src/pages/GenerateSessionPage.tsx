@@ -370,7 +370,11 @@ export const GenerateSessionPage: React.FC = () => {
     if (!generation || !id) return;
 
     try {
-      const response = await fetch('/api/download', {
+      // Use apiClient with proper baseURL configuration
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const downloadUrl = `${baseURL}/api/download`;
+      
+      const response = await fetch(downloadUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
