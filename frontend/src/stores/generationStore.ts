@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { AgentMessage } from '../components/AgentChat'
-import apiClient, { GenerateRequest, GenerateResponse } from '../services/apiClient'
+import { GenerateRequest, GenerateResponse } from '../services/apiClient'
+import { supabase } from '../lib/supabase'
 
 export interface GenerationHistoryEntry {
   id: string
@@ -320,46 +321,67 @@ export const useGenerationStore = create<GenerationState>()(
         });
       },
 
-      // Load history from backend (Supabase)
+      // Load history from Supabase database
       loadHistoryFromBackend: async () => {
         try {
-          const response = await apiClient.getHistory();
+          console.log('[GenerationStore] Loading history directly from Supabase...');
           
-          if (response.success && response.data) {
-            // Merge backend history with local history
-            // Backend is source of truth, but keep any local pending generations
+          // Query Supabase directly instead of backend API
+          const { data: generations, error: dbError } = await supabase
+            .from('generations')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50); // Limit to last 50 generations
+          
+          if (dbError) {
+            throw dbError;
+          }
+          
+          if (generations && generations.length > 0) {
+            // Merge database history with local history
+            // Database is source of truth, but keep any local pending generations
             const { history: localHistory } = get();
             const pendingLocal = localHistory.filter(
               (local) => local.status === 'generating' || local.status === 'pending'
             );
 
-            // Convert backend data to GenerationHistoryEntry format
-            const backendHistory: GenerationHistoryEntry[] = response.data.map((item: any) => ({
+            // Convert database data to GenerationHistoryEntry format
+            const dbHistory: GenerationHistoryEntry[] = generations.map((item: any) => ({
               id: item.id,
-              prompt: item.request.prompt,
-              request: item.request,
-              response: item.response,
+              prompt: item.prompt,
+              request: {
+                prompt: item.prompt,
+                targetLanguage: item.target_language,
+                complexity: item.complexity,
+                agents: ['CodeGenerator'], // Default agents
+              },
+              response: item.files ? {
+                files: item.files,
+                language: item.target_language,
+              } : null,
               status: item.status,
               error: item.error,
-              agentMessages: item.agentMessages || [],
-              startedAt: new Date(item.startedAt),
-              completedAt: item.completedAt ? new Date(item.completedAt) : undefined,
-              duration: item.duration,
+              agentMessages: [], // Will be loaded separately if needed
+              startedAt: new Date(item.created_at),
+              completedAt: item.updated_at ? new Date(item.updated_at) : undefined,
+              duration: item.updated_at 
+                ? new Date(item.updated_at).getTime() - new Date(item.created_at).getTime()
+                : undefined,
             }));
 
-            // Merge: backend history + local pending (that aren't in backend yet)
-            const backendIds = new Set(backendHistory.map((h) => h.id));
-            const uniquePendingLocal = pendingLocal.filter((local) => !backendIds.has(local.id));
+            // Merge: database history + local pending (that aren't in database yet)
+            const dbIds = new Set(dbHistory.map((h) => h.id));
+            const uniquePendingLocal = pendingLocal.filter((local) => !dbIds.has(local.id));
 
             set({
-              history: [...uniquePendingLocal, ...backendHistory],
+              history: [...uniquePendingLocal, ...dbHistory],
             });
 
-            console.log(`[GenerationStore] Loaded ${backendHistory.length} generations from backend`);
+            console.log(`[GenerationStore] Loaded ${dbHistory.length} generations from Supabase`);
           }
         } catch (error) {
-          console.error('[GenerationStore] Failed to load history from backend:', error);
-          // Keep local history if backend fetch fails
+          console.error('[GenerationStore] Failed to load history from Supabase:', error);
+          // Keep local history if database fetch fails
         }
       },
 

@@ -690,9 +690,9 @@ export const GenerateSessionPage: React.FC = () => {
       }
 
       const jobId = apiRes.data.jobId;
-      console.log(`🔄 Chat job ${jobId} started, polling for results...`);
+      console.log(`🔄 Chat job ${jobId} started, polling from database...`);
 
-      // Poll for results
+      // Poll for results directly from Supabase
       const pollInterval = 1000; // Poll every 1 second
       const maxAttempts = 120; // Max 2 minutes
       let attempts = 0;
@@ -701,21 +701,34 @@ export const GenerateSessionPage: React.FC = () => {
       while (attempts < maxAttempts) {
         attempts++;
         
-        const statusRes = await apiClient.getChatStatus(jobId);
+        // Query Supabase directly instead of backend API
+        const { data: chatJobData, error: dbError } = await supabase
+          .from('chat_jobs')
+          .select('*')
+          .eq('id', jobId)
+          .single();
         
-        if (!statusRes.success || !statusRes.data) {
-          throw new Error(statusRes.error || 'Failed to check chat status');
+        if (dbError || !chatJobData) {
+          console.error('Failed to fetch chat job from database:', dbError);
+          throw new Error('Failed to check chat status');
         }
 
-        const status = statusRes.data.status;
+        const status = chatJobData.status;
         console.log(`📊 Chat job ${jobId} status: ${status} (attempt ${attempts}/${maxAttempts})`);
 
         if (status === 'completed') {
-          data = statusRes.data;
+          data = {
+            status: chatJobData.status,
+            files: chatJobData.result?.files,
+            agentThought: {
+              agent: 'ChatAgent',
+              thought: chatJobData.result?.summary || 'Changes applied successfully',
+            },
+          };
           console.log('✅ Chat job completed!');
           break;
         } else if (status === 'error') {
-          throw new Error(statusRes.data.error || 'Chat job failed');
+          throw new Error(chatJobData.error || 'Chat job failed');
         }
 
         // Wait before next poll

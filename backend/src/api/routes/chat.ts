@@ -4,6 +4,7 @@ import { chatQueue } from '../../services/ChatQueue';
 import { supabase } from '../../storage/SupabaseClient';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
+import { optionalAuth, AuthenticatedRequest } from '../middleware/supabaseAuth';
 
 const router = Router();
 
@@ -20,8 +21,18 @@ const chatRequestSchema = z.object({
 });
 
 // POST /chat - Start a chat request as background job (returns immediately)
-router.post('/chat', async (req, res): Promise<void> => {
+router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
   try {
+    const userId = (req as AuthenticatedRequest).userId;
+    
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+      return;
+    }
+    
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
@@ -76,6 +87,7 @@ router.post('/chat', async (req, res): Promise<void> => {
     await chatQueue.enqueue({
       id: jobId,
       generationId,
+      userId,
       message,
       currentFiles,
       language,
@@ -115,16 +127,35 @@ router.post('/chat', async (req, res): Promise<void> => {
 });
 
 // GET /chat/:jobId - Get chat job status and result
-router.get('/chat/:jobId', async (req, res): Promise<void> => {
+router.get('/chat/:jobId', optionalAuth, async (req, res): Promise<void> => {
   try {
+    const userId = (req as AuthenticatedRequest).userId;
+    
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+      return;
+    }
+    
     const { jobId } = req.params;
 
-    const job = chatQueue.getJob(jobId);
+    const job = await chatQueue.getJob(jobId);
 
     if (!job) {
       res.status(404).json({
         success: false,
         error: 'Chat job not found or expired',
+      });
+      return;
+    }
+    
+    // Check ownership
+    if (job.userId !== userId) {
+      res.status(403).json({
+        success: false,
+        error: 'You do not have permission to view this chat job',
       });
       return;
     }

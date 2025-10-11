@@ -5,10 +5,12 @@
 
 import { ChatAgent } from '../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from './ChatMemoryManager';
+import { supabase } from '../storage/SupabaseClient';
 
 interface ChatJob {
   id: string;
   generationId: string;
+  userId: string;
   message: string;
   currentFiles: Array<{ path: string; content: string }>;
   language: string;
@@ -24,24 +26,46 @@ interface ChatJob {
 }
 
 class ChatQueueManager {
-  private jobs = new Map<string, ChatJob>();
   private queue: ChatJob[] = [];
   private isProcessing = false;
 
   /**
-   * Enqueue a chat request
+   * Enqueue a chat request - saves to Supabase
    */
   async enqueue(params: {
     id: string;
     generationId: string;
+    userId: string;
     message: string;
     currentFiles: Array<{ path: string; content: string }>;
     language: string;
     imageUrls?: string[];
   }): Promise<void> {
+    console.log(`[ChatQueue] Creating chat job ${params.id} in database...`);
+    
+    // Save to database
+    const { error: dbError } = await supabase
+      .from('chat_jobs')
+      .insert({
+        id: params.id,
+        generation_id: params.generationId,
+        user_id: params.userId,
+        message: params.message,
+        current_files: params.currentFiles,
+        language: params.language,
+        image_urls: params.imageUrls || [],
+        status: 'pending',
+      });
+    
+    if (dbError) {
+      console.error(`[ChatQueue] Failed to create chat job in database:`, dbError);
+      throw new Error('Failed to create chat job');
+    }
+
     const job: ChatJob = {
       id: params.id,
       generationId: params.generationId,
+      userId: params.userId,
       message: params.message,
       currentFiles: params.currentFiles,
       language: params.language,
@@ -51,7 +75,6 @@ class ChatQueueManager {
       updatedAt: new Date(),
     };
 
-    this.jobs.set(params.id, job);
     this.queue.push(job);
     
     console.log(`[ChatQueue] Enqueued chat job ${params.id} for generation ${params.generationId}`);
@@ -63,10 +86,33 @@ class ChatQueueManager {
   }
 
   /**
-   * Get job by ID
+   * Get job by ID from database
    */
-  getJob(id: string): ChatJob | undefined {
-    return this.jobs.get(id);
+  async getJob(id: string): Promise<ChatJob | null> {
+    const { data, error } = await supabase
+      .from('chat_jobs')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error || !data) {
+      return null;
+    }
+    
+    return {
+      id: data.id,
+      generationId: data.generation_id,
+      userId: data.user_id,
+      message: data.message,
+      currentFiles: data.current_files,
+      language: data.language,
+      imageUrls: data.image_urls,
+      status: data.status,
+      result: data.result,
+      error: data.error,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    };
   }
 
   /**
@@ -96,9 +142,17 @@ class ChatQueueManager {
     console.log(`[ChatQueue] Processing chat job ${job.id}...`);
     
     try {
-      // Update status
+      // Update status in database
       job.status = 'processing';
       job.updatedAt = new Date();
+      
+      await supabase
+        .from('chat_jobs')
+        .update({
+          status: 'processing',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
 
       // Build context with conversation history
       const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
@@ -248,7 +302,7 @@ class ChatQueueManager {
         },
       });
 
-      // Update job with result
+      // Update job with result in database
       job.status = 'completed';
       job.result = {
         files: updatedFiles,
@@ -256,13 +310,16 @@ class ChatQueueManager {
       };
       job.updatedAt = new Date();
 
-      console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
+      await supabase
+        .from('chat_jobs')
+        .update({
+          status: 'completed',
+          result: job.result,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
 
-      // Clean up job after 5 minutes
-      setTimeout(() => {
-        this.jobs.delete(job.id);
-        console.log(`[ChatQueue] Cleaned up chat job ${job.id}`);
-      }, 5 * 60 * 1000);
+      console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
 
     } catch (error: any) {
       console.error(`[ChatQueue] Chat job ${job.id} failed:`, error);
@@ -271,10 +328,14 @@ class ChatQueueManager {
       job.error = error.message || 'Chat processing failed';
       job.updatedAt = new Date();
 
-      // Clean up failed job after 1 minute
-      setTimeout(() => {
-        this.jobs.delete(job.id);
-      }, 60 * 1000);
+      await supabase
+        .from('chat_jobs')
+        .update({
+          status: 'error',
+          error: job.error,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
     }
   }
 }
