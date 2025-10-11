@@ -708,6 +708,23 @@ export class ComprehensiveValidator {
           }
         }
 
+        // Check if React + Vite project has @vitejs/plugin-react
+        const hasVite = files.some(f => f.path === 'vite.config.ts' || f.path === 'vite.config.js');
+        if (hasReact && hasVite) {
+          const hasPluginReact = pkg.devDependencies?.['@vitejs/plugin-react'];
+          if (!hasPluginReact) {
+            errors.push({
+              severity: 'critical',
+              layer: 'static',
+              category: 'missing_dependency',
+              file: 'package.json',
+              message: 'React + Vite project missing "@vitejs/plugin-react" in devDependencies. Add "@vitejs/plugin-react": "^4.0.0"',
+              fixable: true,
+              fixStrategy: 'dependency_fixer'
+            });
+          }
+        }
+
       } catch (error: any) {
         // Already caught by JSON validation
       }

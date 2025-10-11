@@ -802,8 +802,8 @@ app.get('*', (req, res) => {
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "start": "vite preview"
+    "build": "tsc && vite build",
+    "start": "vite preview --port 3000"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -813,11 +813,18 @@ app.get('*', (req, res) => {
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "typescript": "^5.4.5",
+    "vite": "^4.4.0"
   }
 }
 \`\`\`
+
+**CRITICAL DEPENDENCY CHECKLIST:**
+- ✓ ALWAYS include "@vitejs/plugin-react" in devDependencies (MANDATORY for Vite + React)
+- ✓ ALWAYS include "@types/react" and "@types/react-dom" for TypeScript
+- ✓ Use stable versions: vite@^4.4.0, typescript@^5.4.5
+- ✓ Build script: "tsc && vite build" (compile TypeScript first)
+- ✓ Start script: "vite preview --port 3000" (preview on port 3000)
 
 **CRITICAL**: package.json is MANDATORY. Without it, the build will fail with "Could not read package.json" error.
 
@@ -899,16 +906,19 @@ This compiles:
 5. ✓ index.html MUST have <div id="root"></div> for React
 6. ✓ index.html MUST have <script type="module" src="/src/main.tsx"></script>
 7. ✓ Include vite.config.ts with proper plugins for React/Vue apps
-8. ✓ Build script for Vite: "vite build" (Vite compiles TypeScript automatically)
-9. ✓ Build script for Node.js: "tsc" (requires tsconfig.json)
-10. ✓ For calculator/todo/UI apps, use React + Vite setup
-11. ✓ **DO NOT create nested folders like frontend/, backend/, client/, server/**
-12. ✓ **Use FLAT file structure with all config files at root level**
-13. ✓ **DO NOT create empty files - every file must have real code**
-14. ✓ **NEVER create files like src/index.ts with empty content: ""**
-15. ✓ **For Express/Fastify servers: MUST have tsconfig.json + package.json**
-16. ✓ **Type every function parameter, especially DOM event callbacks, to avoid implicit any errors**
-17. ✓ **Pin "typescript" devDependency to "^5.4.5" so npm install succeeds without registry lookup failures**
+8. ✓ **MUST include "@vitejs/plugin-react" in devDependencies for React + Vite apps (MANDATORY)**
+9. ✓ Build script for Vite: "tsc && vite build" (compile TypeScript first, then Vite build)
+10. ✓ Build script for Node.js: "tsc" (requires tsconfig.json)
+11. ✓ For calculator/todo/UI apps, use React + Vite setup
+12. ✓ **DO NOT create nested folders like frontend/, backend/, client/, server/**
+13. ✓ **Use FLAT file structure with all config files at root level**
+14. ✓ **DO NOT create empty files - every file must have real code**
+15. ✓ **NEVER create files like src/index.ts with empty content: ""**
+16. ✓ **For Express/Fastify servers: MUST have tsconfig.json + package.json**
+17. ✓ **Type every function parameter, especially DOM event callbacks, to avoid implicit any errors**
+18. ✓ **Pin "typescript" devDependency to "^5.4.5" so npm install succeeds without registry lookup failures**
+19. ✓ **For React apps: devDependencies MUST include "@vitejs/plugin-react": "^4.0.0" (CRITICAL)**
+20. ✓ **Use stable package versions: vite@^4.4.0, typescript@^5.4.5, @vitejs/plugin-react@^4.0.0**
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
@@ -1129,7 +1139,7 @@ app.listen(port, () => {
    - Configure server port (3000)
    - Set build output directory (dist)
 
-5. **Package.json for React + Vite apps:**
+5. **Package.json for React + Vite apps (MANDATORY - ALWAYS CREATE THIS FILE):**
 \`\`\`json
 {
   "name": "app-name",
@@ -1138,7 +1148,7 @@ app.listen(port, () => {
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "start": "vite preview --port 3000"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -1146,10 +1156,17 @@ app.listen(port, () => {
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
-    "vite": "^5.0.0"
+    "vite": "^4.4.0"
   }
 }
 \`\`\`
+
+**CRITICAL DEPENDENCY CHECKLIST:**
+- ✓ ALWAYS include "@vitejs/plugin-react" in devDependencies (MANDATORY for Vite + React)
+- ✓ Use stable versions: vite@^4.4.0
+- ✓ Start script: "vite preview --port 3000" (preview on port 3000)
+
+**CRITICAL**: package.json is MANDATORY. Without it, the build will fail.
 
 6. **File structure for React apps (FLAT STRUCTURE ONLY):**
 \`\`\`

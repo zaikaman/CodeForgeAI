@@ -234,6 +234,28 @@ class DependencyFixerAgent {
           }
         }
 
+        if (error.category === 'missing_dependency') {
+          // Extract package name from message: 'missing "@vitejs/plugin-react" in devDependencies'
+          const match = error.message.match(/missing "([^"]+)"/);
+          if (match) {
+            const pkgName = match[1];
+            const version = this.versionMap[pkgName] || 'latest';
+
+            // Determine if it's a dev dependency or runtime dependency
+            const isDevDep = pkgName.startsWith('@vitejs/') || pkgName.startsWith('@types/') || 
+                             ['typescript', 'vite', 'eslint', 'jest'].some(tool => pkgName.includes(tool));
+
+            if (isDevDep) {
+              pkg.devDependencies = pkg.devDependencies || {};
+              pkg.devDependencies[pkgName] = version;
+            } else {
+              pkg.dependencies = pkg.dependencies || {};
+              pkg.dependencies[pkgName] = version;
+            }
+            appliedFixes.push(`Added ${pkgName}@${version} to ${isDevDep ? 'devDependencies' : 'dependencies'}`);
+          }
+        }
+
         if (error.category === 'dependency_version') {
           // Fix invalid versions
           const match = error.message.match(/package "([^"]+)"/);
