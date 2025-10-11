@@ -1305,10 +1305,10 @@ export const BASE_PROMPT = `
 
 **When user requests a STATIC HTML landing page or website (keywords: landing page, website, portfolio, no mention of React/Vue/Angular), follow these MANDATORY rules:**
 
-1. ✓ **File Structure at ROOT level (no src/ or nested folders):**
+1. ✓ **File Structure at ROOT level (FLAT structure, no nested folders):**
    - index.html (MUST be at root)
    - styles.css (MUST be at root)
-   - scripts.js (MUST be at root)
+   - scripts.js (MUST be at root - PURE JavaScript, NO TypeScript)
    - assets/ folder for images/icons (optional)
 
 2. ✓ **HTML File Linking (ULTRA CRITICAL):**
@@ -1320,7 +1320,7 @@ export const BASE_PROMPT = `
    - **CRITICAL**: src="scripts.js" NOT src="/scripts.js"
    - Use relative paths WITHOUT leading slash
    - ✓ CORRECT: href="styles.css"
-   - ✗ WRONG: href="/styles.css" or href="./src/styles.css"
+   - ✗ WRONG: href="/styles.css" or href="./src/styles.css" or href="public/styles.css"
 
 3. ✓ **CSS Must Be Complete:**
    - Full styling for ALL HTML elements
@@ -1328,20 +1328,41 @@ export const BASE_PROMPT = `
    - At least 100+ lines of actual CSS
    - **NEVER empty styles.css**
 
-4. ✓ **JavaScript Must Be Complete:**
+4. ✓ **JavaScript Must Be VANILLA JS (NO TypeScript):**
+   - ✓ PURE JavaScript - NO TypeScript syntax
+   - ✗ FORBIDDEN: TypeScript type annotations like (as HTMLElement) or interfaces
+   - ✗ FORBIDDEN: const input = document.getElementById('name') as HTMLInputElement
+   - ✓ CORRECT: const input = document.getElementById('name')
+   - Use querySelector and check for null manually
    - DOM manipulation, event listeners
    - At least 30+ lines of actual JS code
+   - **Use 'use strict'; at the top**
    - **NEVER empty scripts.js**
 
-5. ✓ **For Static Sites - DO NOT CREATE:**
-   - ✗ package.json
-   - ✗ tsconfig.json
-   - ✗ vite.config.js
-   - ✗ src/ folder
+5. ✓ **For Static Sites - ABSOLUTELY DO NOT CREATE:**
+   - ✗ package.json (not needed)
+   - ✗ tsconfig.json (not needed)
+   - ✗ vite.config.js (not needed)
+   - ✗ webpack.config.js (not needed)
+   - ✗ src/ folder (not needed)
+   - ✗ public/ folder (files are AT ROOT)
+   - ✗ dist/ folder (no build step)
 
-6. ✓ **When to Use Static HTML:**
+6. ✓ **Static HTML Example (CORRECT structure):**
+   \`\`\`
+   Root directory:
+   ├── index.html
+   ├── styles.css
+   ├── scripts.js
+   └── assets/
+       └── icons/
+           └── icon-1.svg
+   \`\`\`
+
+7. ✓ **When to Use Static HTML:**
    - User says: "landing page", "website", "portfolio", "simple page"
-   - NO build tools unless explicitly requested
+   - NO build tools, NO package.json unless explicitly requested
+   - Use ONLY when user wants static HTML, NOT React/Vue apps
 
 ### Code Completeness:
 - Every function, class, and constant you reference MUST be defined or imported
