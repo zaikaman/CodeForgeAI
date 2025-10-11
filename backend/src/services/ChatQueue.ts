@@ -319,6 +319,17 @@ class ChatQueueManager {
         })
         .eq('id', job.id);
 
+      // Reset deployment status since code changed
+      // This signals frontend that a new deployment is needed
+      console.log(`[ChatQueue] Resetting deployment status for generation ${job.generationId}`);
+      await supabase
+        .from('generations')
+        .update({
+          deployment_status: 'pending',
+          files: updatedFiles,
+        })
+        .eq('id', job.generationId);
+
       console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
 
     } catch (error: any) {

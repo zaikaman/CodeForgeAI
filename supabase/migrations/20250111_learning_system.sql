@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS error_patterns (
   languages TEXT[] NOT NULL DEFAULT '{}',
   frameworks TEXT[] NOT NULL DEFAULT '{}',
   platforms TEXT[] NOT NULL DEFAULT '{}',
-  error_signatures TEXT[] NOT NULL DEFAULT '{}', -- Regex patterns
+  error_signatures TEXT[] NOT NULL DEFAULT '{}',
   common_causes TEXT[] NOT NULL DEFAULT '{}',
   prevention_rules TEXT[] NOT NULL DEFAULT '{}',
   fix_strategies TEXT[] NOT NULL DEFAULT '{}',

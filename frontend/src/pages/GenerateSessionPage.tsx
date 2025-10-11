@@ -415,8 +415,8 @@ export const GenerateSessionPage: React.FC = () => {
         } else if (data.data.previewUrl) {
           // Has preview URL but not ready yet
           setDeploymentStatus('deploying');
-        } else if (data.data.status === 'deploying') {
-          // Still deploying, no URL yet
+        } else if (data.data.status === 'deploying' || data.data.status === 'pending') {
+          // Still deploying or pending deployment, no URL yet
           setDeploymentStatus('deploying');
           console.log('🔄 Still deploying...');
         }
@@ -519,6 +519,27 @@ export const GenerateSessionPage: React.FC = () => {
     const timer = setTimeout(checkExistingPreview, 500);
     return () => clearTimeout(timer);
   }, [id, generation?.response?.files, previewUrl, hasGeneratedInitialPreview, pollDeploymentStatus]);
+
+  // Auto-trigger deployment when switching to preview tab if status is pending
+  useEffect(() => {
+    const checkAndDeploy = async () => {
+      if (activeTab !== 'preview' || !id || isGeneratingPreview) return;
+      
+      // Check current deployment status from database
+      const { data: generationData } = await supabase
+        .from('generations')
+        .select('deployment_status, files')
+        .eq('id', id)
+        .single();
+      
+      if (generationData?.deployment_status === 'pending' && generationData?.files) {
+        console.log('🔄 Code changed detected (status: pending), triggering deployment...');
+        handlePreview(true); // Force regenerate since code changed
+      }
+    };
+    
+    checkAndDeploy();
+  }, [activeTab, id, isGeneratingPreview]); // Only run when switching to preview tab
 
   const handlePreview = async (forceRegenerate: boolean = false) => {
     if (generation && generation.response?.files && !isGeneratingPreview) {

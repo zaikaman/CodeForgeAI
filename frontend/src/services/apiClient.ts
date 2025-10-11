@@ -604,7 +604,7 @@ class ApiClient {
   // Check preview deployment status
   async checkPreviewStatus(generationId: string): Promise<ApiResponse<{
     ready: boolean
-    status: 'deployed' | 'deploying' | 'error'
+    status: 'deployed' | 'deploying' | 'pending' | 'error'
     previewUrl?: string
     statusCode?: number
     error?: string
