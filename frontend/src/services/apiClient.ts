@@ -145,6 +145,39 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      validateStatus: (status) => {
+        // Don't throw on any status code - we'll handle it in interceptor
+        return status >= 200 && status < 600
+      },
+      transformResponse: [
+        (data) => {
+          // Safely parse JSON, catch HTML responses
+          if (typeof data === 'string') {
+            // Check if response looks like HTML
+            if (data.trim().startsWith('<!DOCTYPE') || data.trim().startsWith('<html')) {
+              console.warn('⚠️ [apiClient] Received HTML response instead of JSON')
+              return {
+                success: false,
+                error: 'Server returned HTML instead of JSON. Backend may not be available.',
+                isHtmlResponse: true
+              }
+            }
+            
+            // Try to parse as JSON
+            try {
+              return JSON.parse(data)
+            } catch (e) {
+              console.error('❌ [apiClient] Failed to parse response as JSON:', e)
+              return {
+                success: false,
+                error: 'Invalid JSON response from server',
+                rawData: data.substring(0, 200)
+              }
+            }
+          }
+          return data
+        }
+      ]
     })
 
     // Request interceptor - add auth token
@@ -170,10 +203,41 @@ class ApiClient {
       }
     )
 
-    // Response interceptor - handle errors
+    // Response interceptor - handle errors and validate JSON
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Validate response is JSON
+        const contentType = response.headers['content-type']
+        if (contentType && !contentType.includes('application/json')) {
+          console.warn('⚠️ [apiClient] Non-JSON response received:', {
+            url: response.config.url,
+            contentType,
+            status: response.status,
+          })
+        }
+        return response
+      },
       (error: AxiosError) => {
+        // Check if error response is HTML instead of JSON
+        if (error.response) {
+          const contentType = error.response.headers['content-type']
+          if (contentType && contentType.includes('text/html')) {
+            console.error('❌ [apiClient] Server returned HTML instead of JSON')
+            console.error('❌ [apiClient] This usually means the API endpoint does not exist or backend is not properly deployed')
+            
+            // Try to extract error info from HTML if available
+            const htmlData = error.response.data
+            if (typeof htmlData === 'string') {
+              console.error('HTML response preview:', htmlData.substring(0, 200))
+            }
+            
+            return Promise.reject({
+              status: error.response.status,
+              message: 'Server error: Invalid response format (expected JSON, got HTML)',
+              isHtmlError: true,
+            })
+          }
+        }
         return this.handleError(error)
       }
     )
@@ -423,8 +487,25 @@ class ApiClient {
     attempt?: number
     logs?: string
   }>> {
-    const response = await this.client.post('/api/preview', request)
-    return response.data
+    try {
+      const response = await this.client.post('/api/preview', request)
+      
+      // Check if we got an HTML response flag
+      if (response.data?.isHtmlResponse) {
+        return {
+          success: false,
+          error: 'Preview API not available - backend may not be deployed'
+        }
+      }
+      
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] generatePreview error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to generate preview'
+      }
+    }
   }
 
   // Check preview deployment status
@@ -435,8 +516,37 @@ class ApiClient {
     statusCode?: number
     error?: string
   }>> {
-    const response = await this.client.get(`/api/preview/status/${generationId}`)
-    return response.data
+    try {
+      const response = await this.client.get(`/api/preview/status/${generationId}`)
+      
+      // Check if we got an HTML response flag
+      if (response.data?.isHtmlResponse) {
+        return {
+          success: false,
+          error: 'Preview API not available - backend may not be deployed',
+          data: {
+            ready: false,
+            status: 'error',
+            error: 'Backend not available'
+          }
+        }
+      }
+      
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] checkPreviewStatus error:', error)
+      
+      // Return a safe error response
+      return {
+        success: false,
+        error: error.message || 'Failed to check preview status',
+        data: {
+          ready: false,
+          status: 'error',
+          error: error.message || 'Unknown error'
+        }
+      }
+    }
   }
 
   // Chat with AI to modify generation

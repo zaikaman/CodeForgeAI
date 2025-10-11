@@ -489,6 +489,13 @@
   color: #00ff00;
 }
 
+.deployment-status.error {
+  background: rgba(255, 69, 0, 0.1);
+  border: 2px solid rgba(255, 69, 0, 0.5);
+  color: #ff4500;
+  cursor: help;
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;

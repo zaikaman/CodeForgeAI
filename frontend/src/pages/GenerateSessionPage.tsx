@@ -204,8 +204,19 @@ export const GenerateSessionPage: React.FC = () => {
           setDeploymentStatus('deploying');
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to check deployment status:', error);
+      
+      // Handle HTML response error (backend not available)
+      if (error?.isHtmlError || error?.message?.includes('is not valid JSON')) {
+        console.warn('⚠️ Preview API not available - backend may not be deployed yet');
+        // Stop polling to avoid spamming failed requests
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setDeploymentStatus('error');
+      }
     }
   }, [previewUrl]);
 
@@ -725,6 +736,11 @@ export const GenerateSessionPage: React.FC = () => {
                 {deploymentStatus === 'ready' && (
                   <span className="deployment-status ready">
                     ✅ Live
+                  </span>
+                )}
+                {deploymentStatus === 'error' && (
+                  <span className="deployment-status error" title="Backend API not available">
+                    ⚠️ Preview Unavailable
                   </span>
                 )}
               </div>
