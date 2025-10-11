@@ -179,18 +179,34 @@ export const GenerateSessionPage: React.FC = () => {
           }
           
           // Fetch full data (including files) now that generation is complete
-          // This is a separate call to avoid large payloads during polling
+          // Note: Backend now automatically includes files when status=completed
+          // But we fetch with full=true to also get agent_thoughts
           console.log('📥 Fetching full generation data (including files)...');
           const fullResponse = await apiClient.getGenerationStatus(id, true);
           
           if (fullResponse.success && fullResponse.data) {
-            console.log('✅ Got full generation data with files');
+            console.log('✅ Got full generation data:', {
+              hasFiles: !!fullResponse.data.files,
+              fileCount: (fullResponse.data as any).fileCount || 0,
+              filesType: typeof fullResponse.data.files,
+              filesKeys: fullResponse.data.files ? Object.keys(fullResponse.data.files) : [],
+            });
+            
             // Update store with complete data including files
             const storeState = useGenerationStore.getState();
             storeState.completeGeneration(id, fullResponse.data);
+            
+            // Also verify store was updated
+            const storeGenerations = (useGenerationStore.getState() as any).generations;
+            const updatedGen = storeGenerations ? storeGenerations.get(id) : null;
+            console.log('📦 Store updated, generation files:', {
+              hasGen: !!updatedGen,
+              hasFiles: !!updatedGen?.files,
+              fileCount: updatedGen?.files ? Object.keys(updatedGen.files).length : 0,
+            });
           } else {
             console.warn('⚠️ Failed to fetch full data, using partial data from polling');
-            // Fallback: use data from polling response
+            // Fallback: use data from polling response (should also have files now)
             const storeState = useGenerationStore.getState();
             storeState.completeGeneration(id, response.data);
           }

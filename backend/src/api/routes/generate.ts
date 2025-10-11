@@ -182,12 +182,16 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
     console.log(`[GET /generate/${id}] Successfully fetched generation. Status: ${generation.status}`);
 
     // Check if client wants full data (including large files array)
-    // For polling, we don't need to send the full files array
+    // For polling during processing, we don't need to send the full files array to reduce payload
     const includeFull = req.query.full === 'true';
     
+    // Decide whether to include files:
+    // - Always include if full=true (explicit request)
+    // - Don't include if still pending/processing (save bandwidth during polling)
+    // - Always include if completed/failed (user needs to see result)
+    const shouldIncludeFiles = includeFull || ['completed', 'failed'].includes(generation.status);
+    
     // Return generation status and data
-    // For polling: only return metadata (no files content to reduce payload)
-    // For full fetch: return everything
     res.json({
       success: true,
       data: {
@@ -196,14 +200,10 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
         prompt: generation.prompt,
         targetLanguage: generation.target_language,
         complexity: generation.complexity,
-        // Only include files if explicitly requested (full=true) or if still processing/pending
-        files: includeFull || ['pending', 'processing'].includes(generation.status) 
-          ? generation.files 
-          : undefined,
+        // Include files based on status or explicit request
+        files: shouldIncludeFiles ? generation.files : undefined,
         // Only include agent thoughts if explicitly requested
-        agentThoughts: includeFull 
-          ? generation.agent_thoughts 
-          : undefined,
+        agentThoughts: includeFull ? generation.agent_thoughts : undefined,
         // Always include these lightweight fields
         error: generation.error,
         previewUrl: generation.preview_url,
