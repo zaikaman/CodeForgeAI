@@ -149,6 +149,8 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
         files: generation.files,
         agentThoughts: generation.agent_thoughts,
         error: generation.error,
+        previewUrl: generation.preview_url, // Include preview URL from database
+        deploymentStatus: generation.deployment_status,
         createdAt: generation.created_at,
         updatedAt: generation.updated_at,
       },
