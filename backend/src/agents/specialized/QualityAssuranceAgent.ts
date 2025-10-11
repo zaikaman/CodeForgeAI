@@ -1,18 +1,19 @@
 /**
- * QualityAssuranceAgent - Specialized agent for fast code validation
+ * QualityAssuranceAgent - Comprehensive code validation system
  * 
- * Responsibilities:
- * - Run fast static validation (syntax, dependencies, patterns)
- * - Auto-fix common issues using rule-based fixes
- * - Coordinate with CodeFixerAgent for complex issues
- * - Report validation results with confidence scores
+ * Architecture (like Fly.io):
+ * 1. Static Analysis - Fast rule-based checks
+ * 2. Build Simulation - Actual compilation tests
+ * 3. Runtime Validation - Sandboxed execution checks
+ * 4. Specialized Fixers - Targeted repairs (NO LLM unless absolutely necessary)
  * 
- * Performance: < 2 seconds for full validation + auto-fix
+ * Performance: < 5 seconds for full validation + auto-fix
  */
 
 import { AgentBuilder } from '@iqai/adk';
 import { FastValidatorService } from '../../services/FastValidatorService';
-import { SmartAutoFixerService } from '../../services/SmartAutoFixerService';
+import { ComprehensiveValidator } from '../../services/validation/ComprehensiveValidator';
+import { SpecializedFixerRouter } from '../../services/validation/SpecializedFixers';
 import type { GeneratedFile } from '../../services/FastValidatorService';
 
 export interface QARequest {
@@ -35,20 +36,22 @@ export interface QAResult {
 }
 
 /**
- * QualityAssuranceAgent - Fast validation with auto-fixing
+ * QualityAssuranceAgent - Comprehensive validation with specialized fixers
  */
 export class QualityAssuranceAgent {
   private validator = new FastValidatorService();
-  private autoFixer = new SmartAutoFixerService();
+  private comprehensiveValidator = new ComprehensiveValidator();
+  private specializedFixer = new SpecializedFixerRouter();
   
   /**
-   * Run quality assurance on generated code
+   * Run comprehensive quality assurance on generated code
+   * Now with multi-layer validation like Fly.io
    */
   async run(request: QARequest): Promise<QAResult> {
     const startTime = Date.now();
     const maxAttempts = request.maxAttempts || 2;
     
-    console.log('\n🔍 QualityAssuranceAgent: Starting validation...');
+    console.log('\n🔍 QualityAssuranceAgent: Starting comprehensive validation...');
     console.log(`   Files: ${request.files.length}, Language: ${request.language}`);
     
     let currentFiles = request.files;
@@ -62,24 +65,24 @@ export class QualityAssuranceAgent {
       
       console.log(`\n   Attempt ${attempt}/${maxAttempts}`);
       
-      // Run fast validation
-      const validation = await this.validator.validate(currentFiles, request.language);
+      // Run COMPREHENSIVE validation (3 layers: static, build, runtime)
+      const validation = await this.comprehensiveValidator.validate(currentFiles);
       
       console.log(`   ✓ Validation: ${validation.errors.length} errors, ${validation.warnings.length} warnings`);
-      console.log(`   ✓ Confidence: ${(validation.confidence * 100).toFixed(0)}%`);
+      console.log(`   ✓ Layers: Static(${validation.layerResults.static.errors}), Build(${validation.layerResults.build.errors}), Runtime(${validation.layerResults.runtime.errors})`);
       
       // If valid or auto-fix disabled, return result
-      if (validation.isValid || !request.autoFix) {
+      if (validation.passed || !request.autoFix) {
         const duration = Date.now() - startTime;
         
         console.log(`✅ QualityAssuranceAgent: Complete in ${duration}ms`);
         
         return {
-          isValid: validation.isValid,
+          isValid: validation.passed,
           files: currentFiles,
           errors: validation.errors,
           warnings: validation.warnings,
-          confidence: validation.confidence,
+          confidence: validation.passed ? 1.0 : 0.0,
           fixedCount: totalFixedCount,
           appliedFixes: allAppliedFixes,
           duration,
@@ -93,17 +96,17 @@ export class QualityAssuranceAgent {
         break;
       }
       
-      // Auto-fix issues
-      console.log(`   🔧 Auto-fixing ${validation.errors.length} issues...`);
-      const fixResult = await this.autoFixer.autoFix(currentFiles, validation.errors);
+      // Auto-fix issues using SPECIALIZED FIXERS (no LLM!)
+      console.log(`   🔧 Auto-fixing ${validation.errors.length} issues with specialized agents...`);
+      const fixResult = await this.specializedFixer.fix(currentFiles, validation.errors);
       
       if (fixResult.fixed) {
         currentFiles = fixResult.files;
-        totalFixedCount += fixResult.fixedCount;
+        totalFixedCount += fixResult.appliedFixes.length;
         allAppliedFixes.push(...fixResult.appliedFixes);
         
-        console.log(`   ✓ Fixed: ${fixResult.fixedCount}/${validation.errors.length}`);
-        console.log(`   ✓ Applied: ${fixResult.appliedFixes.join(', ')}`);
+        console.log(`   ✓ Fixed: ${fixResult.appliedFixes.length}/${validation.errors.length}`);
+        console.log(`   ✓ Applied: ${fixResult.appliedFixes.slice(0, 3).join(', ')}${fixResult.appliedFixes.length > 3 ? '...' : ''}`);
       } else {
         console.log(`   ✗ Could not apply fixes. Stopping.`);
         break;
@@ -111,19 +114,19 @@ export class QualityAssuranceAgent {
     }
     
     // Final validation
-    const finalValidation = await this.validator.validate(currentFiles, request.language);
+    const finalValidation = await this.comprehensiveValidator.validate(currentFiles);
     const duration = Date.now() - startTime;
     
-    console.log(`\n${finalValidation.isValid ? '✅' : '⚠'} QualityAssuranceAgent: Complete in ${duration}ms`);
+    console.log(`\n${finalValidation.passed ? '✅' : '⚠'} QualityAssuranceAgent: Complete in ${duration}ms`);
     console.log(`   Fixed: ${totalFixedCount} issues across ${attempt} attempts`);
     console.log(`   Remaining: ${finalValidation.errors.length} errors, ${finalValidation.warnings.length} warnings`);
     
     return {
-      isValid: finalValidation.isValid,
+      isValid: finalValidation.passed,
       files: currentFiles,
       errors: finalValidation.errors,
       warnings: finalValidation.warnings,
-      confidence: finalValidation.confidence,
+      confidence: finalValidation.passed ? 1.0 : 0.0,
       fixedCount: totalFixedCount,
       appliedFixes: allAppliedFixes,
       duration,
