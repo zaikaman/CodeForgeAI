@@ -721,6 +721,7 @@ Root directory:
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Export Vite configuration
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -842,7 +843,7 @@ const response = await fetch('http://localhost:3001/api/chat', {
 \`\`\`
 
 4. **Vite Configuration (vite.config.ts):**
-   - Import defineConfig from vite
+   - Import the defineConfig function from vite package
    - Add React plugin
    - Configure server port (3000)
    - Set build output directory (dist)
@@ -1163,7 +1164,7 @@ app.listen(port, () => {
 \`\`\`
 
 4. **Vite Configuration (vite.config.js):**
-   - Import defineConfig from vite
+   - Import the defineConfig function from vite package
    - Add React plugin
    - Configure server port (3000)
    - Set build output directory (dist)
