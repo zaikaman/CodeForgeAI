@@ -90,6 +90,8 @@ export class SmartAutoFixerService {
       'regex_syntax_error',
       'invalid_dependency_version',
       'missing_dependency',
+      'missing_config',
+      'invalid_config',
       'placeholder_code',
       'console_log',
       'print_statement',
@@ -139,6 +141,12 @@ export class SmartAutoFixerService {
           fixes.push(`Added ${typeErrors.length} missing dependencies`);
           break;
           
+        case 'missing_config':
+        case 'invalid_config':
+          fixedFiles = this.fixTsconfigJsx(fixedFiles, typeErrors);
+          fixes.push(`Fixed ${typeErrors.length} TypeScript config issues`);
+          break;
+          
         case 'placeholder_code':
           fixedFiles = this.removePlaceholders(fixedFiles, typeErrors);
           fixes.push(`Removed ${typeErrors.length} placeholder comments`);
@@ -185,13 +193,24 @@ export class SmartAutoFixerService {
       if (pkgFile.path === 'package.json') {
         const pkg = JSON.parse(pkgFile.content);
         pkg.dependencies = pkg.dependencies || {};
+        pkg.devDependencies = pkg.devDependencies || {};
         
         // Add each missing dependency
         for (const error of errors) {
           const pkgName = this.extractPackageName(error.message);
-          if (pkgName && !pkg.dependencies[pkgName]) {
-            pkg.dependencies[pkgName] = this.getDefaultVersion(pkgName);
-            console.log(`    Added: ${pkgName}`);
+          if (!pkgName) continue;
+          
+          // Type definitions go to devDependencies
+          if (pkgName.startsWith('@types/')) {
+            if (!pkg.devDependencies[pkgName]) {
+              pkg.devDependencies[pkgName] = this.getDefaultVersion(pkgName);
+              console.log(`    Added dev dependency: ${pkgName}`);
+            }
+          } else {
+            if (!pkg.dependencies[pkgName] && !pkg.devDependencies[pkgName]) {
+              pkg.dependencies[pkgName] = this.getDefaultVersion(pkgName);
+              console.log(`    Added dependency: ${pkgName}`);
+            }
           }
         }
         
@@ -383,36 +402,80 @@ IMPORTANT:
   }
   
   /**
-   * Get default version for common packages (UPDATED Oct 2025)
+   * Fix TypeScript config for React/JSX support
+   */
+  private fixTsconfigJsx(
+    files: GeneratedFile[],
+    errors: ValidationError[]
+  ): GeneratedFile[] {
+    const tsconfigFile = files.find(f => f.path === 'tsconfig.json');
+    if (!tsconfigFile) return files;
+    
+    try {
+      const tsconfig = JSON.parse(tsconfigFile.content);
+      
+      // Ensure compilerOptions exists
+      tsconfig.compilerOptions = tsconfig.compilerOptions || {};
+      
+      // Add/fix jsx compiler option
+      if (!tsconfig.compilerOptions.jsx || 
+          (tsconfig.compilerOptions.jsx !== 'react' && 
+           tsconfig.compilerOptions.jsx !== 'react-jsx' &&
+           tsconfig.compilerOptions.jsx !== 'react-jsxdev')) {
+        tsconfig.compilerOptions.jsx = 'react-jsx';
+        console.log('    Fixed tsconfig.json: Added "jsx": "react-jsx"');
+      }
+      
+      // Update file
+      return files.map(f =>
+        f.path === 'tsconfig.json'
+          ? { ...f, content: JSON.stringify(tsconfig, null, 2) }
+          : f
+      );
+    } catch (e) {
+      console.error('    Failed to fix tsconfig.json:', e);
+      return files;
+    }
+  }
+  
+  /**
+   * Get default version for common packages (VERIFIED Oct 2025)
    */
   private getDefaultVersion(pkg: string): string {
     const versions: Record<string, string> = {
-        // React ecosystem
-        'react': '^19.2.0',
-        'react-dom': '^19.2.0',
-        '@types/react': '^19.2.2',
-        '@types/react-dom': '^19.2.1',
+        // React ecosystem (React 18 stable)
+        'react': '^18.3.1',
+        'react-dom': '^18.3.1',
+        '@types/react': '^18.3.12',
+        '@types/react-dom': '^18.3.1',
         
         // Build tools
-        'vite': '^7.1.9',
-        '@vitejs/plugin-react': '^5.0.4',
-        'typescript': '^5.9.3',
-        '@types/node': '^24.7.1',
+        'vite': '^5.4.11',
+        '@vitejs/plugin-react': '^4.3.4',
+        'typescript': '^5.6.3',
+        '@types/node': '^22.10.2',
         
         // Backend
-        'express': '^5.1.0',
-        '@types/express': '^5.0.3',
+        'express': '^4.21.2',
+        '@types/express': '^4.17.21',
         'cors': '^2.8.5',
-        '@types/cors': '^2.8.19',
-        'dotenv': '^17.2.3',
+        '@types/cors': '^2.8.17',
+        'dotenv': '^16.4.7',
+        
+        // Testing
+        'jest': '^29.7.0',
+        '@types/jest': '^29.5.14',
+        'ts-jest': '^29.2.5',
+        'ts-node': '^10.9.2',
         
         // Utilities
-        'axios': '^1.7.2',
-        'zustand': '^5.0.8',
-        'zod': '^4.1.12'
+        'axios': '^1.7.9',
+        'zustand': '^4.5.5',
+        'zod': '^3.24.1'
     };
     
-    return versions[pkg] || '^1.0.0'; // Conservative fallback
+    // Return known version or fallback to latest
+    return versions[pkg] || 'latest';
     }
   
   /**

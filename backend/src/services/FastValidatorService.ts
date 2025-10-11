@@ -443,6 +443,84 @@ export class FastValidatorService {
       }
     }
     
+    // Check for React/TypeScript specific requirements
+    if (packageFile.path === 'package.json' && language === 'typescript') {
+      try {
+        const pkg = JSON.parse(packageFile.content);
+        const reactErrors = this.validateReactTypescriptSetup(files, pkg);
+        errors.push(...reactErrors);
+      } catch {
+        // JSON parse error already caught above
+      }
+    }
+    
+    return errors;
+  }
+  
+  /**
+   * Validate React + TypeScript setup
+   */
+  private validateReactTypescriptSetup(
+    files: GeneratedFile[],
+    pkg: any
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    
+    // Check if project uses React
+    const hasReact = pkg.dependencies?.['react'] || pkg.devDependencies?.['react'];
+    if (!hasReact) return errors;
+    
+    // If React is used, check for @types/react
+    if (!pkg.devDependencies?.['@types/react']) {
+      errors.push({
+        severity: 'critical',
+        type: 'missing_dependency',
+        file: 'package.json',
+        message: 'React project missing @types/react in devDependencies',
+        suggestedFix: 'Add @types/react to devDependencies'
+      });
+    }
+    
+    // Check for @types/react-dom
+    if (pkg.dependencies?.['react-dom'] && !pkg.devDependencies?.['@types/react-dom']) {
+      errors.push({
+        severity: 'critical',
+        type: 'missing_dependency',
+        file: 'package.json',
+        message: 'React project missing @types/react-dom in devDependencies',
+        suggestedFix: 'Add @types/react-dom to devDependencies'
+      });
+    }
+    
+    // Check tsconfig.json for JSX configuration
+    const tsconfigFile = files.find(f => f.path === 'tsconfig.json');
+    if (tsconfigFile) {
+      try {
+        const tsconfig = JSON.parse(tsconfigFile.content);
+        const jsx = tsconfig.compilerOptions?.jsx;
+        
+        if (!jsx) {
+          errors.push({
+            severity: 'critical',
+            type: 'missing_config',
+            file: 'tsconfig.json',
+            message: 'React project missing "jsx" compiler option in tsconfig.json',
+            suggestedFix: 'Add "jsx": "react-jsx" to compilerOptions'
+          });
+        } else if (jsx !== 'react' && jsx !== 'react-jsx' && jsx !== 'react-jsxdev') {
+          errors.push({
+            severity: 'high',
+            type: 'invalid_config',
+            file: 'tsconfig.json',
+            message: `Invalid jsx compiler option "${jsx}" for React project`,
+            suggestedFix: 'Change jsx to "react-jsx" in compilerOptions'
+          });
+        }
+      } catch {
+        // tsconfig.json JSON parse error will be caught elsewhere
+      }
+    }
+    
     return errors;
   }
   
