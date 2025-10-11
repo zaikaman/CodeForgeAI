@@ -715,24 +715,13 @@ Root directory:
 }
 \`\`\`
 
-**CORRECT vite.config.ts:**
-
-\\\`\\\`\\\`typescript
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-// Export Vite configuration
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000,
-    host: true
-  },
-  build: {
-    outDir: 'dist'
-  }
-})
-\\\`\\\`\\\`
+**CORRECT vite.config.ts structure:**
+- Import Vite's defineConfig helper function from 'vite' package
+- Import React plugin from '@vitejs/plugin-react'
+- Export default config object with:
+  * plugins array containing React plugin
+  * server config: port 3000, host true
+  * build config: outDir 'dist'
 
 **WHY VITE + REACT for Calculator/Todo Apps:**
 1. ✅ Zero path configuration - works instantly
