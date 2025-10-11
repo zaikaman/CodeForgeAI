@@ -475,9 +475,19 @@ Return the result as JSON with the following structure:
             const hasPackageJson = validFiles.some((f: any) => f.path === 'package.json');
             const language = request.targetLanguage?.toLowerCase();
             
-            if ((language === 'typescript' || language === 'javascript') && !hasPackageJson) {
+            // Detect static HTML projects (no build tools needed)
+            const hasIndexHtml = validFiles.some((f: any) => f.path === 'index.html');
+            const hasStylesCss = validFiles.some((f: any) => f.path === 'styles.css');
+            const hasTsOrTsxFiles = validFiles.some((f: any) => f.path.endsWith('.ts') || f.path.endsWith('.tsx'));
+            const isStaticHtml = hasIndexHtml && hasStylesCss && !hasTsOrTsxFiles;
+            
+            if ((language === 'typescript' || language === 'javascript') && !hasPackageJson && !isStaticHtml) {
                 console.error('❌ CRITICAL: Missing package.json for TypeScript/JavaScript project');
                 throw new Error('package.json is required for TypeScript/JavaScript projects');
+            }
+            
+            if (isStaticHtml) {
+                console.log('✅ Detected static HTML project - package.json not required');
             }
             
             console.log(`✅ Successfully validated ${validFiles.length} files (filtered out ${response.files.length - validFiles.length} invalid files)`);

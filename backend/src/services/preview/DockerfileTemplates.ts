@@ -194,6 +194,23 @@ function isStaticHtmlSite(files: Array<{ path: string; content: string }>): bool
     return path.endsWith('.css') || path.endsWith('.html') || path.includes('styles');
   });
   
+  // Check for build tools that indicate it's NOT a static site
+  const hasBuildTools = files.some(f => {
+    const path = f.path.toLowerCase();
+    return path === 'package.json' || 
+           path === 'tsconfig.json' || 
+           path === 'vite.config.ts' || 
+           path === 'webpack.config.js' ||
+           path.includes('server.ts') ||
+           path.includes('server.js');
+  });
+  
+  // Check for TypeScript/TSX files (indicates build step needed)
+  const hasTypeScriptFiles = files.some(f => {
+    const path = f.path.toLowerCase();
+    return path.endsWith('.ts') || path.endsWith('.tsx');
+  });
+  
   // Check if there are more HTML/CSS/JS files than backend code
   let staticFileCount = 0;
   let backendFileCount = 0;
@@ -213,11 +230,17 @@ function isStaticHtmlSite(files: Array<{ path: string; content: string }>): bool
   // It's a static site if:
   // 1. Has index.html
   // 2. Has other static assets (CSS, etc.)
-  // 3. Has more static files than backend files
-  const isStatic = hasIndexHtml && hasStaticAssets && (staticFileCount > backendFileCount || backendFileCount === 0);
+  // 3. NO build tools (package.json, tsconfig.json, etc.)
+  // 4. NO TypeScript files
+  // 5. Has more static files than backend files OR no backend files at all
+  const isStatic = hasIndexHtml && 
+                   hasStaticAssets && 
+                   !hasBuildTools && 
+                   !hasTypeScriptFiles &&
+                   (staticFileCount > backendFileCount || backendFileCount === 0);
   
   if (isStatic) {
-    console.log(`✓ Detected static HTML site (${staticFileCount} static files, ${backendFileCount} backend files)`);
+    console.log(`✓ Detected static HTML site (${staticFileCount} static files, ${backendFileCount} backend files, no build tools)`);
   }
   
   return isStatic;
