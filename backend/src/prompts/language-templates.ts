@@ -547,6 +547,13 @@ function handle(e: Event): void { }  // NO!
   * Example: If you use "cors", also add "@types/cors"
   * Example: If you use "express", also add "@types/express"
   * Example: If you use "node" APIs, add "@types/node"
+- **ULTRA CRITICAL - PACKAGE VERSIONS**: ALWAYS verify package versions exist on npm before using them
+  * Use version ranges like ^4.17.0 or ~4.17.0 instead of exact micro versions
+  * For @types packages: Use ^4.17.0 (major.minor.0) NOT ^4.17.25 (specific patch versions often don't exist)
+  * Example CORRECT: "@types/express": "^4.17.0" or "@types/express": "^4.17.21"
+  * Example WRONG: "@types/express": "^4.17.25" ← This version may not exist!
+  * When unsure, use latest major.minor.0 version: "^4.17.0", "^18.2.0", "^20.0.0"
+  * NEVER invent package versions - use only published versions
 - Pin "typescript" in devDependencies to "^5.4.5" (stable release). Never use "latest", "next", beta tags, or unpublished future versions.
 - Include TypeScript configuration
 - Add build scripts (tsc, vite, webpack, esbuild)

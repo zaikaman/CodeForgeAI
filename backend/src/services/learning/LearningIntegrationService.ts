@@ -119,8 +119,16 @@ export class LearningIntegrationService {
       return 'health_check_failed';
     }
     
-    // Build and compile errors
-    if (msg.includes('cannot find module') || msg.includes('module not found')) {
+    // Build and compile errors - Package/dependency errors
+    if (msg.includes('cannot find module') || 
+        msg.includes('module not found') ||
+        msg.includes('no matching version') ||
+        msg.includes('notarget') ||
+        msg.includes('couldn\'t find any versions') ||
+        msg.includes('package not found') ||
+        msg.includes('could not resolve dependency') ||
+        msg.includes('unable to resolve') ||
+        (msg.includes('error') && msg.includes('package') && msg.includes('does not exist'))) {
       return 'missing_dependency';
     }
     if (msg.includes('syntax error') || msg.includes('unexpected token')) {

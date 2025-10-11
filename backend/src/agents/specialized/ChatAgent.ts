@@ -138,7 +138,7 @@ const chatResponseSchema = z.object({
     path: z.string(),
     content: z.string()
   })),
-  summary: z.string()
+  summary: z.string().optional()
 });
 
 export const ChatAgent = async () => {

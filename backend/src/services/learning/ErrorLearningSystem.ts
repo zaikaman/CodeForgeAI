@@ -483,28 +483,46 @@ export class ErrorLearningSystem {
             'cannot find module',
             'module not found',
             'no module named',
-            'modulenotfounderror'
+            'modulenotfounderror',
+            'no matching version',
+            'notarget',
+            'couldn.*t find any versions',
+            'package not found',
+            'could not resolve'
           ],
           commonCauses: [
             'Dependency not listed in package.json or requirements.txt',
             'Import path typo',
-            'Missing devDependencies in production build'
+            'Missing devDependencies in production build',
+            'Invalid package version (version does not exist on npm)',
+            'Typo in package version number'
           ],
           preventionRules: [
             'Always add imports to dependencies in package.json',
             'Use correct import paths relative to project structure',
             'Move build tools from devDependencies to dependencies if needed at runtime',
-            'Double-check spelling of module names'
+            'Double-check spelling of module names',
+            'CRITICAL: Always verify package versions exist on npm before using them',
+            'Use version ranges like ^4.17.0 or ~4.17.0 instead of exact micro versions',
+            'For @types packages, use latest compatible version or omit patch version',
+            'Check npm registry before specifying exact versions (e.g., @types/express@^4.17.21 not ^4.17.25)'
           ],
           fixStrategies: [
             'Add missing module to package.json dependencies',
             'Fix import path to match actual file location',
-            'Move typescript/build tools to dependencies if used in start script'
+            'Move typescript/build tools to dependencies if used in start script',
+            'Correct invalid package version to a version that exists on npm',
+            'Use version range (^X.Y.0) instead of specific patch version',
+            'For @types packages, use ^4.17.0 or latest available version'
           ],
           occurrenceCount: 0,
           successRate: 0.95,
           lastSeen: new Date(),
-          examples: ['Error: Cannot find module \'express\'']
+          examples: [
+            'Error: Cannot find module \'express\'',
+            'npm error notarget No matching version found for @types/express@^4.17.25',
+            'Couldn\'t find any versions for "@types/node" that matches "^20.99.0"'
+          ]
         },
         {
           id: 'pattern_port_binding_001',
