@@ -60,19 +60,47 @@ export function detectLanguageFromFiles(files: Array<{ path: string; content: st
 /**
  * Create Dockerfile for Node.js/TypeScript/JavaScript projects
  */
-export function createNodeDockerfile(): string {
+export function createNodeDockerfile(isStaticSite: boolean = false): string {
+  // For static HTML sites, serve directly with nginx
+  if (isStaticSite) {
+    return `FROM nginx:1.21-alpine
+WORKDIR /usr/share/nginx/html
+COPY . .
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+`;
+  }
+
+  // For Node.js apps with build step
   return `# Stage 1: Build the application
 FROM node:18-alpine AS build
 WORKDIR /app
 COPY . .
 RUN yarn install --frozen-lockfile || npm install
-RUN yarn build || npm run build
+RUN yarn build || npm run build || true
 
-# Stage 2: Serve the application with Nginx
-FROM nginx:1.21-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+# Stage 2: Serve the application
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=build /app .
+
+# If dist/build folder exists, use nginx; otherwise run node server
+RUN if [ -d "dist" ] || [ -d "build" ]; then \\
+      apk add --no-cache nginx && \\
+      mkdir -p /usr/share/nginx/html && \\
+      (cp -r dist/* /usr/share/nginx/html/ 2>/dev/null || cp -r build/* /usr/share/nginx/html/ 2>/dev/null || cp -r . /usr/share/nginx/html/); \\
+    fi
+
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD if [ -d "/usr/share/nginx/html/index.html" ] || [ -f "/usr/share/nginx/html/index.html" ]; then \\
+      nginx -g 'daemon off;'; \\
+    elif [ -f "dist/server.js" ]; then \\
+      node dist/server.js; \\
+    elif [ -f "dist/index.js" ]; then \\
+      node dist/index.js; \\
+    else \\
+      node server.js || node index.js || npm start; \\
+    fi
 `;
 }
 
@@ -128,19 +156,64 @@ CMD if [ -f "main.py" ]; then \\
 }
 
 /**
+ * Check if project is a static HTML site
+ */
+function isStaticHtmlSite(files: Array<{ path: string; content: string }>): boolean {
+  const hasIndexHtml = files.some(f => 
+    f.path === 'index.html' || f.path.endsWith('/index.html')
+  );
+  
+  // Check for typical static site files
+  const hasStaticAssets = files.some(f => {
+    const path = f.path.toLowerCase();
+    return path.endsWith('.css') || path.endsWith('.html') || path.includes('styles');
+  });
+  
+  // Check if there are more HTML/CSS/JS files than backend code
+  let staticFileCount = 0;
+  let backendFileCount = 0;
+  
+  files.forEach(f => {
+    const path = f.path.toLowerCase();
+    if (path.endsWith('.html') || path.endsWith('.css') || 
+        (path.endsWith('.js') && !path.includes('src/') && !path.includes('server'))) {
+      staticFileCount++;
+    }
+    if ((path.includes('server.') || path.includes('app.') || path.includes('api/')) &&
+        (path.endsWith('.ts') || path.endsWith('.js'))) {
+      backendFileCount++;
+    }
+  });
+  
+  // It's a static site if:
+  // 1. Has index.html
+  // 2. Has other static assets (CSS, etc.)
+  // 3. Has more static files than backend files
+  const isStatic = hasIndexHtml && hasStaticAssets && (staticFileCount > backendFileCount || backendFileCount === 0);
+  
+  if (isStatic) {
+    console.log(`✓ Detected static HTML site (${staticFileCount} static files, ${backendFileCount} backend files)`);
+  }
+  
+  return isStatic;
+}
+
+/**
  * Get Dockerfile content based on detected language
  */
-export function getDockerfileForLanguage(language: SupportedLanguage): string {
+export function getDockerfileForLanguage(language: SupportedLanguage, files: Array<{ path: string; content: string }> = []): string {
   switch (language) {
     case 'python':
       return createPythonDockerfile();
     case 'typescript':
     case 'javascript':
-      return createNodeDockerfile();
+      const isStatic = isStaticHtmlSite(files);
+      console.log(`Creating Node Dockerfile (static site: ${isStatic})`);
+      return createNodeDockerfile(isStatic);
     case 'unknown':
     default:
       console.warn('Unknown language, using Node.js Dockerfile as fallback');
-      return createNodeDockerfile();
+      return createNodeDockerfile(false);
   }
 }
 
@@ -149,5 +222,5 @@ export function getDockerfileForLanguage(language: SupportedLanguage): string {
  */
 export function generateDockerfile(files: Array<{ path: string; content: string }>): string {
   const language = detectLanguageFromFiles(files);
-  return getDockerfileForLanguage(language);
+  return getDockerfileForLanguage(language, files);
 }
