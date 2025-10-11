@@ -335,17 +335,24 @@ Your response MUST be a single JSON object with this exact structure:
 
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
-2. ✓ Do NOT wrap JSON in \`\`\`json code fences
-3. ✓ In the "content" field, use LITERAL newline characters (press Enter), NOT \\n escape sequences
-4. ✓ For quotes inside code: use escaped quotes \\" in JSON
-5. ✓ files array must contain at least 1 file object
-6. ✓ Each file must have both "path" and "content" properties
-7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
-8. ✓ **ABSOLUTELY NO EMPTY FILES - content: "" is FORBIDDEN**
-9. ✓ **DO NOT create files like src/index.ts with empty content**
-10. ✓ **DO NOT create .gitkeep files or placeholder files**
-11. ✓ **Every file MUST have actual meaningful code - minimum 10 lines**
-12. ✓ **For web apps: MUST include package.json with dependencies**
+2. ✓ Do NOT wrap JSON in code fences
+3. ✓ **ALWAYS use ACTUAL NEWLINES in content strings** (press Enter key, NOT backslash-n)
+4. ✓ Modern JSON parsers support multi-line strings with real line breaks
+5. ✓ For quotes inside HTML/code: use backslash-quote: \\"
+6. ✓ For backslashes in regex: use double backslash: \\\\
+7. ✓ files array must contain at least 1 file object
+8. ✓ Each file must have both "path" and "content" properties
+9. ✓ **ABSOLUTELY NO EMPTY FILES - content: "" is FORBIDDEN**
+10. ✓ **DO NOT create files like src/index.ts with empty content**
+11. ✓ **DO NOT create .gitkeep files or placeholder files**
+12. ✓ **Every file MUST have actual meaningful code - minimum 10 lines**
+13. ✓ **For web apps: MUST include package.json with dependencies**
+
+**JSON FORMATTING (CRITICAL):**
+- ALWAYS use real newlines (Enter key) in content field for code
+- NEVER mix backslash-n escapes with real newlines
+- Be consistent: use ONLY real newlines throughout entire response
+- Example: Press Enter after each line of code in the content string
 
 ## STATIC HTML LANDING PAGES - SPECIAL RULES:
 
