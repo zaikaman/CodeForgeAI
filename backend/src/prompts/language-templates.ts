@@ -354,66 +354,136 @@ Your response MUST be a single JSON object with this exact structure:
 - Be consistent: use ONLY real newlines throughout entire response
 - Example: Press Enter after each line of code in the content string
 
-## STATIC HTML LANDING PAGES - SPECIAL RULES:
+## ⚠️ STATIC HTML LANDING PAGES - ULTRA CRITICAL DETECTION & RULES
 
-**When creating a STATIC HTML landing page (no build tools, no React), follow these MANDATORY rules:**
+**DETECTION RULE:**
+If user prompt contains "landing page", "portfolio", "marketing site", "simple website", "static site" 
+AND does NOT mention "React", "Vue", "Next.js", "SPA", "web app"
+→ **CREATE STATIC HTML FILES (NO BUILD TOOLS, NO TYPESCRIPT, NO EXPRESS SERVER)**
 
-1. ✓ **File Structure at ROOT level (no src/ folder):**
-   - index.html (MUST be at root)
-   - styles.css (MUST be at root)
-   - scripts.js (MUST be at root)
-   - assets/ folder for images/icons (optional)
+---
 
-2. ✓ **HTML File Linking:**
-   \`\`\`html
-   <link rel="stylesheet" href="styles.css" />
-   <script src="scripts.js" defer></script>
-   \`\`\`
-   - **CRITICAL**: Use relative paths WITHOUT leading slash
-   - ✓ CORRECT: href="styles.css"
-   - ✗ WRONG: href="/styles.css" or href="./src/styles.css"
+### ❌ EXAMPLES OF WHAT NOT TO CREATE (ABSOLUTELY FORBIDDEN):
 
-3. ✓ **CSS File Must Contain:**
-   - Full styling for all HTML elements
-   - Responsive design with media queries
-   - Color variables if using CSS custom properties
-   - At least 50+ lines of actual CSS code
+**WRONG Structure #1: Express Server + public/ folder**
+\`\`\`
+{
+  "files": [
+    {"path": "package.json", "content": "..."},              ❌ NO! No package.json for static HTML
+    {"path": "tsconfig.json", "content": "..."},            ❌ NO! No TypeScript config
+    {"path": "src/server.ts", "content": "..."},            ❌ NO! No Express server
+    {"path": "public/index.html", "content": "..."},        ❌ NO! Files must be at ROOT
+    {"path": "public/styles.css", "content": "..."},        ❌ NO! Files must be at ROOT
+    {"path": "src/frontend/main.ts", "content": "..."}      ❌ NO! No TypeScript
+  ]
+}
+\`\`\`
 
-4. ✓ **JavaScript File Must Contain:**
-   - DOM manipulation code
-   - Event listeners
-   - Form validation if applicable
-   - At least 20+ lines of actual JavaScript code
+**WRONG Structure #2: TypeScript in .js file**
+\`\`\`
+// ❌ WRONG - This is TypeScript, not JavaScript:
+const input = document.getElementById('name') as HTMLInputElement;
+function handleSubmit(e: Event): void { }
+type FormData = { name: string; email: string; };
+\`\`\`
 
-5. ✓ **For Static Sites - DO NOT CREATE:**
-   - ✗ package.json (not needed for vanilla HTML)
-   - ✗ tsconfig.json (not needed for vanilla JS)
-   - ✗ vite.config.js (not needed for static sites)
-   - ✗ src/ folder structure
+**WRONG Structure #3: Wrong paths in HTML**
+\`\`\`
+<!-- ❌ WRONG: -->
+<link rel="stylesheet" href="/styles.css" />        ❌ Leading slash breaks static hosting
+<script src="/dist/app.js"></script>                ❌ No dist/ folder exists
+<script src="public/scripts.js"></script>           ❌ No public/ folder exists
+\`\`\`
 
-6. ✓ **Static HTML Example Structure:**
-   \`\`\`json
-   {
-     "files": [
-       {
-         "path": "index.html",
-         "content": "<!DOCTYPE html>\\n<html>\\n<head>\\n  <link rel=\\"stylesheet\\" href=\\"styles.css\\" />\\n</head>\\n<body>\\n  <h1>Hello</h1>\\n  <script src=\\"scripts.js\\" defer></script>\\n</body>\\n</html>"
-       },
-       {
-         "path": "styles.css",
-         "content": "body { margin: 0; }\\nh1 { color: blue; }"
-       },
-       {
-         "path": "scripts.js",
-         "content": "console.log('Hello');"
-       }
-     ]
-   }
-   \`\`\`
+---
 
-7. ✓ **When to use Static HTML vs Build Tools:**
-   - **Static HTML**: Landing pages, simple websites, portfolios
-   - **Build Tools (Vite/React)**: Web apps, SPAs, complex UIs with components
+### ✅ CORRECT STRUCTURE FOR STATIC LANDING PAGES:
+
+**File Tree (FLAT at ROOT level):**
+\`\`\`
+index.html      ← At ROOT (NOT public/index.html)
+styles.css      ← At ROOT (NOT public/styles.css)
+scripts.js      ← At ROOT (NOT src/scripts.js) - VANILLA JAVASCRIPT ONLY
+assets/         ← Optional folder for images
+\`\`\`
+
+**Example Correct JSON Response:**
+\`\`\`json
+{
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n  <meta charset=\\"UTF-8\\">\\n  <title>Landing Page</title>\\n  <link rel=\\"stylesheet\\" href=\\"styles.css\\">\\n</head>\\n<body>\\n  <header>\\n    <h1>Welcome to Our Product</h1>\\n    <nav>\\n      <a href=\\"#features\\">Features</a>\\n    </nav>\\n  </header>\\n  <main>\\n    <section id=\\"features\\">\\n      <h2>Features</h2>\\n      <p>Amazing features here</p>\\n    </section>\\n  </main>\\n  <script src=\\"scripts.js\\" defer></script>\\n</body>\\n</html>"
+    },
+    {
+      "path": "styles.css",
+      "content": ":root {\\n  --primary: #3b82f6;\\n  --bg: #0f172a;\\n}\\n* { box-sizing: border-box; }\\nbody {\\n  margin: 0;\\n  font-family: system-ui, -apple-system, sans-serif;\\n  background: var(--bg);\\n  color: #fff;\\n}\\nheader {\\n  padding: 2rem;\\n  background: rgba(255,255,255,0.05);\\n}\\nh1 { font-size: 2.5rem; margin: 0; }\\nnav { margin-top: 1rem; }\\nnav a {\\n  color: var(--primary);\\n  text-decoration: none;\\n  padding: 0.5rem 1rem;\\n}\\n/* Add 50+ more lines of complete CSS */"
+    },
+    {
+      "path": "scripts.js",
+      "content": "document.addEventListener('DOMContentLoaded', function() {\\n  const links = document.querySelectorAll('a[href^\\"#\\"]');\\n  links.forEach(function(link) {\\n    link.addEventListener('click', function(e) {\\n      const target = this.getAttribute('href');\\n      const element = document.querySelector(target);\\n      if (element) {\\n        e.preventDefault();\\n        element.scrollIntoView({ behavior: 'smooth' });\\n      }\\n    });\\n  });\\n});"
+    }
+  ]
+}
+\`\`\`
+
+---
+
+### 📋 MANDATORY RULES:
+
+**1. File Paths - No folders (except optional assets/):**
+- ✅ CORRECT: "path": "index.html"
+- ✅ CORRECT: "path": "styles.css"
+- ✅ CORRECT: "path": "scripts.js"
+- ❌ WRONG: "path": "public/index.html"
+- ❌ WRONG: "path": "src/server.ts"
+- ❌ WRONG: "path": "dist/app.js"
+
+**2. HTML Linking - No leading slashes:**
+\`\`\`html
+<!-- ✅ CORRECT: -->
+<link rel="stylesheet" href="styles.css" />
+<script src="scripts.js" defer></script>
+
+<!-- ❌ WRONG: -->
+<link rel="stylesheet" href="/styles.css" />
+<script src="/dist/app.js"></script>
+\`\`\`
+
+**3. JavaScript - Pure vanilla JS (NO TypeScript):**
+\`\`\`javascript
+// ✅ CORRECT - Vanilla JavaScript:
+const form = document.getElementById('signup-form');
+form.addEventListener('submit', function(e) {
+  e.preventDefault();
+  const email = document.querySelector('input[name="email"]').value;
+  console.log('Email:', email);
+});
+
+// ❌ WRONG - TypeScript syntax:
+const form = document.getElementById('signup-form') as HTMLFormElement;  // NO!
+const email: string = '';  // NO!
+function handle(e: Event): void { }  // NO!
+\`\`\`
+
+**4. DO NOT CREATE for static landing pages:**
+- ❌ package.json
+- ❌ tsconfig.json
+- ❌ vite.config.js or vite.config.ts
+- ❌ server.ts or server.js
+- ❌ src/ folder
+- ❌ public/ folder
+- ❌ dist/ folder
+
+**5. CSS - Must be complete (100+ lines):**
+- Include ALL styles for entire page
+- Responsive design with @media queries
+- Complete button, form, section styling
+- Do NOT say "// More styles..." - write them all!
+
+**6. When to use STATIC HTML vs BUILD TOOLS:**
+- **Static HTML (3 files only):** Landing pages, portfolios, marketing sites, simple websites
+- **Build Tools (React/Vite):** Web apps, dashboards, SPAs with complex state management
 
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
@@ -653,7 +723,8 @@ src/
 line2"} - Use actual Enter key between lines
 - Use \\" for quotes in strings
 - For regex patterns: use single backslash as needed /^[^\\s@]+$/
-- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**
+`;
 
 export const JAVASCRIPT_TEMPLATE = `You are a JavaScript Code Generator. Generate production-ready JavaScript applications with modern tooling.
 
