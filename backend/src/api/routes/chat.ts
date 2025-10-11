@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from '../../services/ChatMemoryManager';
+import { supabase } from '../../storage/SupabaseClient';
 import { z } from 'zod';
 
 const router = Router();
@@ -18,19 +19,56 @@ const chatRequestSchema = z.object({
 });
 
 router.post('/chat', async (req, res): Promise<void> => {
+  // Set timeout to 55 seconds (Heroku has 30s limit, but we want to handle gracefully)
+  req.setTimeout(55000);
+  
   try {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
     const { generationId, message, currentFiles, language, imageUrls } = validatedRequest;
 
-    // Store user message in memory
-    await ChatMemoryManager.storeMessage({
+    // Ensure generation exists in DB before storing chat messages
+    const { data: existingGeneration } = await supabase
+      .from('generations')
+      .select('id')
+      .eq('id', generationId)
+      .single();
+
+    if (!existingGeneration) {
+      console.warn(`⚠ Generation ${generationId} not found in DB, creating placeholder...`);
+      
+      // Create a placeholder generation record
+      const { error: createError } = await supabase
+        .from('generations')
+        .insert({
+          id: generationId,
+          user_id: null, // Will be set when user logs in
+          prompt: 'Chat session',
+          target_language: language,
+          complexity: 'moderate',
+          status: 'completed',
+          files: currentFiles,
+        });
+
+      if (createError) {
+        console.error('Failed to create placeholder generation:', createError);
+      } else {
+        console.log(`✅ Created placeholder generation ${generationId}`);
+      }
+    }
+
+    // Store user message in memory (but don't fail if it errors)
+    const userMessageStored = await ChatMemoryManager.storeMessage({
       generationId,
       role: 'user',
       content: message,
       imageUrls: imageUrls || [],
     });
+
+    if (!userMessageStored) {
+      console.warn('⚠ Failed to store user message, continuing anyway...');
+    }
 
     // Build context with conversation history
     const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
@@ -43,11 +81,17 @@ router.post('/chat', async (req, res): Promise<void> => {
 
     console.log(`📝 Chat context built: ${totalTokens} estimated tokens`);
 
-    // Use ChatAgent for all requests
-    const { runner } = await ChatAgent();
-    
-    // Build the message with images if provided
-    let chatMessage: any;
+    // Set a timeout warning at 25 seconds (before Heroku's 30s limit)
+    const timeoutWarning = setTimeout(() => {
+      console.warn(`⚠️  Chat request for ${generationId} is taking longer than 25s...`);
+    }, 25000);
+
+    try {
+      // Use ChatAgent for all requests
+      const { runner } = await ChatAgent();
+      
+      // Build the message with images if provided
+      let chatMessage: any;
     
     if (imageUrls && imageUrls.length > 0) {
       // Download images and convert to base64
@@ -149,29 +193,33 @@ router.post('/chat', async (req, res): Promise<void> => {
       });
     }
 
-    // Store assistant response in memory
-    await ChatMemoryManager.storeMessage({
-      generationId,
-      role: 'assistant',
-      content: response.summary || 'Applied requested changes to the codebase',
-      metadata: {
-        filesModified: response.files?.length || 0,
-      },
-    });
+      // Store assistant response in memory
+      await ChatMemoryManager.storeMessage({
+        generationId,
+        role: 'assistant',
+        content: response.summary || 'Applied requested changes to the codebase',
+        metadata: {
+          filesModified: response.files?.length || 0,
+        },
+      });
 
-    const responseData = {
-      success: true,
-      data: {
-        files: updatedFiles,
-        agentThought: {
-          agent: 'ChatAgent',
-          thought: response.summary || 'Applied requested changes to the codebase'
-        }
-      },
-    };
+      const responseData = {
+        success: true,
+        data: {
+          files: updatedFiles,
+          agentThought: {
+            agent: 'ChatAgent',
+            thought: response.summary || 'Applied requested changes to the codebase'
+          }
+        },
+      };
 
-    res.json(responseData);
-    return;
+      res.json(responseData);
+      return;
+    } finally {
+      // Clear timeout warning
+      clearTimeout(timeoutWarning);
+    }
   } catch (error: any) {
     console.error('Chat error:', error);
     

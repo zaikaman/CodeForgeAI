@@ -134,29 +134,28 @@ export class ChatMemoryManager {
     language: string,
     _imageUrls?: string[]
   ): Promise<{ contextMessage: string; totalTokens: number }> {
-    // Get recent messages (last 20)
-    const recentMessages = await this.getRecentMessages(generationId, this.MAX_MESSAGES);
+    // Get recent messages (last 10 for performance - reduced from 20)
+    const recentMessages = await this.getRecentMessages(generationId, 10);
 
-    // Build conversation history
+    // Build conversation history (more concise format)
     let conversationHistory = '';
     let historyTokens = 0;
 
     if (recentMessages.length > 0) {
-      conversationHistory = '\n\n=== CONVERSATION HISTORY (Last 20 messages) ===\n\n';
+      conversationHistory = '\n\n=== RECENT CONVERSATION ===\n';
       
       for (const msg of recentMessages) {
-        const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString() : '';
-        conversationHistory += `[${timestamp}] ${msg.role.toUpperCase()}: ${msg.content}\n`;
+        // More concise format without timestamp
+        conversationHistory += `${msg.role === 'user' ? '👤' : '🤖'}: ${msg.content}\n`;
         
         if (msg.imageUrls && msg.imageUrls.length > 0) {
-          conversationHistory += `  (with ${msg.imageUrls.length} image(s))\n`;
+          conversationHistory += `  📎 ${msg.imageUrls.length} image(s)\n`;
         }
-        conversationHistory += '\n';
         
         historyTokens += msg.tokenCount || this.estimateTokens(msg.content);
       }
       
-      conversationHistory += '=== END CONVERSATION HISTORY ===\n\n';
+      conversationHistory += '=== END HISTORY ===\n\n';
     }
 
     // Build current files context
