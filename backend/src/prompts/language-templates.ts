@@ -604,6 +604,7 @@ function handle(e: Event): void { }  // NO!
 \`\`\`typescript
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -622,6 +623,117 @@ app.post('/api/data', (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log('Server running on port ' + PORT);
+});
+\`\`\`
+
+**CRITICAL: Express.js Server with Frontend (Calculator/Todo/Web Apps):**
+
+When building TypeScript apps with BOTH backend API and frontend UI:
+
+\`\`\`typescript
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ESM __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// API routes FIRST (before static files)
+app.post('/api/eval', (req: Request, res: Response) => {
+  const expr = req.body?.expression;
+  if (typeof expr !== 'string') {
+    res.status(400).json({ ok: false, error: 'Expression must be a string' });
+    return;
+  }
+  try {
+    // Your logic here
+    const result = evaluateExpression(expr);
+    res.json({ ok: true, result });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: 'Error message' });
+  }
+});
+
+// Serve static files from PARENT directory (where index.html is)
+// CRITICAL: Static files must be at same level as dist/ folder
+app.use(express.static(path.join(__dirname, '..')));
+
+// Fallback to index.html for SPA routing
+app.get('*', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(\`Server running on port \${PORT}\`);
+});
+\`\`\`
+
+**CRITICAL FILE STRUCTURE for TypeScript Apps with Frontend:**
+
+\`\`\`
+Root directory:
+├── index.html           ← MUST be at ROOT (NOT in dist/ or src/)
+├── styles.css           ← MUST be at ROOT (NOT in dist/ or src/)
+├── package.json         ← At ROOT
+├── tsconfig.json        ← At ROOT
+├── src/
+│   ├── server.ts        ← Express server
+│   ├── shared/
+│   │   └── evaluator.ts ← Shared logic (used by both server and frontend)
+│   └── frontend/
+│       └── main.ts      ← Frontend TypeScript (compiled to dist/frontend/main.js)
+└── dist/                ← Output from TypeScript compilation
+    ├── server.js        ← Compiled server
+    ├── shared/
+    │   └── evaluator.js
+    └── frontend/
+        └── main.js      ← Compiled frontend
+\`\`\`
+
+**CRITICAL: HTML file MUST reference compiled JS correctly:**
+
+\`\`\`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TypeScript App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="root"></div>
+  <!-- CRITICAL: Path must match compiled output in dist/ -->
+  <script type="module" src="dist/frontend/main.js"></script>
+</body>
+</html>
+\`\`\`
+
+**CRITICAL: Server static file serving:**
+
+\`\`\`typescript
+// ✓ CORRECT - Serve from parent directory (where index.html is)
+app.use(express.static(path.join(__dirname, '..')));
+
+// ✗ WRONG - This serves from dist/ folder (index.html is NOT in dist/)
+app.use(express.static(path.join(__dirname)));
+
+// ✗ WRONG - This looks for dist/dist/index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// ✓ CORRECT - Fallback to index.html at parent level
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 \`\`\`
 
@@ -721,6 +833,63 @@ src/
   components/       (UI components)
   styles.css        (Styling)
 \`\`\`
+
+7. **File structure for TypeScript Express + Frontend (Calculator/Todo apps):**
+\`\`\`
+index.html          (MANDATORY - at ROOT, NOT in dist/ or src/)
+styles.css          (MANDATORY - at ROOT, NOT in dist/ or src/)
+package.json        (At ROOT)
+tsconfig.json       (At ROOT)
+src/
+  server.ts         (Express server - serves static files from parent dir)
+  shared/
+    evaluator.ts    (Shared logic between server and frontend)
+  frontend/
+    main.ts         (Frontend TypeScript)
+dist/               (Compiled output from tsc)
+  server.js         (Compiled server)
+  shared/
+    evaluator.js
+  frontend/
+    main.js
+\`\`\`
+
+**CRITICAL: HTML script path must match compiled output:**
+- ✓ CORRECT: \`<script type="module" src="dist/frontend/main.js"></script>\`
+- ✗ WRONG: \`<script type="module" src="frontend/main.js"></script>\`
+- ✗ WRONG: \`<script type="module" src="/src/frontend/main.ts"></script>\`
+
+**CRITICAL: Server static file serving:**
+- ✓ Server compiled to: \`dist/server.js\`
+- ✓ Static files location: ROOT directory (where index.html is)
+- ✓ Server serves from: \`path.join(__dirname, '..')\` (parent of dist/)
+- ✗ NEVER serve from: \`path.join(__dirname)\` (would look in dist/ folder)
+
+**CRITICAL: tsconfig.json must have correct paths:**
+\`\`\`json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+\`\`\`
+
+This compiles:
+- \`src/server.ts\` → \`dist/server.js\`
+- \`src/frontend/main.ts\` → \`dist/frontend/main.js\`
+- \`src/shared/evaluator.ts\` → \`dist/shared/evaluator.js\`
 
 **CRITICAL RULES for TypeScript Projects:**
 1. ✓ **MUST create package.json in root directory (ABSOLUTELY MANDATORY)**
