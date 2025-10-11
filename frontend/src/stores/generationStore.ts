@@ -39,6 +39,8 @@ interface GenerationState {
   updateGenerationFiles: (generationId: string, files: Array<{ path: string; content: string }>) => void
   setIsGenerating: (isGenerating: boolean) => void
   addMessageToGeneration: (generationId: string, message: AgentMessage) => void
+  loadHistoryFromBackend: () => Promise<void>
+  setHistory: (history: GenerationHistoryEntry[]) => void
 }
 
 export const useGenerationStore = create<GenerationState>()(
@@ -295,6 +297,55 @@ export const useGenerationStore = create<GenerationState>()(
             agentMessages: updatedAgentMessages,
           };
         });
+      },
+
+      // Load history from backend (Supabase)
+      loadHistoryFromBackend: async () => {
+        try {
+          const apiClient = (await import('../services/apiClient')).default;
+          const response = await apiClient.getHistory();
+          
+          if (response.success && response.data) {
+            // Merge backend history with local history
+            // Backend is source of truth, but keep any local pending generations
+            const { history: localHistory } = get();
+            const pendingLocal = localHistory.filter(
+              (local) => local.status === 'generating' || local.status === 'pending'
+            );
+
+            // Convert backend data to GenerationHistoryEntry format
+            const backendHistory: GenerationHistoryEntry[] = response.data.map((item: any) => ({
+              id: item.id,
+              prompt: item.request.prompt,
+              request: item.request,
+              response: item.response,
+              status: item.status,
+              error: item.error,
+              agentMessages: item.agentMessages || [],
+              startedAt: new Date(item.startedAt),
+              completedAt: item.completedAt ? new Date(item.completedAt) : undefined,
+              duration: item.duration,
+            }));
+
+            // Merge: backend history + local pending (that aren't in backend yet)
+            const backendIds = new Set(backendHistory.map((h) => h.id));
+            const uniquePendingLocal = pendingLocal.filter((local) => !backendIds.has(local.id));
+
+            set({
+              history: [...uniquePendingLocal, ...backendHistory],
+            });
+
+            console.log(`[GenerationStore] Loaded ${backendHistory.length} generations from backend`);
+          }
+        } catch (error) {
+          console.error('[GenerationStore] Failed to load history from backend:', error);
+          // Keep local history if backend fetch fails
+        }
+      },
+
+      // Set history directly (useful for sync operations)
+      setHistory: (history: GenerationHistoryEntry[]) => {
+        set({ history });
       },
     }),
     {
