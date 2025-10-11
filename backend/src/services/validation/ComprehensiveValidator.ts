@@ -415,7 +415,19 @@ export class ComprehensiveValidator {
     const errors: ValidationError[] = [];
     const packageJson = files.find(f => f.path === 'package.json');
 
+    // Check if this is a static HTML project (no build tools needed)
+    const hasIndexHtml = files.some(f => f.path === 'index.html');
+    const hasStylesCss = files.some(f => f.path === 'styles.css' || f.path.endsWith('.css'));
+    const hasTsOrTsxFiles = files.some(f => f.path.endsWith('.ts') || f.path.endsWith('.tsx'));
+    const isStaticHtml = hasIndexHtml && hasStylesCss && !hasTsOrTsxFiles;
+
     if (!packageJson) {
+      // Skip package.json requirement for static HTML projects
+      if (isStaticHtml) {
+        console.log('ℹ️ Static HTML project detected - skipping package.json requirement');
+        return errors;
+      }
+      
       errors.push({
         severity: 'critical',
         layer: 'static',

@@ -260,6 +260,12 @@ export function getDockerfileForLanguage(language: SupportedLanguage, files: Arr
       return createNodeDockerfile(isStatic);
     case 'unknown':
     default:
+      // Check if it's a static HTML site even if language is unknown
+      const isStaticUnknown = isStaticHtmlSite(files);
+      if (isStaticUnknown) {
+        console.log('Unknown language but detected static HTML site - using nginx');
+        return createNodeDockerfile(true);
+      }
       console.warn('Unknown language, using Node.js Dockerfile as fallback');
       return createNodeDockerfile(false);
   }
