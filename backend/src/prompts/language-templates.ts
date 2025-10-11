@@ -634,10 +634,10 @@ When building TypeScript apps with BOTH backend API and frontend UI:
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import url from 'url';
 
-// ESM __dirname equivalent
-const __filename = fileURLToPath(import.meta.url);
+// ESM __dirname equivalent for ES modules
+const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
