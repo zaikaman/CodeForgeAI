@@ -163,8 +163,10 @@ class ApiClient {
             // Check if response looks like HTML
             if (data.trim().startsWith('<!DOCTYPE') || data.trim().startsWith('<html')) {
               console.warn('⚠️ [apiClient] Received HTML response instead of JSON')
+              console.warn('⚠️ [apiClient] HTML preview:', data.substring(0, 500))
               return {
                 success: false,
+                data: null,
                 error: 'Server returned HTML instead of JSON. Backend may not be available.',
                 isHtmlResponse: true
               }
@@ -175,8 +177,10 @@ class ApiClient {
               return JSON.parse(data)
             } catch (e) {
               console.error('❌ [apiClient] Failed to parse response as JSON:', e)
+              console.error('❌ [apiClient] Raw data preview:', data.substring(0, 500))
               return {
                 success: false,
+                data: null,
                 error: 'Invalid JSON response from server',
                 rawData: data.substring(0, 200)
               }

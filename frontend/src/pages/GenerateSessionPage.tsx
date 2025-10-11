@@ -89,16 +89,34 @@ export const GenerateSessionPage: React.FC = () => {
           hasSuccess: 'success' in response,
           hasData: 'data' in response,
           successValue: response.success,
+          dataType: typeof response.data,
+          dataValue: response.data,
           dataKeys: response.data ? Object.keys(response.data) : 'NO DATA',
           fullResponse: response,
         });
         
         if (!response.success || !response.data) {
           // Failed to get status
+          console.error('❌ Failed to get generation status:', {
+            success: response.success,
+            hasData: !!response.data,
+            error: response.error,
+            rawData: (response as any).rawData,
+            isHtmlResponse: (response as any).isHtmlResponse,
+          });
+          
           if (response.error?.includes('Authentication required')) {
             console.error('❌ Authentication required - user may need to log in again');
             setTimeout(() => navigate('/login'), 2000);
             return;
+          }
+          
+          // If this is an HTML response or parse error, the backend might be having issues
+          // Don't redirect immediately - let the retry/backoff logic handle it
+          if ((response as any).isHtmlResponse || response.error?.includes('Invalid JSON')) {
+            console.warn('⚠️ Backend response issue - will retry with backoff...');
+            // Don't return here - let the catch block's retry logic handle it
+            throw new Error(response.error || 'Invalid response from server');
           }
           
           // Generation not found
