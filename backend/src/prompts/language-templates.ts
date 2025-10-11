@@ -25,31 +25,43 @@ Your response MUST be a single JSON object with this exact structure:
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
 2. ✓ Do NOT wrap JSON in \`\`\`json code fences
-3. ✓ In the "content" field, use LITERAL newline characters (press Enter), NOT \\n escape sequences
-4. ✓ For quotes inside code: use escaped quotes \\" in JSON
-5. ✓ files array must contain at least 1 file object
-6. ✓ Each file must have both "path" and "content" properties
-7. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
-8. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
-9. ✓ **Every file MUST have actual meaningful content - no empty strings**
+3. ✓ **NEVER USE \\n - Use ACTUAL newline characters (press Enter key) in the JSON content field**
+4. ✓ **Write code with REAL line breaks, NOT \\n escape sequences**
+5. ✓ For quotes inside code: use escaped quotes \\" in JSON
+6. ✓ files array must contain at least 1 file object
+7. ✓ Each file must have both "path" and "content" properties
+8. ✓ Format: Write clean, readable code with proper line breaks IN the JSON string
+9. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
+10. ✓ **Every file MUST have actual meaningful content - no empty strings**
 
-**Example valid response (use real newlines in JSON, not \\n text):**
+**Example valid response (ACTUAL newlines, press Enter key):**
 \`\`\`json
 {
   "files": [
     {
       "path": "app.py",
-      "content": "from flask import Flask\n\napp = Flask(__name__)\n\n@app.route('/')\ndef home():\n    return 'Hello'\n\nif __name__ == '__main__':\n    app.run(host='0.0.0.0', port=8080)"
+      "content": "from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return 'Hello'
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)"
     },
     {
       "path": "requirements.txt",
-      "content": "Flask>=2.2.0\nWerkzeug>=2.3.0\nflask-cors>=4.0.0"
+      "content": "Flask>=2.2.0
+Werkzeug>=2.3.0
+flask-cors>=4.0.0"
     }
   ]
 }
 \`\`\`
 
-**CRITICAL**: In JSON, the content string MUST use ACTUAL \\n escape sequences (the JSON escape), not the literal text "\\n". When you write code in the content field, press Enter/newline and the JSON serializer will convert it to \\n automatically. DO NOT manually type backslash-n.
+**CRITICAL**: DO NOT use \\n in the content field. Press the Enter key to create ACTUAL newlines. The JSON must have real line breaks in the content strings, NOT escape sequences.
 
 ## CRITICAL REQUIREMENTS:
 
@@ -225,13 +237,13 @@ def process():
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
-- Example: {"content": "line1\\nline2"} becomes two lines when parsed
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
+- Example: {"content": "line1
+line2"} - Use actual Enter key between lines
 - Use \\" for quotes in strings
-- Single backslash for regex: /^[^\\s@]+$/
-- NO double-escaping: \\\\n is WRONG
+- For regex patterns: use single backslash as needed /^[^\\s@]+$/
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**
 
 ### COMMON ERRORS TO AVOID:
 
@@ -563,13 +575,13 @@ src/
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
-- Example: {"content": "line1\\nline2"} becomes two lines when parsed
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
+- Example: {"content": "line1
+line2"} - Use actual Enter key between lines
 - Use \\" for quotes in strings
-- Single backslash for regex: /^[^\\s@]+$/
-- NO double-escaping: \\\\n is WRONG`;
+- For regex patterns: use single backslash as needed /^[^\\s@]+$/
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
 
 export const JAVASCRIPT_TEMPLATE = `You are a JavaScript Code Generator. Generate production-ready JavaScript applications with modern tooling.
 
@@ -767,13 +779,13 @@ src/
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
-- Example: {"content": "line1\\nline2"} becomes two lines when parsed
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
+- Example: {"content": "line1
+line2"} - Use actual Enter key between lines
 - Use \\" for quotes in strings
-- Single backslash for regex: /^[^\\s@]+$/
-- NO double-escaping: \\\\n is WRONG`;
+- For regex patterns: use single backslash as needed /^[^\\s@]+$/
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
 
 export const JAVA_TEMPLATE = `You are a Java Code Generator. Generate production-ready Java applications with Spring Boot or similar frameworks.
 
@@ -879,11 +891,12 @@ class Response {
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
 - Use \\" for quotes in strings
-- Proper XML escaping for pom.xml`;
+- For regex patterns: use single backslash as needed
+- Proper XML escaping for pom.xml
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
 
 export const GO_TEMPLATE = `You are a Go Code Generator. Generate production-ready Go applications with web servers.
 
@@ -971,10 +984,11 @@ require (
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
-- Use \\" for quotes in strings`;
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
+- Use \\" for quotes in strings
+- For regex patterns: use single backslash as needed
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
 
 export const RUST_TEMPLATE = `You are a Rust Code Generator. Generate production-ready Rust applications with web servers.
 
@@ -1066,10 +1080,11 @@ tokio = { version = "1", features = ["full"] }
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
-- Use \\" for quotes in strings`;
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
+- Use \\" for quotes in strings
+- For regex patterns: use single backslash as needed
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
 
 export const PHP_TEMPLATE = `You are a PHP Code Generator. Generate production-ready PHP applications with web servers.
 
@@ -1149,10 +1164,11 @@ php -S 0.0.0.0:8080
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**
-- In the JSON "content" field, use \\n (backslash-n) for ACTUAL newlines
-- This is a JSON escape sequence that represents a real newline character
-- DO NOT type the literal text "backslash-n" - use the escape sequence \\n
-- Use \\" for quotes in strings`;
+- **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+- Write code with REAL line breaks, NOT escape sequences
+- Use \\" for quotes in strings
+- For regex patterns: use single backslash as needed
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**`;
 
 /**
  * Base prompt shared across all languages
@@ -1203,53 +1219,54 @@ export const BASE_PROMPT = `
 5. ✓ **Every file MUST have meaningful, functional code**
 6. ✓ **If a directory needs to exist, create a real file in it instead**
 
-### JSON Output Escaping (ULTRA CRITICAL - READ CAREFULLY):
+### JSON Output Format (ULTRA CRITICAL - READ CAREFULLY):
 
-**IMPORTANT:** Your response MUST be valid JSON. The "content" field of each file must be a properly escaped JSON string.
+**IMPORTANT:** Your response MUST be valid JSON. The "content" field of each file contains ACTUAL newlines.
 
 **CRITICAL RULE FOR NEWLINES:**
-- In JSON strings, newlines MUST be represented as \\n (the JSON escape sequence)
-- \\n is TWO characters: backslash followed by the letter 'n'
-- When JSON is parsed, \\n becomes an actual newline character
-- DO NOT write the literal text "backslash-n" - use the actual escape sequence
+- **NEVER use \\n escape sequences in the content field**
+- Press Enter key to create ACTUAL newline characters
+- The JSON will have real line breaks in the content strings
+- Modern JSON parsers handle multi-line strings perfectly
 
 **How to format file content:**
-1. All newlines in code → \\n (JSON escape for newline)
+1. All newlines in code → Press Enter key (ACTUAL newlines, NOT \\n)
 2. All quotes in code → \\" (JSON escape for quote)
-3. All backslashes in code → \\\\ ONLY if it's a real backslash (like Windows paths or escape sequences)
-4. Regex patterns → SINGLE backslash: \\s \\d \\w (these are the actual regex escapes)
+3. For regex patterns: use single backslash as needed /^[^\\s@]+$/
 
 **CORRECT JSON format example:**
 {
   "files": [
     {
       "path": "app.py",
-      "content": "from flask import Flask\\n\\napp = Flask(__name__)\\n\\n@app.route('/')\\ndef home():\\n    return 'Hello'\\n"
+      "content": "from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return 'Hello'
+"
     }
   ]
 }
 
-When this JSON is parsed, the newlines \\n become actual line breaks in the code.
+Notice: The content field has ACTUAL newlines (Enter key pressed), NOT \\n escape sequences.
 
-**WRONG - literal newlines break JSON:**
+**WRONG - using \\n escapes:**
 DO NOT write:
+{"content": "line1\\nline2"}
+
+DO write:
 {"content": "line1
 line2"}
 
-DO write:
-{"content": "line1\\nline2"}
-
-**WRONG - double-escaped newlines:**
-DO NOT write:
-{"content": "line1\\\\nline2"}  ← This creates literal backslash-n text
-
-The entire response must be parseable as JSON. Test mentally: can JSON.parse() handle this?
+The entire response must be valid JSON with real newlines in content strings.
 
 Example regex in JSON response (single backslash for regex escapes):
 {"content": "const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;"}
 
-NOT like this (wrong - double-escaped):
-{"content": "const emailRegex = /^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$/;"}
+**REMEMBER: No \\n anywhere - only ACTUAL newlines created with Enter key**
 `;
 
 /**

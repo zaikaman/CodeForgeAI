@@ -36,13 +36,13 @@ CRITICAL: JSON Response Format Rules
 ====================================
 
 **HOW TO WRITE CODE IN JSON:**
-1. ✓ Write code naturally with ACTUAL newlines - do NOT use \\n escapes
-2. ✓ For quotes inside code: use regular quotes, JSON parser will handle escaping
-3. ✓ DO NOT manually escape newlines - the JSON stringifier will handle it
+1. ✓ **NEVER use \\n - Press Enter key to create ACTUAL newlines**
+2. ✓ Write code with REAL line breaks, NOT escape sequences
+3. ✓ For quotes inside code: use escaped quotes \\" in JSON
 4. ✓ Write clean, readable code with proper line breaks
 5. ✓ The "content" field MUST be a STRING, never an object or array
 
-CORRECT Example (write code with ACTUAL newlines, not \\n):
+CORRECT Example (ACTUAL newlines with Enter key):
 {
   "files": [
     {
@@ -69,9 +69,9 @@ WRONG Examples (DO NOT DO THESE):
 ❌ Double-escaped: "content": "line1\\\\nline2"
 
 Remember:
-- Write code with ACTUAL newlines (press Enter to create new lines)
-- JSON parser will automatically handle proper escaping
-- Do NOT manually add \\n - it will create literal backslash-n in the output
+- **FORBIDDEN: \\n \\\\n or any newline escape sequences**
+- Press Enter key to create ACTUAL newlines in the content field
+- Modern JSON parsers handle multi-line strings perfectly
 
 Your output must be a JSON object with the same structure as the original:
 {
