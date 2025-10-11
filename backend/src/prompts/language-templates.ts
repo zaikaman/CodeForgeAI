@@ -622,7 +622,7 @@ app.post('/api/data', (req: Request, res: Response) => {
 });
 
 app.listen(port, () => {
-  console.log(\`Server running on port \${port}\`);
+  console.log('Server running on port ' + port);
 });
 \`\`\`
 
@@ -672,7 +672,7 @@ app.get('*', (req: Request, res: Response) => {
 });
 
 app.listen(port, () => {
-  console.log(\`Server running on port \${port}\`);
+  console.log('Server running on port ' + port);
 });
 \`\`\`
 
@@ -1076,7 +1076,7 @@ app.post('/api/data', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(\`Server running on port \${port}\`);
+  console.log('Server running on port ' + port);
 });
 \`\`\`
 
