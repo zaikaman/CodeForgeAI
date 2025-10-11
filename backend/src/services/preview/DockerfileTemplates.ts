@@ -68,28 +68,25 @@ export function createNodeDockerfile(isStaticSite: boolean = false): string {
 # Copy all files to nginx html directory
 COPY . /usr/share/nginx/html/
 
-# Create a simple nginx config file
-RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
-server {
-    listen 80;
-    server_name _;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html =404;
-    }
-
-    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Enable gzip compression
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-}
-EOF
+# Create nginx config using printf to avoid heredoc issues
+RUN printf 'server {\\n\\
+    listen 80;\\n\\
+    server_name _;\\n\\
+    root /usr/share/nginx/html;\\n\\
+    index index.html;\\n\\
+\\n\\
+    location / {\\n\\
+        try_files \\$uri \\$uri/ /index.html =404;\\n\\
+    }\\n\\
+\\n\\
+    location ~* \\\\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)\\$ {\\n\\
+        expires 1y;\\n\\
+        add_header Cache-Control "public, immutable";\\n\\
+    }\\n\\
+\\n\\
+    gzip on;\\n\\
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;\\n\\
+}' > /etc/nginx/conf.d/default.conf
 
 # Fix permissions
 RUN chmod -R 755 /usr/share/nginx/html
