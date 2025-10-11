@@ -382,11 +382,34 @@ Your response MUST be a single JSON object with this exact structure:
 - Add build scripts (tsc, vite, webpack, esbuild)
 - Common packages: express, cors, dotenv
 
-### TypeScript Configuration:
-- Include tsconfig.json with proper compiler options
+### TypeScript Configuration (ABSOLUTELY MANDATORY):
+- **CRITICAL**: ALWAYS create tsconfig.json file - build will FAIL without it
+- **CRITICAL**: tsconfig.json must be at ROOT directory level
 - Use strict mode
 - Enable esModuleInterop
 - Set target to ES2020 or later
+- **Without tsconfig.json, TypeScript compiler (tsc) will show help text and fail**
+
+**tsconfig.json Template (MANDATORY for ALL TypeScript projects):**
+\`\`\`json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+\`\`\`
 
 ### Code Standards:
 - Use camelCase for functions and variables
@@ -521,18 +544,22 @@ src/
   styles.css        (Styling)
 \`\`\`
 
-**CRITICAL RULES for Web UIs:**
+**CRITICAL RULES for TypeScript Projects:**
 1. ✓ **MUST create package.json in root directory (ABSOLUTELY MANDATORY)**
-2. ✓ ALWAYS create index.html in root directory (NOT in subdirectories)
-3. ✓ index.html MUST have <div id="root"></div> for React
-4. ✓ index.html MUST have <script type="module" src="/src/main.tsx"></script>
-5. ✓ Include vite.config.ts with proper plugins
-6. ✓ Build script must be "vite build" (TypeScript is compiled by Vite automatically)
-7. ✓ For calculator/todo/UI apps, use React + Vite setup
-8. ✓ **DO NOT create nested folders like frontend/, backend/, client/, server/**
-9. ✓ **Use FLAT file structure with all config files at root level**
-10. ✓ **DO NOT create empty files - every file must have real code**
-11. ✓ **NEVER create files like src/index.ts with empty content: ""**
+2. ✓ **MUST create tsconfig.json in root directory (ABSOLUTELY MANDATORY)**
+3. ✓ **Without tsconfig.json, "tsc" command will FAIL with help text**
+4. ✓ **For web UIs: ALWAYS create index.html in root directory (NOT in subdirectories)**
+5. ✓ index.html MUST have <div id="root"></div> for React
+6. ✓ index.html MUST have <script type="module" src="/src/main.tsx"></script>
+7. ✓ Include vite.config.ts with proper plugins for React/Vue apps
+8. ✓ Build script for Vite: "vite build" (Vite compiles TypeScript automatically)
+9. ✓ Build script for Node.js: "tsc" (requires tsconfig.json)
+10. ✓ For calculator/todo/UI apps, use React + Vite setup
+11. ✓ **DO NOT create nested folders like frontend/, backend/, client/, server/**
+12. ✓ **Use FLAT file structure with all config files at root level**
+13. ✓ **DO NOT create empty files - every file must have real code**
+14. ✓ **NEVER create files like src/index.ts with empty content: ""**
+15. ✓ **For Express/Fastify servers: MUST have tsconfig.json + package.json**
 
 ### JSON Output Format (CRITICAL):
 **HOW TO FORMAT NEWLINES:**

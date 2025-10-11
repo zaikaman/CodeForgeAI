@@ -113,19 +113,6 @@ export const GenerateSessionPage: React.FC = () => {
     }
   }, [generation]);
 
-  // Auto-generate preview when generation completes (first time only, not on updates)
-  useEffect(() => {
-    const shouldGeneratePreview = generation?.response?.files && 
-                                  generation.response.files.length > 0 &&
-                                  !isGeneratingPreview &&
-                                  !hasGeneratedInitialPreview;
-
-    if (shouldGeneratePreview) {
-      // Generate preview automatically on initial load (will use cached if exists)
-      handlePreview(false); // false = don't force regenerate
-    }
-  }, [generation?.response?.files, hasGeneratedInitialPreview]);
-
   const handleSelectFile = (file: { path: string; content: string }) => {
     setSelectedFile(file);
   };
@@ -197,6 +184,12 @@ export const GenerateSessionPage: React.FC = () => {
       const data = await response.json();
 
       if (data.success && data.data) {
+        // Set preview URL if available
+        if (data.data.previewUrl && !previewUrl) {
+          setPreviewUrl(withCacheBust(data.data.previewUrl));
+          setActiveTab('preview'); // Switch to preview tab
+        }
+
         if (data.data.ready) {
           setDeploymentStatus('ready');
           // Force iframe refresh with new key
@@ -207,14 +200,14 @@ export const GenerateSessionPage: React.FC = () => {
             pollingIntervalRef.current = null;
           }
           console.log('✅ Deployment is ready and live');
-        } else {
+        } else if (data.data.previewUrl) {
           setDeploymentStatus('deploying');
         }
       }
     } catch (error) {
       console.error('Failed to check deployment status:', error);
     }
-  }, []);
+  }, [previewUrl]);
 
   // Start polling when preview URL is set
   useEffect(() => {
@@ -246,8 +239,32 @@ export const GenerateSessionPage: React.FC = () => {
     };
   }, [previewUrl, deploymentStatus, id, pollDeploymentStatus]);
 
+  // Check deployment status when generation completes
+  // Backend auto-deploys after generation, so we just need to check for existing preview
+  useEffect(() => {
+    const shouldCheckStatus = generation?.response?.files && 
+                              generation.response.files.length > 0 &&
+                              !hasGeneratedInitialPreview &&
+                              generation.id;
+
+    if (shouldCheckStatus) {
+      // Mark as checked to avoid repeated calls
+      setHasGeneratedInitialPreview(true);
+      
+      // Check if preview already exists from backend auto-deploy
+      pollDeploymentStatus(generation.id);
+    }
+  }, [generation?.response?.files, hasGeneratedInitialPreview, generation?.id, pollDeploymentStatus]);
+
   const handlePreview = async (forceRegenerate: boolean = false) => {
     if (generation && generation.response?.files && !isGeneratingPreview) {
+      // If preview already exists and not forcing regenerate, just check status
+      if (previewUrl && !forceRegenerate) {
+        console.log('Preview already exists, checking deployment status...');
+        pollDeploymentStatus(generation.id);
+        return;
+      }
+
       setIsGeneratingPreview(true);
       setDeploymentStatus('deploying');
       
