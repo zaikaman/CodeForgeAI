@@ -347,6 +347,67 @@ Your response MUST be a single JSON object with this exact structure:
 11. ✓ **Every file MUST have actual meaningful code - minimum 10 lines**
 12. ✓ **For web apps: MUST include package.json with dependencies**
 
+## STATIC HTML LANDING PAGES - SPECIAL RULES:
+
+**When creating a STATIC HTML landing page (no build tools, no React), follow these MANDATORY rules:**
+
+1. ✓ **File Structure at ROOT level (no src/ folder):**
+   - index.html (MUST be at root)
+   - styles.css (MUST be at root)
+   - scripts.js (MUST be at root)
+   - assets/ folder for images/icons (optional)
+
+2. ✓ **HTML File Linking:**
+   \`\`\`html
+   <link rel="stylesheet" href="styles.css" />
+   <script src="scripts.js" defer></script>
+   \`\`\`
+   - **CRITICAL**: Use relative paths WITHOUT leading slash
+   - ✓ CORRECT: href="styles.css"
+   - ✗ WRONG: href="/styles.css" or href="./src/styles.css"
+
+3. ✓ **CSS File Must Contain:**
+   - Full styling for all HTML elements
+   - Responsive design with media queries
+   - Color variables if using CSS custom properties
+   - At least 50+ lines of actual CSS code
+
+4. ✓ **JavaScript File Must Contain:**
+   - DOM manipulation code
+   - Event listeners
+   - Form validation if applicable
+   - At least 20+ lines of actual JavaScript code
+
+5. ✓ **For Static Sites - DO NOT CREATE:**
+   - ✗ package.json (not needed for vanilla HTML)
+   - ✗ tsconfig.json (not needed for vanilla JS)
+   - ✗ vite.config.js (not needed for static sites)
+   - ✗ src/ folder structure
+
+6. ✓ **Static HTML Example Structure:**
+   \`\`\`json
+   {
+     "files": [
+       {
+         "path": "index.html",
+         "content": "<!DOCTYPE html>\\n<html>\\n<head>\\n  <link rel=\\"stylesheet\\" href=\\"styles.css\\" />\\n</head>\\n<body>\\n  <h1>Hello</h1>\\n  <script src=\\"scripts.js\\" defer></script>\\n</body>\\n</html>"
+       },
+       {
+         "path": "styles.css",
+         "content": "body { margin: 0; }\\nh1 { color: blue; }"
+       },
+       {
+         "path": "scripts.js",
+         "content": "console.log('Hello');"
+       }
+     ]
+   }
+   \`\`\`
+
+7. ✓ **When to use Static HTML vs Build Tools:**
+   - **Static HTML**: Landing pages, simple websites, portfolios
+   - **Build Tools (Vite/React)**: Web apps, SPAs, complex UIs with components
+
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
 {
@@ -617,6 +678,66 @@ Your response MUST be a single JSON object with this exact structure:
 8. ✓ For web apps: MUST include index.html, vite.config.js, package.json
 9. ✓ **DO NOT create empty files, .gitkeep files, or placeholder files**
 10. ✓ **Every file MUST have actual meaningful content - no empty strings**
+
+## STATIC HTML LANDING PAGES - SPECIAL RULES:
+
+**When creating a STATIC HTML landing page (no build tools, no React), follow these MANDATORY rules:**
+
+1. ✓ **File Structure at ROOT level (no src/ folder):**
+   - index.html (MUST be at root)
+   - styles.css (MUST be at root)
+   - scripts.js (MUST be at root)
+   - assets/ folder for images/icons (optional)
+
+2. ✓ **HTML File Linking:**
+   \`\`\`html
+   <link rel="stylesheet" href="styles.css" />
+   <script src="scripts.js" defer></script>
+   \`\`\`
+   - **CRITICAL**: Use relative paths WITHOUT leading slash
+   - ✓ CORRECT: href="styles.css"
+   - ✗ WRONG: href="/styles.css" or href="./src/styles.css"
+
+3. ✓ **CSS File Must Contain:**
+   - Full styling for all HTML elements
+   - Responsive design with media queries
+   - Color variables if using CSS custom properties
+   - At least 50+ lines of actual CSS code
+
+4. ✓ **JavaScript File Must Contain:**
+   - DOM manipulation code
+   - Event listeners
+   - Form validation if applicable
+   - At least 20+ lines of actual JavaScript code
+
+5. ✓ **For Static Sites - DO NOT CREATE:**
+   - ✗ package.json (not needed for vanilla HTML)
+   - ✗ vite.config.js (not needed for static sites)
+   - ✗ src/ folder structure
+
+6. ✓ **Static HTML Example Structure:**
+   \`\`\`json
+   {
+     "files": [
+       {
+         "path": "index.html",
+         "content": "<!DOCTYPE html>\\n<html>\\n<head>\\n  <link rel=\\"stylesheet\\" href=\\"styles.css\\" />\\n</head>\\n<body>\\n  <h1>Hello</h1>\\n  <script src=\\"scripts.js\\" defer></script>\\n</body>\\n</html>"
+       },
+       {
+         "path": "styles.css",
+         "content": "body { margin: 0; }\\nh1 { color: blue; }"
+       },
+       {
+         "path": "scripts.js",
+         "content": "console.log('Hello');"
+       }
+     ]
+   }
+   \`\`\`
+
+7. ✓ **When to use Static HTML vs Build Tools:**
+   - **Static HTML**: Landing pages, simple websites, portfolios
+   - **Build Tools (Vite/React)**: Web apps, SPAs, complex UIs with components
 
 **Example valid response (use real newlines in JSON, not \\n text):**
 \`\`\`json
@@ -1179,6 +1300,48 @@ php -S 0.0.0.0:8080
  */
 export const BASE_PROMPT = `
 ## UNIVERSAL REQUIREMENTS:
+
+### STATIC HTML LANDING PAGES - CRITICAL RULES:
+
+**When user requests a STATIC HTML landing page or website (keywords: landing page, website, portfolio, no mention of React/Vue/Angular), follow these MANDATORY rules:**
+
+1. ✓ **File Structure at ROOT level (no src/ or nested folders):**
+   - index.html (MUST be at root)
+   - styles.css (MUST be at root)
+   - scripts.js (MUST be at root)
+   - assets/ folder for images/icons (optional)
+
+2. ✓ **HTML File Linking (ULTRA CRITICAL):**
+   \`\`\`html
+   <link rel="stylesheet" href="styles.css" />
+   <script src="scripts.js" defer></script>
+   \`\`\`
+   - **CRITICAL**: href="styles.css" NOT href="/styles.css"
+   - **CRITICAL**: src="scripts.js" NOT src="/scripts.js"
+   - Use relative paths WITHOUT leading slash
+   - ✓ CORRECT: href="styles.css"
+   - ✗ WRONG: href="/styles.css" or href="./src/styles.css"
+
+3. ✓ **CSS Must Be Complete:**
+   - Full styling for ALL HTML elements
+   - Responsive design with @media queries
+   - At least 100+ lines of actual CSS
+   - **NEVER empty styles.css**
+
+4. ✓ **JavaScript Must Be Complete:**
+   - DOM manipulation, event listeners
+   - At least 30+ lines of actual JS code
+   - **NEVER empty scripts.js**
+
+5. ✓ **For Static Sites - DO NOT CREATE:**
+   - ✗ package.json
+   - ✗ tsconfig.json
+   - ✗ vite.config.js
+   - ✗ src/ folder
+
+6. ✓ **When to Use Static HTML:**
+   - User says: "landing page", "website", "portfolio", "simple page"
+   - NO build tools unless explicitly requested
 
 ### Code Completeness:
 - Every function, class, and constant you reference MUST be defined or imported
