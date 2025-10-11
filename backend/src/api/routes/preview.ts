@@ -5,56 +5,83 @@ import { supabase } from '../../storage/SupabaseClient';
 
 const router = Router();
 
-// Check deployment readiness endpoint
+// Check deployment status endpoint
 router.get('/preview/status/:generationId', async (req, res) => {
   try {
     const { generationId } = req.params;
-    const appName = `preview-${generationId.replace(/_/g, "-")}`.toLowerCase();
-    const previewUrl = `https://${appName}.fly.dev`;
+    
+    // Get deployment status from database
+    const { data: generationData, error } = await supabase
+      .from('generations')
+      .select('preview_url, deployment_status, deployment_error, deployment_started_at, deployment_completed_at')
+      .eq('id', generationId)
+      .maybeSingle();
 
-    // Try to fetch the preview URL
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    if (error) {
+      throw new Error(error.message);
+    }
 
-    try {
-      const response = await fetch(previewUrl, {
-        method: 'HEAD',
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        return res.json({ 
-          success: true, 
-          data: { 
-            ready: true,
-            status: 'deployed',
-            previewUrl 
-          } 
-        });
-      } else {
-        return res.json({ 
-          success: true, 
-          data: { 
-            ready: false,
-            status: 'deploying',
-            statusCode: response.status 
-          } 
-        });
-      }
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId);
-      
-      // If fetch fails, it's likely still deploying or not accessible yet
-      return res.json({ 
-        success: true, 
-        data: { 
-          ready: false,
-          status: 'deploying',
-          error: fetchError.message 
-        } 
+    if (!generationData) {
+      return res.status(404).json({
+        success: false,
+        error: 'Generation not found'
       });
     }
+
+    const status = generationData.deployment_status || 'pending';
+    const previewUrl = generationData.preview_url;
+
+    // If deployed, verify the URL is accessible
+    if (status === 'deployed' && previewUrl) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(previewUrl, {
+          method: 'HEAD',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        return res.json({
+          success: true,
+          data: {
+            status: 'deployed',
+            ready: response.ok,
+            previewUrl,
+            deploymentStartedAt: generationData.deployment_started_at,
+            deploymentCompletedAt: generationData.deployment_completed_at
+          }
+        });
+      } catch (fetchError) {
+        // URL exists but not accessible yet
+        return res.json({
+          success: true,
+          data: {
+            status: 'deployed',
+            ready: false,
+            previewUrl,
+            message: 'Preview URL exists but may still be warming up',
+            deploymentStartedAt: generationData.deployment_started_at,
+            deploymentCompletedAt: generationData.deployment_completed_at
+          }
+        });
+      }
+    }
+
+    // Return status from database
+    return res.json({
+      success: true,
+      data: {
+        status,
+        ready: status === 'deployed',
+        previewUrl: previewUrl || null,
+        error: generationData.deployment_error || null,
+        deploymentStartedAt: generationData.deployment_started_at,
+        deploymentCompletedAt: generationData.deployment_completed_at
+      }
+    });
+
   } catch (error: any) {
     console.error('Status check error:', error);
     return res.status(500).json({ success: false, error: error.message });
@@ -75,16 +102,28 @@ router.post('/preview', async (req, res) => {
       // Check if preview_url already exists in database
       const { data: generationData } = await supabase
         .from('generations')
-        .select('preview_url')
+        .select('preview_url, deployment_status')
         .eq('id', generationId)
         .maybeSingle();
       
       existingPreviewUrl = generationData?.preview_url || null;
+      
+      // If already deploying, return status
+      if (generationData?.deployment_status === 'deploying') {
+        return res.status(202).json({
+          success: true,
+          data: {
+            status: 'deploying',
+            message: 'Deployment is already in progress',
+            generationId
+          }
+        });
+      }
     } else {
       // Otherwise, retrieve the generated files from the database
       const { data: generationData, error: generationError } = await supabase
         .from('generations')
-        .select('files, preview_url')
+        .select('files, preview_url, deployment_status')
         .eq('id', generationId)
         .maybeSingle();
 
@@ -101,88 +140,110 @@ router.post('/preview', async (req, res) => {
 
       files = generationData.files as Array<{ path: string; content: string }>;
       existingPreviewUrl = generationData.preview_url || null;
+      
+      // If already deploying, return status
+      if (generationData.deployment_status === 'deploying') {
+        return res.status(202).json({
+          success: true,
+          data: {
+            status: 'deploying',
+            message: 'Deployment is already in progress',
+            generationId
+          }
+        });
+      }
     }
 
     // If preview_url already exists and no force flag, return existing URL
     const forceRegenerate = req.body.forceRegenerate === true;
     if (existingPreviewUrl && !forceRegenerate) {
       console.log(`Preview URL already exists for ${generationId}, returning cached URL`);
-      res.json({ 
+      return res.json({ 
         success: true, 
         data: { 
           previewUrl: existingPreviewUrl,
+          status: 'deployed',
           cached: true
         } 
       });
-      return;
     }
 
-    // 2. Generate the preview with or without retry mechanism
-    if (useRetry) {
-      console.log(`Using retry mechanism with max ${maxRetries} retries`);
-      console.log(`Generation ID: ${generationId}`);
-      console.log(`Files count: ${files.length}`);
-      
-      const previewService = new PreviewServiceWithRetry(maxRetries);
-      
-      // Add timeout for the entire deployment process (10 minutes)
-      const deploymentTimeout = 600000; // 10 minutes
-      const deploymentPromise = previewService.generatePreviewWithRetry(generationId, files, maxRetries);
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Deployment process timeout after 10 minutes')), deploymentTimeout)
-      );
+    // Mark as deploying in database
+    await supabase
+      .from('generations')
+      .update({ 
+        deployment_status: 'deploying',
+        deployment_started_at: new Date().toISOString()
+      })
+      .eq('id', generationId);
 
-      const result = await Promise.race([deploymentPromise, timeoutPromise]);
+    // Return immediately with 202 Accepted status
+    res.status(202).json({
+      success: true,
+      data: {
+        status: 'deploying',
+        message: 'Deployment started. Use /api/preview/status/:generationId to check progress.',
+        generationId
+      }
+    });
 
-      if (result.success) {
-        // Persist preview URL to database
-        try {
-          await supabase
-            .from('generations')
-            .update({ preview_url: result.previewUrl })
-            .eq('id', generationId);
-          console.log(`✓ Preview URL persisted to database: ${result.previewUrl}`);
-        } catch (persistError) {
-          console.warn('Failed to persist preview_url:', persistError);
+    // Process deployment in background (don't await)
+    (async () => {
+      try {
+        console.log(`🚀 Starting background deployment for ${generationId}`);
+        console.log(`Files count: ${files.length}`);
+        
+        let result: any;
+        
+        if (useRetry) {
+          const previewService = new PreviewServiceWithRetry(maxRetries);
+          result = await previewService.generatePreviewWithRetry(generationId, files, maxRetries);
+        } else {
+          const previewService = new PreviewService();
+          result = await previewService.generatePreview(generationId, files);
         }
 
-        res.json({ 
-          success: true, 
-          data: { 
-            previewUrl: result.previewUrl,
-            attempt: result.attempt,
-            logs: result.logs
-          } 
-        });
-        return;
-      } else {
-        console.error(`✗ Deployment failed after ${result.attempt} attempts`);
-        console.error(`   Error: ${result.error}`);
-        res.status(500).json({ 
-          success: false, 
-          error: result.error,
-          logs: result.logs,
-          attempt: result.attempt
-        });
-        return;
-      }
-    } else {
-      console.log('Using standard preview service (no retry)');
-      const previewService = new PreviewService();
-      const result = await previewService.generatePreview(generationId, files);
-
-      // Persist preview URL to database
-      try {
+        if (result.success || result.previewUrl) {
+          // Deployment successful
+          await supabase
+            .from('generations')
+            .update({ 
+              preview_url: result.previewUrl,
+              deployment_status: 'deployed',
+              deployment_completed_at: new Date().toISOString()
+            })
+            .eq('id', generationId);
+          
+          console.log(`✅ Deployment successful: ${result.previewUrl}`);
+        } else {
+          // Deployment failed
+          await supabase
+            .from('generations')
+            .update({ 
+              deployment_status: 'failed',
+              deployment_error: result.error || 'Unknown error',
+              deployment_completed_at: new Date().toISOString()
+            })
+            .eq('id', generationId);
+          
+          console.error(`❌ Deployment failed: ${result.error}`);
+        }
+      } catch (error: any) {
+        console.error(`❌ Background deployment error:`, error);
         await supabase
           .from('generations')
-          .update({ preview_url: result.previewUrl })
+          .update({ 
+            deployment_status: 'failed',
+            deployment_error: error.message,
+            deployment_completed_at: new Date().toISOString()
+          })
           .eq('id', generationId);
-      } catch (persistError) {
-        console.warn('Failed to persist preview_url:', persistError);
       }
+    })();
 
-      return res.json({ success: true, data: result });
-    }
+    // Explicitly return to satisfy TypeScript
+    return;
+    
   } catch (error: any) {
     console.error('Preview error:', error);
     return res.status(500).json({ success: false, error: error.message });
