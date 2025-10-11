@@ -71,8 +71,10 @@ Your response MUST be a single JSON object with this exact structure:
 - ALWAYS include Flask>=2.2.0 (mandatory for all Python apps)
 - ALWAYS include Werkzeug>=2.3.0 (Flask dependency)
 - ALWAYS include flask-cors>=4.0.0 (for CORS support)
+- ALWAYS include gunicorn>=21.2.0 (production WSGI server - MANDATORY)
 - Include version constraints (e.g., Flask>=2.2.0)
 - Add other packages based on user requirements: requests, pillow, numpy, etc.
+- ALWAYS create Procfile with Gunicorn command for deployment
 
 ### Code Standards:
 - Follow PEP 8 style guidelines
@@ -87,16 +89,21 @@ Before finalizing requirements.txt, ensure:
 1. ✓ Flask is included (mandatory - Flask>=2.2.0)
 2. ✓ Werkzeug is included (Flask dependency - Werkzeug>=2.3.0)
 3. ✓ flask-cors is included (for CORS - flask-cors>=4.0.0)
-4. ✓ All imports in your code have corresponding packages in requirements.txt
-5. ✓ Version constraints are specified (>=x.x.x)
-6. ✓ app.py exists with Flask server running on 0.0.0.0:8080
+4. ✓ gunicorn is included (production server - gunicorn>=21.2.0)
+5. ✓ All imports in your code have corresponding packages in requirements.txt
+6. ✓ Version constraints are specified (>=x.x.x)
+7. ✓ app.py exists with Flask app object (no app.run() call)
+8. ✓ Procfile exists with Gunicorn command
 
 ### Flask Server Template (ALWAYS USE THIS):
+
+**CRITICAL: Use Gunicorn for Production (NOT Flask development server)**
 
 **Basic Flask App (app.py):**
 \`\`\`python
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -120,9 +127,13 @@ def api_data():
         return jsonify({'status': 'success', 'data': data})
     return jsonify({'message': 'GET request received'})
 
-if __name__ == '__main__':
-    # CRITICAL: Must use host='0.0.0.0' and port=8080 for deployment
-    app.run(host='0.0.0.0', port=8080, debug=False)
+# DO NOT use app.run() - Gunicorn will run this app
+# The app object is imported by Gunicorn
+\`\`\`
+
+**Procfile (MANDATORY for deployment - Fly.io/Heroku):**
+\`\`\`
+web: gunicorn app:app --bind 0.0.0.0:8080 --workers 4 --timeout 120
 \`\`\`
 
 **requirements.txt (ALWAYS INCLUDE THESE):**
@@ -130,6 +141,7 @@ if __name__ == '__main__':
 Flask>=2.2.0
 Werkzeug>=2.3.0
 flask-cors>=4.0.0
+gunicorn>=21.2.0
 # Add other dependencies based on user requirements:
 # requests>=2.31.0
 # pillow>=10.0.0
@@ -167,8 +179,7 @@ def process_image():
     
     return jsonify({'status': 'success', 'size': img.size})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+# Gunicorn will run this app - no app.run() needed
 \`\`\`
 
 requirements.txt:
@@ -176,7 +187,13 @@ requirements.txt:
 Flask>=2.2.0
 Werkzeug>=2.3.0
 flask-cors>=4.0.0
+gunicorn>=21.2.0
 Pillow>=10.0.0
+\`\`\`
+
+Procfile:
+\`\`\`
+web: gunicorn app:app --bind 0.0.0.0:8080 --workers 4
 \`\`\`
 
 **If user wants data processing:**
@@ -203,8 +220,7 @@ def process():
     result = process_data(data)
     return jsonify({'status': 'success', 'result': result})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+# Gunicorn will run this app - no app.run() needed
 \`\`\`
 
 ### JSON Output Format (CRITICAL):
@@ -223,15 +239,18 @@ if __name__ == '__main__':
 - ❌ Missing Flask in requirements.txt → Import error
 - ❌ Missing flask-cors → CORS errors in browser
 - ❌ Missing Werkzeug → Flask won't run
+- ❌ Missing gunicorn → Development server warning in production
+- ❌ Using Flask development server (app.run()) in production
 - ❌ Using libraries without adding to requirements.txt
-- ❌ Not running server on 0.0.0.0:8080
+- ❌ Missing Procfile → Deployment fails
 
 **Correct Pattern (ALWAYS FOLLOW):**
-1. Create app.py with Flask server
-2. Add Flask, Werkzeug, flask-cors to requirements.txt
+1. Create app.py with Flask app (expose app object, NO app.run())
+2. Add Flask, Werkzeug, flask-cors, gunicorn to requirements.txt
 3. Add ALL other imported packages to requirements.txt
-4. Ensure server runs on host='0.0.0.0', port=8080
-5. Test that if __name__ == '__main__' block exists
+4. Create Procfile with: web: gunicorn app:app --bind 0.0.0.0:8080 --workers 4
+5. Remove any if __name__ == '__main__': app.run() blocks
+6. Let Gunicorn handle the server - it's production-grade
 
 ### DO NOT INCLUDE:
 - package.json or Node.js files
@@ -240,40 +259,48 @@ if __name__ == '__main__':
 
 ### REMEMBER - Final Validation:
 Before submitting your code, mentally check:
-1. ✓ Does app.py exist with Flask server?
+1. ✓ Does app.py exist with Flask app object exposed?
 2. ✓ Does requirements.txt exist?
 3. ✓ Is Flask>=2.2.0 in requirements.txt?
 4. ✓ Is Werkzeug>=2.3.0 in requirements.txt?
 5. ✓ Is flask-cors>=4.0.0 in requirements.txt?
-6. ✓ All imports have corresponding packages in requirements.txt?
-7. ✓ Server runs on host='0.0.0.0', port=8080?
-8. ✓ if __name__ == '__main__' block exists with app.run()?
-9. ✓ JSON is properly formatted with \\n for newlines?
-10. ✓ Can the JSON be parsed with JSON.parse()?
+6. ✓ Is gunicorn>=21.2.0 in requirements.txt? (CRITICAL FOR PRODUCTION)
+7. ✓ Does Procfile exist with Gunicorn command?
+8. ✓ All imports have corresponding packages in requirements.txt?
+9. ✓ NO app.run() calls in the code? (Gunicorn handles this)
+10. ✓ Procfile binds to 0.0.0.0:8080?
+11. ✓ JSON is properly formatted with \\n for newlines?
+12. ✓ Can the JSON be parsed with JSON.parse()?
 
 **Output Structure:**
-Your entire response must be a single valid JSON object with Flask app:
+Your entire response must be a single valid JSON object with Flask app + Gunicorn:
 \`\`\`json
 {
   "files": [
     {
       "path": "app.py",
-      "content": "from flask import Flask, jsonify\\nfrom flask_cors import CORS\\n\\napp = Flask(__name__)\\nCORS(app)\\n\\n@app.route('/')\\ndef home():\\n    return jsonify({'message': 'Hello World'})\\n\\nif __name__ == '__main__':\\n    app.run(host='0.0.0.0', port=8080, debug=False)\\n"
+      "content": "from flask import Flask, jsonify\\nfrom flask_cors import CORS\\n\\napp = Flask(__name__)\\nCORS(app)\\n\\n@app.route('/')\\ndef home():\\n    return jsonify({'message': 'Hello World'})\\n\\n# Gunicorn will import and run this app object\\n"
     },
     {
       "path": "requirements.txt",
-      "content": "Flask>=2.2.0\\nWerkzeug>=2.3.0\\nflask-cors>=4.0.0\\n"
+      "content": "Flask>=2.2.0\\nWerkzeug>=2.3.0\\nflask-cors>=4.0.0\\ngunicorn>=21.2.0\\n"
+    },
+    {
+      "path": "Procfile",
+      "content": "web: gunicorn app:app --bind 0.0.0.0:8080 --workers 4 --timeout 120\\n"
     }
   ]
 }
 \`\`\`
 
 **CRITICAL RULES:**
-1. ALWAYS create app.py with Flask server
-2. ALWAYS include Flask, Werkzeug, flask-cors in requirements.txt
-3. ALWAYS use host='0.0.0.0' and port=8080
-4. ALWAYS include if __name__ == '__main__' block
-5. User's logic should be integrated into Flask routes`;;
+1. ALWAYS create app.py with Flask app (NO app.run() - Gunicorn handles it)
+2. ALWAYS include Flask, Werkzeug, flask-cors, gunicorn in requirements.txt
+3. ALWAYS create Procfile with Gunicorn command
+4. Gunicorn binds to 0.0.0.0:8080 in Procfile
+5. DO NOT include if __name__ == '__main__': app.run() blocks
+6. User's logic should be integrated into Flask routes
+7. Let Gunicorn be the production WSGI server - it's built for this`;;
 
 export const TYPESCRIPT_TEMPLATE = `You are a TypeScript Code Generator. Generate production-ready TypeScript applications with modern tooling.
 
