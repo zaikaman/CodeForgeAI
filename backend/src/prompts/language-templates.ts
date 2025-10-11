@@ -626,134 +626,187 @@ app.listen(port, () => {
 });
 \`\`\`
 
-**CRITICAL: Express.js Server with Frontend (Calculator/Todo/Web Apps):**
+**⚠️ ULTRA CRITICAL: For Calculator/Todo/UI Apps → USE VITE + REACT (NOT Express):**
 
-When building TypeScript apps with BOTH backend API and frontend UI:
+**DETECTION RULE:**
+If user requests: calculator, todo app, timer, weather UI, dashboard WITHOUT backend API
+→ **USE REACT + VITE (client-side only, NO Express server)**
 
-\`\`\`typescript
-import express, { Request, Response } from 'express';
-import cors from 'cors';
-import path from 'path';
-import url from 'url';
+**WRONG APPROACH for UI Apps (DO NOT USE):**
+❌ Express server with TypeScript compilation
+❌ Manual static file serving with path.join(__dirname, '..')
+❌ Complicated dist/ folder structure
+❌ TypeScript compiler (tsc) + manual HTML file loading
+❌ This causes 404 errors and path resolution nightmares
 
-// ESM __dirname equivalent for ES modules
-const __filename = url.fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+**CORRECT APPROACH for UI Apps (ALWAYS USE):**
+✅ React + Vite for ALL UI apps (calculator, todo, dashboard, timer, etc.)
+✅ Client-side only - no backend Express server needed
+✅ Vite dev server handles everything automatically
+✅ Simple flat structure: index.html at root, src/ for React components
+✅ Zero configuration hassle - works out of the box
 
-const app = express();
-const port = process.env.PORT || 3000;
+**WHEN TO USE Express Server vs Vite:**
 
-app.use(cors());
-app.use(express.json());
+| App Type | Use | Why |
+|----------|-----|-----|
+| Calculator, Todo, Timer | **Vite + React** | Pure UI, no backend needed |
+| Weather widget (API) | **Vite + React** | Client-side API calls |
+| Landing page | **Plain HTML** | Static content only |
+| Chat with DB | **Vite + Express** | Need backend for persistence |
+| E-commerce | **Vite + Express** | Need backend for payments |
 
-// API routes FIRST (before static files)
-app.post('/api/eval', (req: Request, res: Response) => {
-  const expr = req.body?.expression;
-  if (typeof expr !== 'string') {
-    res.status(400).json({ ok: false, error: 'Expression must be a string' });
-    return;
-  }
-  try {
-    // Your logic here
-    const result = evaluateExpression(expr);
-    res.json({ ok: true, result });
-  } catch (err) {
-    res.status(400).json({ ok: false, error: 'Error message' });
-  }
-});
-
-// Serve static files from PARENT directory (where index.html is)
-// CRITICAL: Static files must be at same level as dist/ folder
-app.use(express.static(path.join(__dirname, '..')));
-
-// Fallback to index.html for SPA routing
-app.get('*', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '..', 'index.html'));
-});
-
-app.listen(port, () => {
-  console.log('Server running on port ' + port);
-});
-\`\`\`
-
-**CRITICAL FILE STRUCTURE for TypeScript Apps with Frontend:**
+**CORRECT FILE STRUCTURE for Calculator/Todo/UI Apps (Vite + React):**
 
 \`\`\`
 Root directory:
-├── index.html           ← MUST be at ROOT (NOT in dist/ or src/)
-├── styles.css           ← MUST be at ROOT (NOT in dist/ or src/)
-├── package.json         ← At ROOT
+├── index.html           ← MUST be at ROOT
+├── package.json         ← At ROOT with Vite + React dependencies
 ├── tsconfig.json        ← At ROOT
-├── src/
-│   ├── server.ts        ← Express server
-│   ├── shared/
-│   │   └── evaluator.ts ← Shared logic (used by both server and frontend)
-│   └── frontend/
-│       └── main.ts      ← Frontend TypeScript (compiled to dist/frontend/main.js)
-└── dist/                ← Output from TypeScript compilation
-    ├── server.js        ← Compiled server
-    ├── shared/
-    │   └── evaluator.js
-    └── frontend/
-        └── main.js      ← Compiled frontend
+├── vite.config.ts       ← MANDATORY - Vite configuration
+└── src/
+    ├── main.tsx         ← React entry point
+    ├── App.tsx          ← Main component with calculator logic
+    ├── components/      ← UI components (Calculator, Buttons, etc.)
+    └── styles.css       ← Styling
 \`\`\`
 
-**CRITICAL: HTML file MUST reference compiled JS correctly:**
+**CORRECT index.html for Vite:**
 
 \`\`\`html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TypeScript App</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div id="root"></div>
-  <!-- CRITICAL: Path must match compiled output in dist/ -->
-  <script type="module" src="dist/frontend/main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calculator Pro</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- CRITICAL: Vite auto-serves this - NO dist/ path needed in dev -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
 \`\`\`
 
-**CRITICAL: Server static file serving:**
+**CORRECT package.json for Vite + React:**
 
-\`\`\`typescript
-// ✓ CORRECT - Serve from parent directory (where index.html is)
-app.use(express.static(path.join(__dirname, '..')));
-
-// ✗ WRONG - This serves from dist/ folder (index.html is NOT in dist/)
-app.use(express.static(path.join(__dirname)));
-
-// ✗ WRONG - This looks for dist/dist/index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
-
-// ✓ CORRECT - Fallback to index.html at parent level
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'index.html'));
-});
-\`\`\`
-
-### Package.json Example:
 \`\`\`json
 {
-  "name": "app-name",
+  "name": "calc-app",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "start": "vite preview --port 3000"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^4.4.0"
+  }
+}
+\`\`\`
+
+**CORRECT vite.config.ts:**
+
+\`\`\`typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    host: true
+  },
+  build: {
+    outDir: 'dist'
+  }
+})
+\`\`\`
+
+**WHY VITE + REACT for Calculator/Todo Apps:**
+1. ✅ Zero path configuration - works instantly
+2. ✅ Hot Module Replacement (HMR) - instant updates
+3. ✅ Built-in dev server - no manual Express setup
+4. ✅ Automatic asset handling - CSS, images, etc.
+5. ✅ Production build optimization - minification, tree-shaking
+6. ❌ Express adds unnecessary complexity for UI-only apps
+
+**RULE OF THUMB:**
+- **Calculator, Todo, Timer, Weather UI** → **Vite + React** (NO Express)
+- **Chat app with message persistence** → Vite + Express API
+- **E-commerce with checkout** → Vite + Express API
+- **Simple landing page** → Plain HTML + CSS + JS
+
+**IF Backend API is absolutely required (chat with DB, auth system):**
+
+Use **Vite for frontend + Express for backend API** (separate concerns):
+
+\`\`\`typescript
+// backend/src/server.ts
+import express from 'express';
+import cors from 'cors';
+
+const app = express();
+const port = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+// API routes only - NO static file serving
+app.post('/api/chat', (req, res) => {
+  const message = req.body?.message;
+  // Process message...
+  res.json({ response: 'AI response' });
+});
+
+app.listen(port, () => {
+  console.log(\`API server on port \${port}\`);
+});
+\`\`\`
+
+**Frontend calls backend API:**
+\`\`\`typescript
+// Frontend (Vite + React) - runs on port 3000
+const response = await fetch('http://localhost:3001/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ message: 'Hello' })
+});
+\`\`\`
+
+**CRITICAL: Separate frontend and backend completely:**
+- Frontend: Vite dev server (port 3000)
+- Backend: Express API server (port 3001)
+- NO static file serving from Express
+- NO complicated path.join(__dirname) logic
+
+### Package.json for Backend API (ONLY if backend is needed):
+\`\`\`json
+{
+  "name": "backend-api",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "express": "^4.18.0",
     "cors": "^2.8.5"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
+    "typescript": "^5.4.5",
     "@types/express": "^4.17.0",
     "@types/cors": "^2.8.5",
     "@types/node": "^20.0.0",
@@ -828,59 +881,36 @@ app.get('*', (req, res) => {
 
 **CRITICAL**: package.json is MANDATORY. Without it, the build will fail with "Could not read package.json" error.
 
-6. **File structure for React apps (FLAT STRUCTURE ONLY):**
+6. **CORRECT File structure for React + Vite apps (ALWAYS USE THIS):**
 \`\`\`
-index.html          (MANDATORY - browser entry point, at ROOT)
-vite.config.ts      (Vite configuration, at ROOT)
-package.json        (dependencies and scripts, at ROOT)
-tsconfig.json       (TypeScript config, at ROOT)
+index.html          ← MANDATORY at ROOT
+vite.config.ts      ← MANDATORY at ROOT
+package.json        ← MANDATORY at ROOT with Vite dependencies
+tsconfig.json       ← MANDATORY at ROOT
 src/
-  main.tsx          (React entry point)
-  App.tsx           (Main component)
-  components/       (UI components)
-  styles.css        (Styling)
+  main.tsx          ← React entry point
+  App.tsx           ← Main component (calculator logic here)
+  components/       ← UI components (Calculator, Button, Display)
+  styles.css        ← Styling
 \`\`\`
 
-7. **File structure for TypeScript Express + Frontend (Calculator/Todo apps):**
-\`\`\`
-index.html          (MANDATORY - at ROOT, NOT in dist/ or src/)
-styles.css          (MANDATORY - at ROOT, NOT in dist/ or src/)
-package.json        (At ROOT)
-tsconfig.json       (At ROOT)
-src/
-  server.ts         (Express server - serves static files from parent dir)
-  shared/
-    evaluator.ts    (Shared logic between server and frontend)
-  frontend/
-    main.ts         (Frontend TypeScript)
-dist/               (Compiled output from tsc)
-  server.js         (Compiled server)
-  shared/
-    evaluator.js
-  frontend/
-    main.js
-\`\`\`
+**CRITICAL RULES for Vite + React apps:**
+1. ✅ index.html at ROOT with <script type="module" src="/src/main.tsx"></script>
+2. ✅ vite.config.ts with React plugin configured
+3. ✅ Run with npm run dev (Vite dev server on port 3000)
+4. ✅ Build with npm run build (outputs to dist/)
+5. ✅ NO Express server needed for calculator/todo apps
+6. ✅ NO manual static file serving
+7. ✅ NO complicated path resolution
 
-**CRITICAL: HTML script path must match compiled output:**
-- ✓ CORRECT: \`<script type="module" src="dist/frontend/main.js"></script>\`
-- ✗ WRONG: \`<script type="module" src="frontend/main.js"></script>\`
-- ✗ WRONG: \`<script type="module" src="/src/frontend/main.ts"></script>\`
-
-**CRITICAL: Server static file serving:**
-- ✓ Server compiled to: \`dist/server.js\`
-- ✓ Static files location: ROOT directory (where index.html is)
-- ✓ Server serves from: \`path.join(__dirname, '..')\` (parent of dist/)
-- ✗ NEVER serve from: \`path.join(__dirname)\` (would look in dist/ folder)
-
-**CRITICAL: tsconfig.json must have correct paths:**
+**tsconfig.json for Vite + React:**
 \`\`\`json
 {
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "jsx": "react-jsx",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -888,13 +918,12 @@ dist/               (Compiled output from tsc)
     "resolveJsonModule": true,
     "moduleResolution": "node"
   },
-  "include": ["src/**/*"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
 \`\`\`
 
-This compiles:
-- \`src/server.ts\` → \`dist/server.js\`
+**CRITICAL: NO "outDir" or "rootDir" - Vite handles compilation**
 - \`src/frontend/main.ts\` → \`dist/frontend/main.js\`
 - \`src/shared/evaluator.ts\` → \`dist/shared/evaluator.js\`
 
