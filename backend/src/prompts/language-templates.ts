@@ -24,7 +24,7 @@ Your response MUST be a single JSON object with this exact structure:
 
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
-2. ✓ Do NOT wrap JSON in \`\`\`json code fences
+2. ✓ Do NOT wrap JSON in triple-backtick json code fences
 3. ✓ **NEVER USE \\n - Use ACTUAL newline characters (press Enter key) in the JSON content field**
 4. ✓ **Write code with REAL line breaks, NOT \\n escape sequences**
 5. ✓ For quotes inside code: use escaped quotes \\" in JSON
@@ -982,7 +982,7 @@ Your response MUST be a single JSON object with this exact structure:
 
 **CRITICAL JSON RULES:**
 1. ✓ Response must be ONLY the JSON object - no markdown, no explanations, no extra text
-2. ✓ Do NOT wrap JSON in \`\`\`json code fences
+2. ✓ Do NOT wrap JSON in triple-backtick json code fences
 3. ✓ In the "content" field, use LITERAL newline characters (press Enter), NOT \\n escape sequences
 4. ✓ For quotes inside code: use escaped quotes \\" in JSON
 5. ✓ files array must contain at least 1 file object
