@@ -130,12 +130,14 @@ export const useGenerationStore = create<GenerationState>()(
       completeGeneration: (generationId: string, response: GenerateResponse) => {
         const { currentGeneration, history } = get()
 
-        if (currentGeneration && currentGeneration.id === generationId) {
+        // Match either by generationId or if current generation exists (to handle ID updates)
+        if (currentGeneration) {
           const completedAt = new Date()
           const duration = completedAt.getTime() - currentGeneration.startedAt.getTime()
 
           const completedGeneration: GenerationHistoryEntry = {
             ...currentGeneration,
+            id: generationId, // Update with backend generation ID
             response,
             status: 'completed',
             completedAt,

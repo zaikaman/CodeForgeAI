@@ -40,8 +40,8 @@ export const useGeneration = (): UseGenerationReturn => {
         setError(null)
         setLoading(true, 'Initializing code generation...')
 
-        // Start generation in store
-        const generationId = startGeneration(request)
+        // Start generation in store (temporary local ID)
+        let localGenerationId = startGeneration(request)
 
         // Call API with polling support
         const response = await apiClient.generateAndWait(request, {
@@ -72,8 +72,11 @@ export const useGeneration = (): UseGenerationReturn => {
           throw new Error(response.error || 'Generation failed')
         }
 
-        // Complete generation
-        completeGeneration(generationId, response.data)
+        // Use the generation ID from backend response (not local ID)
+        const backendGenerationId = response.data.id || localGenerationId
+        
+        // Complete generation with backend ID
+        completeGeneration(backendGenerationId, response.data)
 
         showToast('success', 'Code generated successfully!')
       } catch (err: any) {
