@@ -65,6 +65,38 @@ export const GenerateSessionPage: React.FC = () => {
     return currentGeneration?.id === id ? currentGeneration : getGenerationById(id);
   }, [id, currentGeneration, history, getGenerationById]);
 
+  // Fetch generation data from backend on page load (to get preview_url and latest data)
+  useEffect(() => {
+    const fetchGenerationData = async () => {
+      if (!id) return;
+      
+      try {
+        console.log('🔄 Fetching generation data from backend...');
+        const response = await apiClient.getGenerationStatus(id);
+        
+        if (response.success && response.data) {
+          console.log('✅ Fetched generation data:', response.data);
+          
+          // If we got a preview URL from backend, set it
+          if (response.data.previewUrl && !previewUrl) {
+            console.log('✅ Found preview URL from backend:', response.data.previewUrl);
+            setPreviewUrl(withCacheBust(response.data.previewUrl));
+            setDeploymentStatus(response.data.deploymentStatus === 'deployed' ? 'ready' : 'deploying');
+          }
+          
+          // Update store with latest data if needed
+          if (response.data.files && generation) {
+            updateGenerationFiles(id, response.data.files);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch generation data:', error);
+      }
+    };
+    
+    fetchGenerationData();
+  }, [id]); // Only run once on mount
+  
   // Redirect if generation not found
   useEffect(() => {
     if (id && !generation) {

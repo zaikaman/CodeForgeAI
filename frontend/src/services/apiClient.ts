@@ -46,6 +46,8 @@ export interface GenerateResponse {
     thought: string
   }>
   error?: string
+  previewUrl?: string
+  deploymentStatus?: 'pending' | 'deploying' | 'deployed' | 'failed'
 }
 
 export interface ReviewRequest {
