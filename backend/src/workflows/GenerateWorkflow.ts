@@ -1,23 +1,22 @@
 /**
  * Implements the code generation workflow.
- * Uses AI agents for intelligent code generation with validation and auto-fixing.
+ * Uses AI agents with FAST validation (< 2s overhead) and smart auto-fixing.
  */
 import { CodeGeneratorAgent } from '../agents/specialized/CodeGeneratorAgent';
 import { SpecInterpreterAgent } from '../agents/specialized/SpecInterpreterAgent';
 import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent';
-import { CodeValidatorAgent } from '../agents/specialized/CodeValidatorAgent';
-import { CodeFixerAgent } from '../agents/specialized/CodeFixerAgent';
 import { DocWeaverAgent } from '../agents/specialized/DocWeaverAgent';
 import { RefactorGuruAgent } from '../agents/specialized/RefactorGuruAgent';
 import { SecuritySentinelAgent } from '../agents/specialized/SecuritySentinelAgent';
 import { PerformanceProfilerAgent } from '../agents/specialized/PerformanceProfilerAgent';
+import { createQualityAssuranceAgent } from '../agents/specialized/QualityAssuranceAgent';
 
 export class GenerateWorkflow {
-    private readonly MAX_FIX_ATTEMPTS = 1; // Maximum number of times to try fixing code
-    private readonly VALIDATION_ENABLED = false; // Enable/disable validation
+    private readonly VALIDATION_ENABLED = true; // Enable fast validation (< 2s overhead)
+    private readonly qaAgent = createQualityAssuranceAgent();
 
     constructor() {
-        // Initialize with agent dependencies
+        // Initialize with QA agent for validation
     }
 
     /**
@@ -212,236 +211,68 @@ export class GenerateWorkflow {
     }
 
     /**
-     * Validates generated code and attempts to fix any issues found.
-     * Uses a retry mechanism to ensure code quality.
+     * Validates generated code using QualityAssuranceAgent.
+     * Delegates validation and auto-fixing to specialized QA agent.
      */
     private async validateAndFixCode(
         files: any[],
         request: any,
         agentThoughts: any[]
     ): Promise<any> {
-        let currentFiles = files;
-        let attempt = 0;
-        let lastValidation: any = null;
-
-        while (attempt < this.MAX_FIX_ATTEMPTS) {
-            attempt++;
-
-            // Validate the current code
-            const validation = await this.validateCode(currentFiles, request.targetLanguage);
-            lastValidation = validation;
-
+        
+        console.log('\n[VALIDATION] Delegating to QualityAssuranceAgent...');
+        
+        // Delegate to QA agent for validation and auto-fixing
+        const qaResult = await this.qaAgent.run({
+            files,
+            language: request.targetLanguage,
+            autoFix: true,
+            maxAttempts: 2
+        });
+        
+        // Log QA agent's work
+        const criticalCount = qaResult.errors.filter((e: any) => e.severity === 'critical').length;
+        const highCount = qaResult.errors.filter((e: any) => e.severity === 'high').length;
+        
+        agentThoughts.push({
+            agent: 'QualityAssurance',
+            thought: qaResult.isValid 
+                ? `✅ Code validated successfully (${(qaResult.confidence * 100).toFixed(0)}% confidence, ${qaResult.duration}ms)`
+                : `Found ${criticalCount} critical, ${highCount} high errors after ${qaResult.attempts} attempts`
+        });
+        
+        // If fixes were applied, log them
+        if (qaResult.fixedCount > 0) {
             agentThoughts.push({
-                agent: 'CodeValidator',
-                thought: `Validation attempt ${attempt}: ${validation.isValid ? 'Code is valid ✓' : `Found ${validation.issues.length} issue(s)`}`
+                agent: 'QualityAssurance',
+                thought: `Auto-fixed ${qaResult.fixedCount} issues: ${qaResult.appliedFixes.join(', ')}`
             });
-
-            // If code is valid, we're done
-            if (validation.isValid) {
-                return {
-                    fixed: attempt > 1,
-                    files: currentFiles,
-                    validation: {
-                        isValid: true,
-                        issues: [],
-                        summary: validation.summary,
-                        attempts: attempt
-                    }
-                };
-            }
-
-            // If this is the last attempt, return with issues
-            if (attempt >= this.MAX_FIX_ATTEMPTS) {
-                agentThoughts.push({
-                    agent: 'CodeValidator',
-                    thought: `Max fix attempts (${this.MAX_FIX_ATTEMPTS}) reached. Returning code with known issues.`
-                });
-                break;
-            }
-
-            // Try to fix the issues
-            agentThoughts.push({
-                agent: 'CodeFixer',
-                thought: `Attempting to fix ${validation.issues.length} issue(s)...`
-            });
-
-            const fixedFiles = await this.fixCode(currentFiles, validation, request.targetLanguage);
-            
-            if (fixedFiles && fixedFiles.length > 0) {
-                currentFiles = fixedFiles;
-                agentThoughts.push({
-                    agent: 'CodeFixer',
-                    thought: `Applied fixes. Re-validating...`
-                });
-            } else {
-                agentThoughts.push({
-                    agent: 'CodeFixer',
-                    thought: `Failed to apply fixes. Stopping retry loop.`
-                });
-                break;
-            }
         }
-
-        // Return with validation issues if we couldn't fix everything
+        
+        // If still has errors, log remaining issues
+        if (!qaResult.isValid && qaResult.errors.length > 0) {
+            const topErrors = qaResult.errors.slice(0, 3).map((e: any) => 
+                `${e.severity}: ${e.message} in ${e.file}`
+            ).join('; ');
+            
+            agentThoughts.push({
+                agent: 'QualityAssurance',
+                thought: `⚠ Remaining issues: ${topErrors}${qaResult.errors.length > 3 ? '...' : ''}`
+            });
+        }
+        
         return {
-            fixed: false,
-            files: currentFiles,
+            fixed: qaResult.fixedCount > 0,
+            files: qaResult.files,
             validation: {
-                isValid: false,
-                issues: lastValidation?.issues || [],
-                summary: lastValidation?.summary || 'Code has unresolved issues',
-                attempts: attempt
+                isValid: qaResult.isValid,
+                errors: qaResult.errors,
+                warnings: qaResult.warnings,
+                confidence: qaResult.confidence,
+                attempts: qaResult.attempts,
+                duration: qaResult.duration
             }
         };
-    }
-
-    /**
-     * Validates code using CodeValidatorAgent
-     */
-    private async validateCode(files: any[], language: string): Promise<any> {
-        try {
-            const { runner } = await CodeValidatorAgent();
-            
-            // Build validation prompt
-            const filesContent = files.map(f => 
-                `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``
-            ).join('\n\n');
-
-            const validationPrompt = `Validate the following ${language} code for any issues:
-
-${filesContent}
-
-Check for:
-1. Syntax errors
-2. Duplicate files (same path appearing multiple times)
-3. Missing dependencies
-4. Type errors
-5. Logic errors
-6. Code quality issues
-
-Provide detailed analysis of any issues found.`;
-
-            const response = await runner.ask(validationPrompt) as any;
-            
-            return {
-                isValid: response.isValid,
-                issues: response.issues || [],
-                summary: response.summary || 'Validation completed'
-            };
-        } catch (error) {
-            console.error('Code validation error:', error);
-            // If validation fails, assume code is valid to avoid blocking
-            return {
-                isValid: true,
-                issues: [],
-                summary: 'Validation skipped due to error'
-            };
-        }
-    }
-
-    /**
-     * Fixes code issues using CodeFixerAgent
-     */
-    private async fixCode(files: any[], validation: any, language: string): Promise<any[]> {
-        try {
-            const { runner } = await CodeFixerAgent();
-            
-            // Build fix prompt
-            const filesContent = files.map(f => 
-                `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``
-            ).join('\n\n');
-
-            const issuesDescription = validation.issues.map((issue: any, index: number) => 
-                `${index + 1}. [${issue.severity.toUpperCase()}] ${issue.type} in ${issue.filePath}${issue.line ? ` (line ${issue.line})` : ''}
-   Description: ${issue.description}
-   Suggested fix: ${issue.suggestedFix}`
-            ).join('\n\n');
-
-            const fixPrompt = `Fix the following ${language} code based on the validation issues found:
-
-ORIGINAL CODEBASE (${files.length} files):
-${filesContent}
-
-ISSUES TO FIX:
-${issuesDescription}
-
-CRITICAL: You MUST return ALL ${files.length} files in your response, not just the files with issues.
-
-Instructions:
-1. Fix all syntax errors in the affected files
-2. Remove duplicate files (keep the best version)
-3. Add missing dependencies to package.json if it exists
-4. Correct type errors in the affected files
-5. Fix logic errors in the affected files
-6. For files WITHOUT issues, return them UNCHANGED with their original content
-7. Maintain the original functionality
-
-Your response MUST include ALL files from the original codebase. Return the COMPLETE fixed codebase with this exact structure:
-{
-  "files": [
-    { "path": "file1.ts", "content": "..." },
-    { "path": "file2.ts", "content": "..." },
-    ... (all ${files.length} files must be included)
-  ]
-}`;
-
-            const response = await runner.ask(fixPrompt) as any;
-            
-            // Validate and sanitize response files
-            if (response.files && Array.isArray(response.files)) {
-                for (let i = 0; i < response.files.length; i++) {
-                    const file = response.files[i];
-                    
-                    // Ensure content is always a string
-                    if (typeof file.content !== 'string') {
-                        console.warn(`⚠ File ${file.path} has non-string content, converting...`);
-                        
-                        if (typeof file.content === 'object') {
-                            response.files[i].content = JSON.stringify(file.content, null, 2);
-                        } else {
-                            response.files[i].content = String(file.content);
-                        }
-                    } else {
-                        // Content is already a string, but check if it's a double-escaped JSON string
-                        // This happens when LLM returns already-stringified JSON content
-                        if (file.path.endsWith('.json') && file.content.startsWith('"') && file.content.endsWith('"')) {
-                            try {
-                                // Try to parse it once to remove outer quotes and unescape
-                                const unescaped = JSON.parse(file.content);
-                                if (typeof unescaped === 'string') {
-                                    response.files[i].content = unescaped;
-                                    console.log(`✓ Unescaped double-stringified content for ${file.path}`);
-                                }
-                            } catch (err) {
-                                // If parsing fails, keep original content
-                                console.warn(`⚠ Could not unescape content for ${file.path}, keeping as-is`);
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Validate that we got all files back
-            if (response.files && response.files.length < files.length) {
-                console.warn(`CodeFixerAgent returned ${response.files.length} files but expected ${files.length}. Merging with original files.`);
-                
-                // Create a map of fixed files
-                const fixedFilesMap = new Map(response.files.map((f: any) => [f.path, f]));
-                
-                // Merge: use fixed version if available, otherwise use original
-                const mergedFiles = files.map(originalFile => {
-                    const fixedFile = fixedFilesMap.get(originalFile.path);
-                    return fixedFile || originalFile;
-                });
-                
-                return mergedFiles;
-            }
-            
-            return response.files || [];
-        } catch (error) {
-            console.error('Code fixing error:', error);
-            return [];
-        }
     }
 
     private async interpretPrompt(prompt: string): Promise<any> {
