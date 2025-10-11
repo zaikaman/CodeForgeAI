@@ -20,6 +20,24 @@ const TYPESCRIPT_ALLOWED_VERSIONS = new Set([
   '5.4.5'
 ]);
 const TYPESCRIPT_FALLBACK_VERSION = '^5.4.5';
+const TYPE_DEPENDENCY_VERSION_MAP: Record<string, string> = {
+  '@types/express': '^4.17.21',
+  '@types/node': '^20.11.17',
+  '@types/cors': '^2.8.18',
+  '@types/body-parser': '^1.19.5',
+  '@types/cookie-parser': '^1.4.3',
+  '@types/ws': '^8.5.10',
+  '@types/lodash': '^4.17.7'
+};
+const DEPENDENCY_TYPE_MAPPINGS: Record<string, string[]> = {
+  express: ['@types/express', '@types/node'],
+  cors: ['@types/cors'],
+  'body-parser': ['@types/body-parser'],
+  'cookie-parser': ['@types/cookie-parser'],
+  ws: ['@types/ws'],
+  lodash: ['@types/lodash']
+};
+const DOM_INDICATOR_REGEX = /(document\.|window\.|HTMLElement|querySelector|addEventListener|KeyboardEvent|MouseEvent)/i;
 
 export interface DeploymentResult {
   success: boolean;
@@ -472,9 +490,12 @@ Return the complete fixed codebase.`;
 
     const sanitized = files.map(file => ({ ...file }));
     const packageJsonIndex = sanitized.findIndex(file => this.normalizeFilePath(file.path).toLowerCase() === 'package.json');
+    const tsconfigIndex = sanitized.findIndex(file => this.normalizeFilePath(file.path).toLowerCase() === 'tsconfig.json');
+    const needsDomLib = this.detectDomUsage(sanitized);
 
     if (packageJsonIndex === -1) {
-      return sanitized;
+      const tsconfigSanitized = this.sanitizeTsConfigIfPresent(sanitized, tsconfigIndex, needsDomLib);
+      return tsconfigSanitized;
     }
 
     const packageFile = sanitized[packageJsonIndex];
@@ -484,12 +505,14 @@ Return the complete fixed codebase.`;
       parsedPackage = JSON.parse(packageFile.content);
     } catch (error) {
       console.warn('⚠ Could not parse package.json for sanitization:', error);
-      return sanitized;
+      const tsconfigSanitized = this.sanitizeTsConfigIfPresent(sanitized, tsconfigIndex, needsDomLib);
+      return tsconfigSanitized;
     }
 
     let packageChanged = false;
 
     packageChanged = this.ensureTypeScriptDependency(parsedPackage, hasTypeScriptSources) || packageChanged;
+    packageChanged = this.ensureTypeDeclarationPackages(parsedPackage) || packageChanged;
 
     if (packageChanged) {
       sanitized[packageJsonIndex] = {
@@ -499,7 +522,7 @@ Return the complete fixed codebase.`;
       console.log('✓ Applied package.json sanitization heuristics');
     }
 
-    return sanitized;
+    return this.sanitizeTsConfigIfPresent(sanitized, tsconfigIndex, needsDomLib);
   }
 
   private ensureTypeScriptDependency(pkg: any, hasTypeScriptSources: boolean): boolean {
@@ -571,6 +594,145 @@ Return the complete fixed codebase.`;
 
   private normalizeFilePath(filePath: string): string {
     return filePath.replace(/\\/g, '/');
+  }
+
+  private ensureTypeDeclarationPackages(pkg: any): boolean {
+    let changed = false;
+
+    for (const [dependency, typePackages] of Object.entries(DEPENDENCY_TYPE_MAPPINGS)) {
+      const dependencyInfo = this.getDependencyInfo(pkg, dependency);
+      if (!dependencyInfo) {
+        continue;
+      }
+
+      for (const typePackage of typePackages) {
+        const existingType = this.getDependencyInfo(pkg, typePackage);
+        if (existingType) {
+          continue;
+        }
+
+        const version = this.resolveTypePackageVersion(typePackage);
+        this.setDependencyVersion(pkg, typePackage, version, 'devDependencies');
+        console.log(`✓ Added missing type package ${typePackage} required by ${dependency}`);
+        changed = true;
+      }
+    }
+
+    return changed;
+  }
+
+  private resolveTypePackageVersion(typePackage: string): string {
+    return TYPE_DEPENDENCY_VERSION_MAP[typePackage] || '^1.0.0';
+  }
+
+  private sanitizeTsConfigIfPresent(
+    files: Array<{ path: string; content: string }>,
+    tsconfigIndex: number,
+    needsDomLib: boolean
+  ): Array<{ path: string; content: string }> {
+    if (tsconfigIndex === -1) {
+      return files;
+    }
+
+    const tsconfigFile = files[tsconfigIndex];
+    const sanitized = [...files];
+    const { changed, content } = this.sanitizeTsConfig(tsconfigFile.content, needsDomLib);
+
+    if (changed) {
+      sanitized[tsconfigIndex] = {
+        ...tsconfigFile,
+        content
+      };
+      console.log('✓ Normalized tsconfig.json compiler options');
+    }
+
+    return sanitized;
+  }
+
+  private sanitizeTsConfig(content: string, needsDomLib: boolean): { changed: boolean; content: string } {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch (error) {
+      console.warn('⚠ Could not parse tsconfig.json for sanitization:', error);
+      return { changed: false, content };
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      return { changed: false, content };
+    }
+
+    const compilerOptions = parsed.compilerOptions = parsed.compilerOptions || {};
+    let changed = false;
+
+    const baseLibs = new Set<string>();
+    const existingLibs = Array.isArray(compilerOptions.lib) ? compilerOptions.lib : [];
+    existingLibs.forEach((lib: string) => baseLibs.add(lib));
+
+    if (!baseLibs.size) {
+      baseLibs.add('ES2020');
+      changed = true;
+    }
+
+    if (!baseLibs.has('ES2020')) {
+      baseLibs.add('ES2020');
+      changed = true;
+    }
+
+    if (needsDomLib) {
+      if (!baseLibs.has('DOM')) {
+        baseLibs.add('DOM');
+        changed = true;
+      }
+      if (!baseLibs.has('DOM.Iterable')) {
+        baseLibs.add('DOM.Iterable');
+        changed = true;
+      }
+    }
+
+    compilerOptions.lib = Array.from(baseLibs);
+
+    // Ensure strict mode and module resolution defaults remain intact
+    if (typeof compilerOptions.strict !== 'boolean') {
+      compilerOptions.strict = true;
+      changed = true;
+    }
+
+    if (!compilerOptions.moduleResolution) {
+      compilerOptions.moduleResolution = 'node';
+      changed = true;
+    }
+
+    if (compilerOptions.allowJs) {
+      // Ensure allowJs does not conflict with type safety in generated code
+      delete compilerOptions.allowJs;
+      changed = true;
+    }
+
+    if (!changed) {
+      return { changed: false, content };
+    }
+
+    return {
+      changed: true,
+      content: JSON.stringify(parsed, null, 2)
+    };
+  }
+
+  private detectDomUsage(files: Array<{ path: string; content: string }>): boolean {
+    return files.some(file => {
+      const normalizedPath = this.normalizeFilePath(file.path).toLowerCase();
+      const isTypeScript = normalizedPath.endsWith('.ts') || normalizedPath.endsWith('.tsx');
+      if (!isTypeScript) {
+        return false;
+      }
+
+      if (normalizedPath.includes('client') || normalizedPath.includes('frontend') || normalizedPath.endsWith('.tsx')) {
+        return true;
+      }
+
+      return DOM_INDICATOR_REGEX.test(file.content);
+    }) || files.some(file => this.normalizeFilePath(file.path).toLowerCase() === 'index.html');
   }
 
   /**
