@@ -484,10 +484,12 @@ class ApiClient {
     files: Array<{ path: string; content: string }>
     forceRegenerate?: boolean
   }): Promise<ApiResponse<{
-    previewUrl: string
+    previewUrl?: string
     cached?: boolean
     attempt?: number
     logs?: string
+    status?: 'deploying' | 'deployed' | 'failed'
+    message?: string
   }>> {
     try {
       const response = await this.client.post('/api/preview', request)

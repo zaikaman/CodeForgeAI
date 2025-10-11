@@ -237,6 +237,9 @@ export const GenerateSessionPage: React.FC = () => {
         } else if (data.data.previewUrl) {
           // Has preview URL but not ready yet
           setDeploymentStatus('deploying');
+        } else if (data.data.status === 'deploying') {
+          // Still deploying, no URL yet
+          setDeploymentStatus('deploying');
         }
       } else if (!data.success && data.error) {
         // API returned error but responded - this might be temporary
@@ -273,9 +276,9 @@ export const GenerateSessionPage: React.FC = () => {
     }
   }, [previewUrl]);
 
-  // Start polling when preview URL is set
+  // Start polling when deployment is in progress (not just when preview URL exists)
   useEffect(() => {
-    if (previewUrl && deploymentStatus === 'deploying') {
+    if (deploymentStatus === 'deploying' && id) {
       // Clear any existing interval
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -283,15 +286,11 @@ export const GenerateSessionPage: React.FC = () => {
 
       // Poll every 3 seconds
       pollingIntervalRef.current = setInterval(() => {
-        if (id) {
-          pollDeploymentStatus(id);
-        }
+        pollDeploymentStatus(id);
       }, 3000);
 
       // Initial poll
-      if (id) {
-        pollDeploymentStatus(id);
-      }
+      pollDeploymentStatus(id);
     }
 
     // Cleanup on unmount or when status changes
@@ -301,7 +300,7 @@ export const GenerateSessionPage: React.FC = () => {
         pollingIntervalRef.current = null;
       }
     };
-  }, [previewUrl, deploymentStatus, id, pollDeploymentStatus]);
+  }, [deploymentStatus, id, pollDeploymentStatus]);
 
   // Check deployment status when generation completes or when component mounts
   // Backend auto-deploys after generation, so we just need to check for existing preview
@@ -363,25 +362,37 @@ export const GenerateSessionPage: React.FC = () => {
 
         const data = response;
 
-        if (data.data && data.data.previewUrl) {
-          setPreviewUrl(withCacheBust(data.data.previewUrl));
-          if (!hasGeneratedInitialPreview) {
-            setHasGeneratedInitialPreview(true);
-            setActiveTab('preview');
-          }
-          
-          // Log if using cached preview
-          if (data.data.cached) {
-            console.log('Using cached preview URL');
-            setDeploymentStatus('ready');
-            setIframeKey(Date.now());
-          } else {
-            console.log('Deployment started, waiting for it to be ready...');
-            // Start polling for new deployments
+        // Check if we got a 202 Accepted response (deployment started)
+        if (data.success && data.data) {
+          if (data.data.status === 'deploying') {
+            console.log('✅ Deployment started, polling for status...');
+            if (!hasGeneratedInitialPreview) {
+              setHasGeneratedInitialPreview(true);
+              setActiveTab('preview');
+            }
+            // Polling will happen automatically via useEffect
             setDeploymentStatus('deploying');
+          } else if (data.data.previewUrl) {
+            // Got preview URL immediately (cached or already deployed)
+            setPreviewUrl(withCacheBust(data.data.previewUrl));
+            if (!hasGeneratedInitialPreview) {
+              setHasGeneratedInitialPreview(true);
+              setActiveTab('preview');
+            }
+            
+            // Log if using cached preview
+            if (data.data.cached) {
+              console.log('✅ Using cached preview URL');
+              setDeploymentStatus('ready');
+              setIframeKey(Date.now());
+            } else {
+              console.log('✅ Deployment complete, preview ready');
+              setDeploymentStatus('ready');
+              setIframeKey(Date.now());
+            }
           }
         } else {
-          console.error('previewUrl not found in response:', data);
+          console.error('Unexpected response:', data);
           setDeploymentStatus('error');
         }
       } catch (error) {
@@ -541,29 +552,34 @@ export const GenerateSessionPage: React.FC = () => {
       setDeploymentStatus('deploying');
       
       try {
-        const previewResponse = await fetch('/api/preview', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            generationId: id,
-            files: data.files,
-            forceRegenerate: true // Force regenerate because code changed
-          }),
+        const previewResponse = await apiClient.generatePreview({
+          generationId: id,
+          files: data.files,
+          forceRegenerate: true // Force regenerate because code changed
         });
 
-        if (previewResponse.ok) {
-          const previewData = await previewResponse.json();
-          if (previewData.data && previewData.data.previewUrl) {
-            setPreviewUrl(withCacheBust(previewData.data.previewUrl));
+        if (previewResponse.success && previewResponse.data) {
+          if (previewResponse.data.status === 'deploying') {
+            console.log('✅ Deployment started, polling for status...');
+            if (!hasGeneratedInitialPreview) {
+              setHasGeneratedInitialPreview(true);
+            }
+            // Polling will happen automatically via useEffect
+            setDeploymentStatus('deploying');
+          } else if (previewResponse.data.previewUrl) {
+            setPreviewUrl(withCacheBust(previewResponse.data.previewUrl));
             if (!hasGeneratedInitialPreview) {
               setHasGeneratedInitialPreview(true);
             }
             
-            // Start polling for deployment readiness
-            console.log('New deployment triggered, waiting for it to be ready...');
-            setDeploymentStatus('deploying');
+            if (previewResponse.data.cached) {
+              console.log('✅ Using cached preview URL');
+              setDeploymentStatus('ready');
+              setIframeKey(Date.now());
+            } else {
+              console.log('✅ Deployment complete, preview ready');
+              setDeploymentStatus('deploying'); // Will poll to verify it's actually ready
+            }
           }
         }
       } catch (previewError) {
@@ -789,12 +805,12 @@ export const GenerateSessionPage: React.FC = () => {
               <div className="preview-actions">
                 <button 
                   onClick={() => handlePreview(true)} 
-                  disabled={!generation || isGenerating || isGeneratingPreview}
+                  disabled={!generation || isGenerating || isGeneratingPreview || deploymentStatus === 'deploying'}
                   className="btn btn-primary"
                 >
                   {isGeneratingPreview ? 'GENERATING...' : 'REGENERATE PREVIEW'}
                 </button>
-                {previewUrl && (
+                {previewUrl && deploymentStatus === 'ready' && (
                   <button 
                     onClick={() => window.open(previewUrl, '_blank')}
                     className="btn btn-secondary"
@@ -805,7 +821,7 @@ export const GenerateSessionPage: React.FC = () => {
                 )}
                 {deploymentStatus === 'deploying' && (
                   <span className="deployment-status deploying">
-                    🔄 Deploying...
+                    🔄 Deploying... (auto-refreshing)
                   </span>
                 )}
                 {deploymentStatus === 'ready' && (
@@ -819,13 +835,11 @@ export const GenerateSessionPage: React.FC = () => {
                   </span>
                 )}
               </div>
-              {previewUrl ? (
-                <>
-                  {deploymentStatus === 'deploying' && (
-                    <div className="deployment-overlay">
-                      <div className="terminal-window">
-                        <div className="terminal-content">
-                          <pre className="ascii-logo phosphor-glow">
+              {deploymentStatus === 'deploying' ? (
+                <div className="no-preview">
+                  <div className="terminal-window">
+                    <div className="terminal-content">
+                      <pre className="ascii-logo phosphor-glow">
 {`    ╔═══════════════════════════════════╗
     ║                                   ║
     ║      DEPLOYMENT IN PROGRESS       ║
@@ -834,39 +848,40 @@ export const GenerateSessionPage: React.FC = () => {
     ║   ►  Waiting for servers...       ║
     ║   ►  This may take 30-60 seconds  ║
     ║                                   ║
-    ║      Preview will auto-refresh    ║
-    ║      when deployment is ready     ║
+    ║      Preview will load            ║
+    ║      automatically when ready     ║
     ║                                   ║
     ╚═══════════════════════════════════╝`}
-                          </pre>
+                      </pre>
+                      <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                        <div className="deployment-spinner">
+                          <div className="spinner-dot"></div>
+                          <div className="spinner-dot"></div>
+                          <div className="spinner-dot"></div>
                         </div>
                       </div>
                     </div>
-                  )}
-                  <iframe 
-                    key={iframeKey} 
-                    src={previewUrl} 
-                    title="Preview"
-                    width="100%"
-                    height="100%"
-                    style={{ 
-                      opacity: deploymentStatus === 'deploying' ? 0.3 : 1,
-                      border: '1px solid rgba(0, 255, 0, 0.3)',
-                      background: '#000'
-                    }}
-                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-                    onLoad={() => {
-                      console.log('✅ Iframe loaded successfully:', previewUrl);
-                      if (deploymentStatus === 'deploying') {
-                        setDeploymentStatus('ready');
-                      }
-                    }}
-                    onError={(e) => {
-                      console.error('❌ Iframe failed to load:', previewUrl, e);
-                      setDeploymentStatus('error');
-                    }}
-                  />
-                </>
+                  </div>
+                </div>
+              ) : previewUrl ? (
+                <iframe 
+                  key={iframeKey} 
+                  src={previewUrl} 
+                  title="Preview"
+                  width="100%"
+                  height="100%"
+                  style={{ 
+                    border: '1px solid rgba(0, 255, 0, 0.3)',
+                    background: '#000'
+                  }}
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+                  onLoad={() => {
+                    console.log('✅ Iframe loaded successfully:', previewUrl);
+                  }}
+                  onError={(e) => {
+                    console.error('❌ Iframe failed to load:', previewUrl, e);
+                  }}
+                />
               ) : (
                 <div className="no-preview">
                   <div className="terminal-window">
@@ -874,7 +889,7 @@ export const GenerateSessionPage: React.FC = () => {
                       <pre className="ascii-logo phosphor-glow">
 {`    ╔═══════════════════════════════════╗
     ║                                   ║
-    ║      GENERATING PREVIEW...        ║
+    ║      WAITING FOR PREVIEW...       ║
     ║                                   ║
     ║   ►  Preview will load            ║
     ║      automatically                ║
