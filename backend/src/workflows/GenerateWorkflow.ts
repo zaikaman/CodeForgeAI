@@ -488,6 +488,26 @@ Return the result as JSON with the following structure:
             
             if (isStaticHtml) {
                 console.log('✅ Detected static HTML project - package.json not required');
+                
+                // Validate static HTML files for common issues
+                const { validateStaticHtmlFiles } = await import('../services/validation/PreValidationRules');
+                const validation = validateStaticHtmlFiles(validFiles);
+                
+                if (!validation.isValid) {
+                    console.error('❌ Static HTML validation failed:');
+                    validation.errors.forEach(err => console.error('  ', err));
+                    
+                    // Return error with detailed feedback
+                    throw new Error(
+                        'Generated static HTML files have critical issues:\n' + 
+                        validation.errors.join('\n')
+                    );
+                }
+                
+                if (validation.warnings.length > 0) {
+                    console.warn('⚠️ Static HTML validation warnings:');
+                    validation.warnings.forEach(warn => console.warn('  ', warn));
+                }
             }
             
             console.log(`✅ Successfully validated ${validFiles.length} files (filtered out ${response.files.length - validFiles.length} invalid files)`);

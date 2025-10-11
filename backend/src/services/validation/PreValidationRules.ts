@@ -72,6 +72,31 @@ export const VALIDATION_RULES = {
     ]
   },
   
+  html: {
+    linking: [
+      "NEVER use leading slash in href/src attributes: use 'styles.css' NOT '/styles.css'",
+      "Leading slash (/) means 'from domain root' - breaks static hosting",
+      "Use relative paths: href='styles.css' or href='assets/logo.png'",
+      "Browser will get HTML 404 page instead of CSS/JS if path is wrong",
+      "This causes: 'Uncaught SyntaxError: Unexpected token <' in scripts.js"
+    ],
+    
+    structure: [
+      "Static sites: index.html, styles.css, scripts.js at ROOT level",
+      "NO nested folders like public/, src/, dist/ for static landing pages",
+      "Place images/icons in assets/ subdirectory if needed",
+      "NO package.json, tsconfig.json, or build tools for simple static sites"
+    ],
+    
+    javascript: [
+      "Use VANILLA JavaScript - NO TypeScript syntax in .js files",
+      "NO type annotations: (e: Event), (el: HTMLElement), etc.",
+      "NO 'as' type assertions: document.getElementById('id') as HTMLElement",
+      "Use 'use strict'; at the top of scripts.js",
+      "Include actual functional code - no empty files"
+    ]
+  },
+  
   common: {
     files: [
       "Always include package.json with name, version, scripts, dependencies",
@@ -100,6 +125,18 @@ export function generateValidationPrompt(language: string = 'typescript'): strin
     prompt += `### ${category.toUpperCase()}:\n`;
     for (const rule of ruleList as string[]) {
       prompt += `- ${rule}\n`;
+    }
+    prompt += '\n';
+  }
+  
+  // Add HTML-specific rules for static sites
+  if (language === 'html' || language === 'static') {
+    prompt += '### ⚠️ STATIC HTML SITES - CRITICAL RULES:\n';
+    for (const [category, ruleList] of Object.entries(VALIDATION_RULES.html)) {
+      prompt += `\n#### ${category.toUpperCase()}:\n`;
+      for (const rule of ruleList as string[]) {
+        prompt += `- ${rule}\n`;
+      }
     }
     prompt += '\n';
   }
@@ -146,8 +183,119 @@ export function getErrorPreventionRules(): string[] {
     "7. TEST template strings for proper escaping - especially in sitemap.xml.ts or similar files",
     "8. ENSURE package.json has correct 'type' field matching the module system used",
     "9. INCLUDE @types/* packages for all non-TypeScript dependencies",
-    "10. VALIDATE JSX syntax - use className={...} not className{...}"
+    "10. VALIDATE JSX syntax - use className={...} not className{...}",
+    "11. 🚨 STATIC HTML: NEVER use leading slash in href/src - use 'styles.css' NOT '/styles.css' (causes 'Uncaught SyntaxError: Unexpected token <')",
+    "12. 🚨 STATIC HTML: Files must be at ROOT - index.html, styles.css, scripts.js (NO src/, public/, dist/ folders)",
+    "13. 🚨 STATIC HTML: Use vanilla JavaScript ONLY - NO TypeScript syntax in .js files"
   ];
+}
+
+/**
+ * Validate static HTML files for common issues
+ */
+export function validateStaticHtmlFiles(files: Array<{ path: string; content: string }>): { 
+  isValid: boolean; 
+  errors: string[]; 
+  warnings: string[];
+} {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Check if this is a static HTML project
+  const hasIndexHtml = files.some(f => f.path === 'index.html');
+  const hasStylesCss = files.some(f => f.path === 'styles.css');
+  const hasScriptsJs = files.some(f => f.path === 'scripts.js');
+  const hasPackageJson = files.some(f => f.path === 'package.json');
+  const hasTsFiles = files.some(f => f.path.endsWith('.ts') || f.path.endsWith('.tsx'));
+  
+  const isStaticHtml = hasIndexHtml && hasStylesCss && !hasPackageJson && !hasTsFiles;
+  
+  if (!isStaticHtml) {
+    return { isValid: true, errors: [], warnings: [] };
+  }
+  
+  console.log('🔍 Validating static HTML files...');
+  
+  // Find index.html
+  const indexHtml = files.find(f => f.path === 'index.html');
+  if (indexHtml) {
+    const content = indexHtml.content;
+    
+    // Check for leading slashes in href/src attributes
+    const leadingSlashMatches = content.match(/(href|src)=["']\/[^/][^"']*["']/g);
+    if (leadingSlashMatches) {
+      errors.push(`❌ CRITICAL: index.html contains leading slashes in href/src attributes: ${leadingSlashMatches.join(', ')}`);
+      errors.push(`   This will cause "Uncaught SyntaxError: Unexpected token '<'" errors`);
+      errors.push(`   Fix: Remove leading slashes - use 'styles.css' not '/styles.css'`);
+    }
+    
+    // Check for wrong paths (src/, public/, dist/)
+    const wrongPaths = content.match(/(href|src)=["'](src|public|dist)\//g);
+    if (wrongPaths) {
+      errors.push(`❌ CRITICAL: index.html references non-existent folders: ${wrongPaths.join(', ')}`);
+      errors.push(`   Static sites don't have src/, public/, or dist/ folders`);
+      errors.push(`   Fix: Use direct file references - 'styles.css' not 'src/styles.css'`);
+    }
+  }
+  
+  // Check styles.css
+  const stylesCss = files.find(f => f.path === 'styles.css');
+  if (stylesCss) {
+    const content = stylesCss.content.trim();
+    const lineCount = content.split('\n').length;
+    
+    if (lineCount < 50) {
+      warnings.push(`⚠️ styles.css has only ${lineCount} lines - should have 100+ lines of complete styling`);
+    }
+    
+    if (content.length === 0) {
+      errors.push(`❌ CRITICAL: styles.css is empty`);
+    }
+    
+    if (content.includes('/* More styles */') || content.includes('// More styles')) {
+      warnings.push(`⚠️ styles.css contains placeholder comments - needs actual complete styles`);
+    }
+  }
+  
+  // Check scripts.js
+  if (hasScriptsJs) {
+    const scriptsJs = files.find(f => f.path === 'scripts.js');
+    if (scriptsJs) {
+      const content = scriptsJs.content.trim();
+      
+      if (content.length === 0) {
+        errors.push(`❌ CRITICAL: scripts.js is empty`);
+      }
+      
+      // Check for TypeScript syntax in JS file
+      const tsPatterns = [
+        /:\s*(string|number|boolean|any|void|HTMLElement|HTMLInputElement|Event)\b/,
+        /\bas\s+HTML/,
+        /interface\s+\w+/,
+        /type\s+\w+\s*=/
+      ];
+      
+      for (const pattern of tsPatterns) {
+        if (pattern.test(content)) {
+          errors.push(`❌ CRITICAL: scripts.js contains TypeScript syntax: ${pattern.toString()}`);
+          errors.push(`   Use vanilla JavaScript only - no type annotations`);
+          break;
+        }
+      }
+    }
+  }
+  
+  const isValid = errors.length === 0;
+  
+  if (!isValid) {
+    console.error('❌ Static HTML validation failed:', errors);
+  } else if (warnings.length > 0) {
+    console.warn('⚠️ Static HTML validation warnings:', warnings);
+  } else {
+    console.log('✅ Static HTML validation passed');
+  }
+  
+  return { isValid, errors, warnings };
 }
 
 /**
@@ -169,6 +317,13 @@ Please verify ALL of these before generating the final code:
 ✅ 8. No hardcoded values that should be environment variables
 ✅ 9. All async functions have proper error handling
 ✅ 10. Code follows consistent formatting (semicolons, indentation)
+
+### 🚨 FOR STATIC HTML SITES ONLY:
+✅ 11. NO leading slashes in href/src: use "styles.css" NOT "/styles.css"
+✅ 12. Files at ROOT level: index.html, styles.css, scripts.js (no src/, public/, dist/)
+✅ 13. Pure vanilla JavaScript in .js files - NO TypeScript syntax
+✅ 14. NO package.json, tsconfig.json for simple static landing pages
+✅ 15. CSS file has 100+ lines of complete styling (not empty or placeholder)
 
 If ANY item is unchecked, fix it before returning the code.
 `;

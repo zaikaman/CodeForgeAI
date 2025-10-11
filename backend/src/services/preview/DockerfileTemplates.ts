@@ -68,6 +68,24 @@ export function createNodeDockerfile(isStaticSite: boolean = false): string {
 # Copy all files to nginx html directory
 COPY . /usr/share/nginx/html/
 
+# Create nginx MIME types configuration first
+RUN printf 'types {\\n\\
+    text/html                             html htm shtml;\\n\\
+    text/css                              css;\\n\\
+    text/xml                              xml;\\n\\
+    application/javascript                js;\\n\\
+    application/json                      json;\\n\\
+    image/gif                             gif;\\n\\
+    image/jpeg                            jpeg jpg;\\n\\
+    image/png                             png;\\n\\
+    image/svg+xml                         svg svgz;\\n\\
+    image/webp                            webp;\\n\\
+    font/woff                             woff;\\n\\
+    font/woff2                            woff2;\\n\\
+    font/ttf                              ttf;\\n\\
+    font/otf                              otf;\\n\\
+}' > /etc/nginx/mime.types
+
 # Create nginx config using printf to avoid heredoc issues
 RUN printf 'server {\\n\\
     listen 80;\\n\\
@@ -75,17 +93,40 @@ RUN printf 'server {\\n\\
     root /usr/share/nginx/html;\\n\\
     index index.html;\\n\\
 \\n\\
-    location / {\\n\\
-        try_files \\$uri \\$uri/ /index.html =404;\\n\\
+    # Include MIME types\\n\\
+    include /etc/nginx/mime.types;\\n\\
+    default_type application/octet-stream;\\n\\
+\\n\\
+    # Serve static assets directly (CSS, JS, images, fonts)\\n\\
+    location ~* \\\\.(css|js)\\$ {\\n\\
+        try_files \\$uri =404;\\n\\
+        expires 30d;\\n\\
+        add_header Cache-Control "public, no-transform";\\n\\
     }\\n\\
 \\n\\
-    location ~* \\\\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)\\$ {\\n\\
+    location ~* \\\\.(jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)\\$ {\\n\\
+        try_files \\$uri =404;\\n\\
         expires 1y;\\n\\
         add_header Cache-Control "public, immutable";\\n\\
     }\\n\\
 \\n\\
+    # Serve HTML files and directory index\\n\\
+    location / {\\n\\
+        try_files \\$uri \\$uri/index.html \\$uri.html =404;\\n\\
+    }\\n\\
+\\n\\
+    # Enable gzip compression\\n\\
     gzip on;\\n\\
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;\\n\\
+    gzip_vary on;\\n\\
+    gzip_proxied any;\\n\\
+    gzip_comp_level 6;\\n\\
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;\\n\\
+\\n\\
+    # Error pages\\n\\
+    error_page 404 /404.html;\\n\\
+    location = /404.html {\\n\\
+        internal;\\n\\
+    }\\n\\
 }' > /etc/nginx/conf.d/default.conf
 
 # Fix permissions

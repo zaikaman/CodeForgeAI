@@ -439,16 +439,32 @@ assets/         ← Optional folder for images
 - ❌ WRONG: "path": "src/server.ts"
 - ❌ WRONG: "path": "dist/app.js"
 
-**2. HTML Linking - No leading slashes:**
+**2. HTML Linking - ABSOLUTELY NO LEADING SLASHES (ULTRA CRITICAL):**
 \`\`\`html
-<!-- ✅ CORRECT: -->
+<!-- ✅ CORRECT - Relative paths without leading slash: -->
 <link rel="stylesheet" href="styles.css" />
 <script src="scripts.js" defer></script>
+<img src="assets/logo.png" alt="Logo" />
 
-<!-- ❌ WRONG: -->
-<link rel="stylesheet" href="/styles.css" />
-<script src="/dist/app.js"></script>
+<!-- ❌ WRONG - Leading slash breaks static hosting: -->
+<link rel="stylesheet" href="/styles.css" />           <!-- Will return 404 -->
+<script src="/scripts.js"></script>                    <!-- Will return HTML instead of JS -->
+<script src="/dist/app.js"></script>                   <!-- dist/ folder doesn't exist -->
+<script src="/public/scripts.js"></script>             <!-- public/ folder doesn't exist -->
 \`\`\`
+
+**WHY NO LEADING SLASH:**
+- Leading slash (/) means "from domain root"
+- Static hosting serves from current directory
+- /styles.css tries to load from wrong path
+- Browser gets HTML 404 page instead of CSS/JS
+- Results in: "Uncaught SyntaxError: Unexpected token '<'" 
+
+**ALWAYS USE:**
+- ✅ href="styles.css" (same directory)
+- ✅ href="assets/icon.svg" (subdirectory)
+- ❌ NEVER href="/styles.css"
+- ❌ NEVER src="/scripts.js"
 
 **3. JavaScript - Pure vanilla JS (NO TypeScript):**
 \`\`\`javascript
