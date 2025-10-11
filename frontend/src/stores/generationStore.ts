@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { AgentMessage } from '../components/AgentChat'
-import { GenerateRequest, GenerateResponse } from '../services/apiClient'
+import apiClient, { GenerateRequest, GenerateResponse } from '../services/apiClient'
 
 export interface GenerationHistoryEntry {
   id: string
@@ -323,7 +323,6 @@ export const useGenerationStore = create<GenerationState>()(
       // Load history from backend (Supabase)
       loadHistoryFromBackend: async () => {
         try {
-          const apiClient = (await import('../services/apiClient')).default;
           const response = await apiClient.getHistory();
           
           if (response.success && response.data) {
