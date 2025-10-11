@@ -255,6 +255,44 @@ export function validateStaticHtmlFiles(files: Array<{ path: string; content: st
     if (content.includes('/* More styles */') || content.includes('// More styles')) {
       warnings.push(`⚠️ styles.css contains placeholder comments - needs actual complete styles`);
     }
+    
+    // Check for common CSS typos/errors
+    const cssErrors = [];
+    
+    // Check for ". nine" or similar spacing typos in property values
+    if (/\.\s+[a-z]+(?=;|\s)/i.test(content)) {
+      cssErrors.push('Spacing typo in CSS values (e.g., ". nine" should be ".9rem")');
+    }
+    
+    // Check for incomplete property values
+    if (/:\s*;/.test(content)) {
+      cssErrors.push('Empty CSS property values found');
+    }
+    
+    // Check for missing semicolons (basic check)
+    const lines = content.split('\n');
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      // Skip comments, opening braces, closing braces, empty lines
+      if (!trimmed || trimmed.startsWith('/*') || trimmed.startsWith('//') || 
+          trimmed === '{' || trimmed === '}' || trimmed.includes('@media')) {
+        return;
+      }
+      // If line has property: value but no semicolon or opening brace
+      if (trimmed.includes(':') && !trimmed.endsWith(';') && !trimmed.endsWith('{') && 
+          !trimmed.endsWith('*/') && idx < lines.length - 1) {
+        const nextLine = lines[idx + 1]?.trim();
+        // Only warn if next line looks like another property or closing brace
+        if (nextLine && (nextLine.includes(':') || nextLine === '}')) {
+          cssErrors.push(`Line ${idx + 1}: Missing semicolon - "${trimmed.substring(0, 50)}"`);
+        }
+      }
+    });
+    
+    if (cssErrors.length > 0) {
+      errors.push(`❌ CRITICAL: CSS syntax errors detected:`);
+      cssErrors.forEach(err => errors.push(`   - ${err}`));
+    }
   }
   
   // Check scripts.js

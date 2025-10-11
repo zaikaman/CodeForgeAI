@@ -68,6 +68,14 @@ export function createNodeDockerfile(isStaticSite: boolean = false): string {
 # Copy all files to nginx html directory
 COPY . /usr/share/nginx/html/
 
+# Debug: List files to verify copy
+RUN echo "=== Files copied to nginx html directory ===" && \\
+    ls -la /usr/share/nginx/html/ && \\
+    echo "=== Contents of assets/ if exists ===" && \\
+    (ls -la /usr/share/nginx/html/assets/ 2>/dev/null || echo "No assets folder found") && \\
+    echo "=== Checking index.html ===" && \\
+    (cat /usr/share/nginx/html/index.html | head -n 5 || echo "No index.html found")
+
 # Create nginx MIME types configuration first
 RUN printf 'types {\\n\\
     text/html                             html htm shtml;\\n\\

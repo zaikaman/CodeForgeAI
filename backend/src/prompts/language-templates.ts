@@ -491,11 +491,14 @@ function handle(e: Event): void { }  // NO!
 - ❌ public/ folder
 - ❌ dist/ folder
 
-**5. CSS - Must be complete (100+ lines):**
+**5. CSS - Must be complete and VALID (100+ lines):**
 - Include ALL styles for entire page
 - Responsive design with @media queries
 - Complete button, form, section styling
 - Do NOT say "// More styles..." - write them all!
+- ⚠️ **NO TYPOS**: Check spacing in values - use ".9rem" NOT ". nine" (space breaks CSS)
+- ⚠️ **ALL properties end with semicolon**: Every CSS property must end with ;
+- ⚠️ **Valid CSS syntax**: Test each property value is correct before returning
 
 **6. When to use STATIC HTML vs BUILD TOOLS:**
 - **Static HTML (3 files only):** Landing pages, portfolios, marketing sites, simple websites
