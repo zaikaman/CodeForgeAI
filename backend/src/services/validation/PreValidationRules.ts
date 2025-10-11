@@ -269,23 +269,43 @@ export function validateStaticHtmlFiles(files: Array<{ path: string; content: st
       cssErrors.push('Empty CSS property values found');
     }
     
-    // Check for missing semicolons (basic check)
+    // Check for missing semicolons - ONLY for single-line properties
+    // Skip this check for minified/compressed CSS (one-liners are valid)
     const lines = content.split('\n');
     lines.forEach((line, idx) => {
       const trimmed = line.trim();
-      // Skip comments, opening braces, closing braces, empty lines
+      
+      // Skip comments, braces, empty lines, media queries
       if (!trimmed || trimmed.startsWith('/*') || trimmed.startsWith('//') || 
-          trimmed === '{' || trimmed === '}' || trimmed.includes('@media')) {
+          trimmed === '{' || trimmed === '}' || trimmed.includes('@media') ||
+          trimmed.startsWith('@')) {
         return;
       }
-      // If line has property: value but no semicolon or opening brace
-      if (trimmed.includes(':') && !trimmed.endsWith(';') && !trimmed.endsWith('{') && 
-          !trimmed.endsWith('*/') && idx < lines.length - 1) {
+      
+      // Skip lines with closing brace (they might be one-liners like "{ ... }")
+      if (trimmed.includes('}')) {
+        return;
+      }
+      
+      // If line has SINGLE property:value but no semicolon
+      // Count colons to detect single vs multiple properties
+      const colonCount = (trimmed.match(/:/g) || []).length;
+      const semicolonCount = (trimmed.match(/;/g) || []).length;
+      
+      // If exactly one colon and no semicolon at end
+      if (colonCount === 1 && !trimmed.endsWith(';') && !trimmed.endsWith('{')) {
         const nextLine = lines[idx + 1]?.trim();
-        // Only warn if next line looks like another property or closing brace
-        if (nextLine && (nextLine.includes(':') || nextLine === '}')) {
+        // Only warn if next line is a closing brace or another property
+        if (nextLine && (nextLine === '}' || (nextLine.includes(':') && !nextLine.startsWith('@')))) {
           cssErrors.push(`Line ${idx + 1}: Missing semicolon - "${trimmed.substring(0, 50)}"`);
         }
+      }
+      
+      // If multiple colons, check each should have matching semicolons
+      // (for one-liner styles like "{ prop: val; prop: val; }")
+      if (colonCount > 1 && semicolonCount < colonCount) {
+        // This is a potential error, but let's be lenient for now
+        // Many minified CSS files are valid without perfect semicolon matching
       }
     });
     
