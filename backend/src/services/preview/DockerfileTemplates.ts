@@ -64,8 +64,29 @@ export function createNodeDockerfile(isStaticSite: boolean = false): string {
   // For static HTML sites, serve directly with nginx
   if (isStaticSite) {
     return `FROM nginx:1.21-alpine
-WORKDIR /usr/share/nginx/html
-COPY . .
+
+# Copy all files to nginx html directory
+COPY . /usr/share/nginx/html/
+
+# Create custom nginx config for static sites
+RUN echo 'server { \\
+    listen 80; \\
+    server_name localhost; \\
+    root /usr/share/nginx/html; \\
+    index index.html; \\
+    location / { \\
+        try_files \\$uri \\$uri/ /index.html; \\
+    } \\
+    location ~* \\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)\\$ { \\
+        expires 1y; \\
+        add_header Cache-Control "public, immutable"; \\
+    } \\
+}' > /etc/nginx/conf.d/default.conf
+
+# Fix permissions
+RUN chmod -R 755 /usr/share/nginx/html && \\
+    chown -R nginx:nginx /usr/share/nginx/html
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 `;
