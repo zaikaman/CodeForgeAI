@@ -8,8 +8,8 @@ export const VALIDATION_RULES = {
   typescript: {
     imports: [
       "Always import hooks at the top of React components: import { useState, useEffect } from 'react'",
-      "Always import Next.js hooks: import { useRouter } from 'next/router'",
-      "Never use Router.useRouter(), use useRouter() directly after importing it",
+      "Always import Next.js routing hook from 'next/router' package",
+      "Never access routing hook as a property, import and call it directly",
       "Never use require() for hooks, always use ES6 imports"
     ],
     
@@ -43,7 +43,7 @@ export const VALIDATION_RULES = {
     
     hooks: [
       "React hooks must be called at the top level of components",
-      "useRouter() returns router object, use router.push(), router.query, etc.",
+      "Next.js routing hook returns router object with push(), query, etc. methods",
       "Never call hooks inside loops, conditions, or nested functions",
       "Custom hooks must start with 'use' prefix"
     ]
@@ -137,12 +137,12 @@ export function generateValidationPrompt(language: string = 'typescript'): strin
 export function getErrorPreventionRules(): string[] {
   return [
     // From your actual deployment errors:
-    "1. NEVER use Router.useRouter() - Import useRouter directly: import { useRouter } from 'next/router' and call useRouter()",
+    "1. NEVER access routing hook as property of Router object - Import routing hook directly from 'next/router' and call it",
     "2. ALWAYS include 'swr' in package.json if using useSWR hook",
     "3. AVOID nested template strings with backticks - use String.raw or concatenation for XML/HTML generation",
     "4. CHECK all imports are listed in package.json dependencies or devDependencies",
     "5. USE proper TypeScript syntax - no 'require' for hooks, no module.exports in ESM",
-    "6. VERIFY all React hooks (useState, useEffect, useRouter) are imported before use",
+    "6. VERIFY all React hooks (useState, useEffect, routing hooks) are imported before use",
     "7. TEST template strings for proper escaping - especially in sitemap.xml.ts or similar files",
     "8. ENSURE package.json has correct 'type' field matching the module system used",
     "9. INCLUDE @types/* packages for all non-TypeScript dependencies",
@@ -159,8 +159,8 @@ export function getAIChecklistPrompt(): string {
 
 Please verify ALL of these before generating the final code:
 
-✅ 1. All React hooks (useState, useEffect, useRouter, etc.) are imported at the top
-✅ 2. No Router.useRouter() - only useRouter() after importing it
+✅ 1. All React hooks (useState, useEffect, routing hooks, etc.) are imported at the top
+✅ 2. Routing hooks are imported directly from their package, not accessed as properties
 ✅ 3. All packages used in imports are listed in package.json
 ✅ 4. Template strings don't have problematic nested backticks
 ✅ 5. No module.exports if package.json has "type": "module"

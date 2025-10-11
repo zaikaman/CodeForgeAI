@@ -40,10 +40,10 @@ COMMON DEPLOYMENT ERRORS AND FIXES:
    → Add the package to package.json dependencies with proper version
    → Example: "swr": "^2.2.5"
 
-2. "Property 'useRouter' does not exist on type...":
-   → NEVER use Router.useRouter()
-   → Import useRouter directly: import { useRouter } from 'next/router'
-   → Use it as: const router = useRouter()
+2. "Property does not exist on routing object":
+   → Import routing hook directly from its package
+   → Never access routing hooks as properties of other objects
+   → Use the routing hook directly after importing it
 
 3. "Unterminated string literal":
    → Check for nested backticks in template strings
@@ -55,8 +55,8 @@ COMMON DEPLOYMENT ERRORS AND FIXES:
    → Or rename file to .cjs extension
 
 5. Missing React hooks imports:
-   → Always import: import { useState, useEffect } from 'react'
-   → Always import: import { useRouter } from 'next/router'
+   → Always import React hooks from their respective packages
+   → Import at the top of component files before use
 
 6. TypeScript compilation errors:
    → Ensure jsx: "react-jsx" in tsconfig.json
