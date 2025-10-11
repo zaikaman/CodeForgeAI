@@ -348,20 +348,21 @@ export const useGenerationStore = create<GenerationState>()(
             // Convert database data to GenerationHistoryEntry format
             const dbHistory: GenerationHistoryEntry[] = generations.map((item: any) => ({
               id: item.id,
-              prompt: item.prompt,
+              prompt: item.prompt || '',
               request: {
-                prompt: item.prompt,
-                targetLanguage: item.target_language,
-                complexity: item.complexity,
-                agents: ['CodeGenerator'], // Default agents
+                prompt: item.prompt || '',
+                targetLanguage: item.target_language || 'typescript',
+                complexity: item.complexity || 'medium',
+                agents: item.agents || ['CodeGenerator'], // Default agents
+                projectContext: item.project_context,
               },
               response: item.files ? {
                 files: item.files,
-                language: item.target_language,
+                language: item.target_language || 'typescript',
               } : null,
-              status: item.status,
+              status: item.status || 'pending',
               error: item.error,
-              agentMessages: [], // Will be loaded separately if needed
+              agentMessages: item.agent_thoughts || [], // Load agent thoughts from database
               startedAt: new Date(item.created_at),
               completedAt: item.updated_at ? new Date(item.updated_at) : undefined,
               duration: item.updated_at 

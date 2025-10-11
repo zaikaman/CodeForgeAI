@@ -179,7 +179,7 @@ export const HistoryPage: React.FC = () => {
                       <div>
                         <h3 className="details-title phosphor-glow">GENERATION DETAILS</h3>
                         <div className={`details-status ${getStatusColor(selectedGeneration.status)}`}>
-                          {getStatusIcon(selectedGeneration.status)} {selectedGeneration.status.toUpperCase()}
+                          {getStatusIcon(selectedGeneration.status)} {selectedGeneration.status?.toUpperCase() || 'UNKNOWN'}
                         </div>
                       </div>
                       <div className="details-actions">
@@ -225,19 +225,19 @@ export const HistoryPage: React.FC = () => {
                         <div className="config-item">
                           <span className="text-muted">Language:</span>
                           <span className="text-primary">
-                            {selectedGeneration.request.targetLanguage.toUpperCase()}
+                            {selectedGeneration.request.targetLanguage?.toUpperCase() || 'N/A'}
                           </span>
                         </div>
                         <div className="config-item">
                           <span className="text-muted">Complexity:</span>
                           <span className="text-primary">
-                            {selectedGeneration.request.complexity.toUpperCase()}
+                            {selectedGeneration.request.complexity?.toUpperCase() || 'N/A'}
                           </span>
                         </div>
                         <div className="config-item">
                           <span className="text-muted">Agents:</span>
                           <span className="text-primary">
-                            {selectedGeneration.request.agents.length}
+                            {selectedGeneration.request.agents?.length || 0}
                           </span>
                         </div>
                         <div className="config-item">

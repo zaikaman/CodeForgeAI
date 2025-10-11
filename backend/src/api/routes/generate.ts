@@ -50,8 +50,10 @@ router.post('/generate', optionalAuth, async (req, res) => {
         id: generationId,
         user_id: userId, // Save user ID
         prompt: validatedRequest.prompt,
+        project_context: validatedRequest.projectContext || null,
         target_language: validatedRequest.targetLanguage,
         complexity: validatedRequest.complexity,
+        agents: validatedRequest.agents,
         image_urls: validatedRequest.imageUrls || [],
         status: 'pending',
         files: null, // Will be populated when generation completes
