@@ -180,12 +180,12 @@ export const GenerateSessionPage: React.FC = () => {
   // Poll deployment status until ready
   const pollDeploymentStatus = React.useCallback(async (generationId: string) => {
     try {
-      const response = await fetch(`/api/preview/status/${generationId}`);
-      const data = await response.json();
+      const data = await apiClient.checkPreviewStatus(generationId);
 
       if (data.success && data.data) {
         // Set preview URL if available
         if (data.data.previewUrl && !previewUrl) {
+          console.log('✅ Found preview URL from database:', data.data.previewUrl);
           setPreviewUrl(withCacheBust(data.data.previewUrl));
           setActiveTab('preview'); // Switch to preview tab
         }
@@ -201,16 +201,35 @@ export const GenerateSessionPage: React.FC = () => {
           }
           console.log('✅ Deployment is ready and live');
         } else if (data.data.previewUrl) {
+          // Has preview URL but not ready yet
           setDeploymentStatus('deploying');
         }
+      } else if (!data.success && data.error) {
+        // API returned error but responded - this might be temporary
+        console.warn('⚠️ Preview status check failed:', data.error);
+        
+        // Only set error status if we get consistent failures
+        // Check if this is a "backend not available" error
+        if (data.error.includes('Backend not available') || data.error.includes('not available')) {
+          // Stop polling only after backend is confirmed unavailable
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setDeploymentStatus('error');
+        }
+        // For other errors, keep polling - might be temporary
       }
     } catch (error: any) {
       console.error('Failed to check deployment status:', error);
       
-      // Handle HTML response error (backend not available)
-      if (error?.isHtmlError || error?.message?.includes('is not valid JSON')) {
-        console.warn('⚠️ Preview API not available - backend may not be deployed yet');
-        // Stop polling to avoid spamming failed requests
+      // Only stop polling and show error if it's a fatal error
+      // Network errors or temporary issues should not stop polling
+      if (error?.status === 0 || error?.message?.includes('Network error')) {
+        console.warn('⚠️ Network error - will retry...');
+        // Keep polling, don't set error status
+      } else {
+        // Fatal error - stop polling
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
@@ -250,7 +269,7 @@ export const GenerateSessionPage: React.FC = () => {
     };
   }, [previewUrl, deploymentStatus, id, pollDeploymentStatus]);
 
-  // Check deployment status when generation completes
+  // Check deployment status when generation completes or when component mounts
   // Backend auto-deploys after generation, so we just need to check for existing preview
   useEffect(() => {
     const shouldCheckStatus = generation?.response?.files && 
@@ -262,10 +281,32 @@ export const GenerateSessionPage: React.FC = () => {
       // Mark as checked to avoid repeated calls
       setHasGeneratedInitialPreview(true);
       
+      console.log('🔍 Checking for existing preview deployment...');
+      
       // Check if preview already exists from backend auto-deploy
       pollDeploymentStatus(generation.id);
     }
   }, [generation?.response?.files, hasGeneratedInitialPreview, generation?.id, pollDeploymentStatus]);
+
+  // On component mount, if we don't have a preview URL in state but generation exists
+  // Check the database for existing preview_url (in case of page refresh)
+  useEffect(() => {
+    const checkExistingPreview = async () => {
+      if (!id || previewUrl || hasGeneratedInitialPreview) return;
+      
+      if (generation?.response?.files && generation.response.files.length > 0) {
+        console.log('🔄 Page loaded - checking database for existing preview...');
+        
+        // Poll once to check database
+        await pollDeploymentStatus(id);
+        setHasGeneratedInitialPreview(true);
+      }
+    };
+
+    // Small delay to let other useEffects run first
+    const timer = setTimeout(checkExistingPreview, 500);
+    return () => clearTimeout(timer);
+  }, [id, generation?.response?.files, previewUrl, hasGeneratedInitialPreview, pollDeploymentStatus]);
 
   const handlePreview = async (forceRegenerate: boolean = false) => {
     if (generation && generation.response?.files && !isGeneratingPreview) {
