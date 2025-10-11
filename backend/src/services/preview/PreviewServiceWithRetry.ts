@@ -453,14 +453,23 @@ ${error}
 DEPLOYMENT LOGS:
 ${logs}
 
-CURRENT CODEBASE:
+CURRENT CODEBASE (${currentFiles.length} files):
 ${filesContext}
+
+⚠️ CRITICAL REQUIREMENT - FILE COUNT VALIDATION:
+You MUST return ALL ${currentFiles.length} files from the current codebase.
+- If you fix an existing file: include it with fixes
+- If you don't need to change a file: include it UNCHANGED
+- If you create a NEW file: add it to the list (total will be ${currentFiles.length + 1}+)
+- NEVER omit or delete files from your response
+
+Response will be REJECTED if you return fewer than ${currentFiles.length} files!
 
 Please:
 1. Analyze the error and logs carefully
 2. Identify what's causing the deployment to fail
-3. Fix the issues in the code (could be missing dependencies, incorrect configuration, build errors, etc.)
-4. Return ALL files (both modified and unmodified) so we have a complete working codebase
+3. Fix the issues in the code (could be missing dependencies, incorrect configuration, build errors, missing files, etc.)
+4. Return EVERY SINGLE FILE from the codebase (modified or not) + any new files you create
 5. Provide a summary of what you fixed
 
 Common issues to check:
@@ -512,7 +521,30 @@ Return the complete fixed codebase.`;
         return null;
       }
 
-      console.log(`✓ ChatAgent fixed ${response.files.length} files`);
+      // ⚠️ CRITICAL: For deployment fixes, ChatAgent MUST return ALL files
+      // It can return MORE files (if creating new ones), but never LESS
+      if (response.files.length < currentFiles.length) {
+        console.error(`✗ ChatAgent returned FEWER files than input!`);
+        console.error(`   Input files: ${currentFiles.length}`);
+        console.error(`   Returned files: ${response.files.length}`);
+        console.error(`   Missing ${currentFiles.length - response.files.length} file(s)`);
+        
+        // Find which files are missing
+        const returnedPaths = new Set(response.files.map((f: any) => this.normalizeFilePath(f.path)));
+        const missingFiles = currentFiles.filter(f => !returnedPaths.has(this.normalizeFilePath(f.path)));
+        
+        if (missingFiles.length > 0) {
+          console.error(`   Missing files:`);
+          missingFiles.forEach(f => console.error(`     - ${f.path}`));
+        }
+        
+        return null;
+      }
+
+      console.log(`✓ ChatAgent fixed ${response.files.length} files (input: ${currentFiles.length})`);
+      if (response.files.length > currentFiles.length) {
+        console.log(`   ✨ Created ${response.files.length - currentFiles.length} new file(s)`);
+      }
       if (response.summary) {
         console.log(`   Summary: ${response.summary}`);
       }
