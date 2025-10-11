@@ -496,8 +496,8 @@ function handle(e: Event): void { }  // NO!
 - Responsive design with @media queries
 - Complete button, form, section styling
 - Do NOT say "// More styles..." - write them all!
-- ⚠️ **NO TYPOS**: Check spacing in values - use ".9rem" NOT ". nine" (space breaks CSS)
-- ⚠️ **ALL properties end with semicolon**: Every CSS property must end with ;
+- ⚠️ **NO TYPOS**: Check spacing in values - use "0.9rem" NOT " . nine" (space breaks CSS)
+- ⚠️ **ALL properties end with semicolon**: Every CSS property must end with semicolon
 - ⚠️ **Valid CSS syntax**: Test each property value is correct before returning
 
 **6. When to use STATIC HTML vs BUILD TOOLS:**

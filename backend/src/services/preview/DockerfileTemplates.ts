@@ -106,21 +106,21 @@ RUN printf 'server {\\n\\
     default_type application/octet-stream;\\n\\
 \\n\\
     # Serve static assets directly (CSS, JS, images, fonts)\\n\\
-    location ~* \\\\.(css|js)\\$ {\\n\\
-        try_files \\$uri =404;\\n\\
+    location ~* \\.(css|js)$ {\\n\\
+        try_files $uri =404;\\n\\
         expires 30d;\\n\\
         add_header Cache-Control "public, no-transform";\\n\\
     }\\n\\
 \\n\\
-    location ~* \\\\.(jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)\\$ {\\n\\
-        try_files \\$uri =404;\\n\\
+    location ~* \\.(jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {\\n\\
+        try_files $uri =404;\\n\\
         expires 1y;\\n\\
         add_header Cache-Control "public, immutable";\\n\\
     }\\n\\
 \\n\\
     # Serve HTML files and directory index\\n\\
     location / {\\n\\
-        try_files \\$uri \\$uri/index.html \\$uri.html =404;\\n\\
+        try_files $uri $uri/index.html $uri.html =404;\\n\\
     }\\n\\
 \\n\\
     # Enable gzip compression\\n\\
