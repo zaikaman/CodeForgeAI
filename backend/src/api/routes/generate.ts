@@ -181,7 +181,13 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
 
     console.log(`[GET /generate/${id}] Successfully fetched generation. Status: ${generation.status}`);
 
+    // Check if client wants full data (including large files array)
+    // For polling, we don't need to send the full files array
+    const includeFull = req.query.full === 'true';
+    
     // Return generation status and data
+    // For polling: only return metadata (no files content to reduce payload)
+    // For full fetch: return everything
     res.json({
       success: true,
       data: {
@@ -190,13 +196,22 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
         prompt: generation.prompt,
         targetLanguage: generation.target_language,
         complexity: generation.complexity,
-        files: generation.files,
-        agentThoughts: generation.agent_thoughts,
+        // Only include files if explicitly requested (full=true) or if still processing/pending
+        files: includeFull || ['pending', 'processing'].includes(generation.status) 
+          ? generation.files 
+          : undefined,
+        // Only include agent thoughts if explicitly requested
+        agentThoughts: includeFull 
+          ? generation.agent_thoughts 
+          : undefined,
+        // Always include these lightweight fields
         error: generation.error,
-        previewUrl: generation.preview_url, // Include preview URL from database
+        previewUrl: generation.preview_url,
         deploymentStatus: generation.deployment_status,
         createdAt: generation.created_at,
         updatedAt: generation.updated_at,
+        // Add file count so frontend knows if files exist
+        fileCount: generation.files ? (Array.isArray(generation.files) ? generation.files.length : Object.keys(generation.files).length) : 0,
       },
     });
     return;

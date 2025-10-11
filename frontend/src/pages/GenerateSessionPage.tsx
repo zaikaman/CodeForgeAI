@@ -71,13 +71,27 @@ export const GenerateSessionPage: React.FC = () => {
   useEffect(() => {
     let pollInterval: NodeJS.Timeout | null = null;
     let isMounted = true;
+    let pollAttempts = 0;
+    const pollDelayRef = { current: 5000 }; // Start with 5 seconds, use ref to avoid stale closure
 
     const fetchGenerationData = async () => {
       if (!id || !isMounted) return;
       
+      pollAttempts++;
+      
       try {
         console.log('🔄 Fetching generation data from backend...');
-        const response = await apiClient.getGenerationStatus(id);
+        // Don't include full data during polling to reduce payload size
+        const response = await apiClient.getGenerationStatus(id, false);
+        
+        // Debug logging
+        console.log('📦 Raw response structure:', {
+          hasSuccess: 'success' in response,
+          hasData: 'data' in response,
+          successValue: response.success,
+          dataKeys: response.data ? Object.keys(response.data) : 'NO DATA',
+          fullResponse: response,
+        });
         
         if (!response.success || !response.data) {
           // Failed to get status
@@ -141,14 +155,18 @@ export const GenerateSessionPage: React.FC = () => {
         // If generation is still processing, continue polling
         const status = response.data.status;
         if (status === 'pending' || status === 'processing') {
-          console.log(`📊 Generation status: ${status} - will continue polling...`);
+          console.log(`📊 Generation status: ${status} - will continue polling in ${pollDelayRef.current}ms (attempt ${pollAttempts})...`);
           setIsGenerating(true);
+          
+          // Reset poll attempts on success
+          pollAttempts = 0;
           
           // Continue polling if not already polling
           if (!pollInterval && isMounted) {
+            // Use exponential backoff: start at 5s, max 15s
             pollInterval = setInterval(() => {
               fetchGenerationData();
-            }, 3000); // Poll every 3 seconds
+            }, pollDelayRef.current);
           }
         } else if (status === 'completed') {
           console.log('✅ Generation completed!');
@@ -160,9 +178,22 @@ export const GenerateSessionPage: React.FC = () => {
             pollInterval = null;
           }
           
-          // Update store with complete data
-          const storeState = useGenerationStore.getState();
-          storeState.completeGeneration(id, response.data);
+          // Fetch full data (including files) now that generation is complete
+          // This is a separate call to avoid large payloads during polling
+          console.log('📥 Fetching full generation data (including files)...');
+          const fullResponse = await apiClient.getGenerationStatus(id, true);
+          
+          if (fullResponse.success && fullResponse.data) {
+            console.log('✅ Got full generation data with files');
+            // Update store with complete data including files
+            const storeState = useGenerationStore.getState();
+            storeState.completeGeneration(id, fullResponse.data);
+          } else {
+            console.warn('⚠️ Failed to fetch full data, using partial data from polling');
+            // Fallback: use data from polling response
+            const storeState = useGenerationStore.getState();
+            storeState.completeGeneration(id, response.data);
+          }
         } else if (status === 'failed') {
           console.error('❌ Generation failed:', response.data.error);
           setIsGenerating(false);
@@ -174,7 +205,13 @@ export const GenerateSessionPage: React.FC = () => {
           }
         }
       } catch (error: any) {
-        console.error('Failed to fetch generation data:', error);
+        console.error(' ❌ Failed to get generation status:', error?.message || error);
+        console.error('🔍 Error details:', {
+          status: error?.status,
+          message: error?.message,
+          isHtmlError: error?.isHtmlError,
+          fullError: error,
+        });
         
         // Check for authentication errors
         if (error?.status === 401 || error?.message?.includes('Authentication')) {
@@ -187,6 +224,53 @@ export const GenerateSessionPage: React.FC = () => {
         if (error?.status === 404) {
           console.error('❌ Generation 404 - redirecting to /generate');
           setTimeout(() => navigate('/generate'), 2000);
+          return;
+        }
+        
+        // Handle rate limiting (429)
+        if (error?.status === 429) {
+          console.warn('⚠️ Rate limited - backing off...');
+          
+          // Exponential backoff: increase delay, max 30 seconds
+          pollDelayRef.current = Math.min(pollDelayRef.current * 1.5, 30000);
+          
+          // Restart polling with new delay
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+          
+          if (isMounted) {
+            console.log(`🔄 Restarting poll with ${pollDelayRef.current}ms delay...`);
+            pollInterval = setInterval(() => {
+              fetchGenerationData();
+            }, pollDelayRef.current);
+          }
+          return;
+        }
+        
+        // If HTML error, might be backend deployment issue - slow down polling
+        if (error?.isHtmlError || error?.message?.includes('Invalid JSON')) {
+          console.error('❌ Backend returned non-JSON response - slowing down polling');
+          
+          // Increase delay significantly
+          pollDelayRef.current = Math.min(pollDelayRef.current * 2, 30000);
+          
+          // Continue polling with longer delay instead of stopping
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+          
+          if (isMounted && pollAttempts < 20) {
+            console.log(`🔄 Retrying with ${pollDelayRef.current}ms delay (attempt ${pollAttempts}/20)...`);
+            pollInterval = setInterval(() => {
+              fetchGenerationData();
+            }, pollDelayRef.current);
+          } else {
+            console.error('❌ Too many failed attempts - stopping polling');
+            setIsGenerating(false);
+          }
         }
       }
     };

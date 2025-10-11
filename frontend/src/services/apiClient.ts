@@ -232,6 +232,18 @@ class ApiClient {
         // Check if error response is HTML instead of JSON
         if (error.response) {
           const contentType = error.response.headers['content-type']
+          
+          // Debug logging for all errors
+          console.error('🔍 [apiClient] Response error debug:', {
+            url: error.config?.url,
+            status: error.response.status,
+            contentType,
+            dataType: typeof error.response.data,
+            dataPreview: typeof error.response.data === 'string' 
+              ? error.response.data.substring(0, 200) 
+              : JSON.stringify(error.response.data).substring(0, 200),
+          });
+          
           if (contentType && contentType.includes('text/html')) {
             console.error('❌ [apiClient] Server returned HTML instead of JSON')
             console.error('❌ [apiClient] This usually means the API endpoint does not exist or backend is not properly deployed')
@@ -336,8 +348,10 @@ class ApiClient {
   }
 
   // Get generation status - check progress of a generation
-  async getGenerationStatus(generationId: string): Promise<ApiResponse<GenerateResponse>> {
-    const response = await this.client.get(`/api/generate/${generationId}`)
+  // includeFull: if true, includes full files array (use sparingly, can be large)
+  async getGenerationStatus(generationId: string, includeFull = false): Promise<ApiResponse<GenerateResponse>> {
+    const params = includeFull ? { full: 'true' } : {};
+    const response = await this.client.get(`/api/generate/${generationId}`, { params })
     return response.data
   }
 
