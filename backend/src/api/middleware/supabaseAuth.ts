@@ -93,6 +93,7 @@ export async function optionalAuth(
 
     // If no auth header, just continue without setting user
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`[optionalAuth] No auth header found for ${req.method} ${req.path}`)
       next()
       return
     }
@@ -100,6 +101,7 @@ export async function optionalAuth(
     const token = authHeader.substring(7)
 
     if (!token) {
+      console.log(`[optionalAuth] Empty token for ${req.method} ${req.path}`)
       next()
       return
     }
@@ -117,6 +119,9 @@ export async function optionalAuth(
       }
       req.userId = data.user.id
       req.accessToken = token
+      console.log(`[optionalAuth] ✓ User authenticated: ${data.user.id} (${data.user.email}) for ${req.method} ${req.path}`)
+    } else {
+      console.warn(`[optionalAuth] ✗ Token validation failed for ${req.method} ${req.path}:`, error?.message)
     }
 
     next()

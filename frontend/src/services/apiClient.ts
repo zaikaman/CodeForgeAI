@@ -192,10 +192,14 @@ class ApiClient {
 
           if (session?.access_token) {
             config.headers.Authorization = `Bearer ${session.access_token}`
+            console.log(`[apiClient] ✓ Adding auth token to ${config.method?.toUpperCase()} ${config.url}`)
+          } else {
+            console.warn(`[apiClient] ✗ No session found for ${config.method?.toUpperCase()} ${config.url}`)
           }
 
           return config
         } catch (error) {
+          console.error('[apiClient] Error getting session:', error)
           // Don't throw - allow request to proceed without auth
           return config
         }

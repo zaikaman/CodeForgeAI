@@ -23,9 +23,13 @@ const generateRequestSchema = z.object({
 router.post('/generate', optionalAuth, async (req, res) => {
   try {
     const userId = (req as AuthenticatedRequest).userId;
+    const hasAuthHeader = req.headers.authorization ? 'YES' : 'NO';
+    
+    console.log(`[POST /generate] Request received. Auth header: ${hasAuthHeader}, UserId: ${userId || 'NOT AUTHENTICATED'}`);
     
     // Check if user is authenticated
     if (!userId) {
+      console.warn('[POST /generate] No userId found - authentication failed');
       res.status(401).json({
         success: false,
         error: 'Authentication required. Please log in to generate code.',
@@ -38,7 +42,9 @@ router.post('/generate', optionalAuth, async (req, res) => {
     
     // Create generation record with pending status
     const generationId = randomUUID();
-    const { error: saveError } = await supabase
+    console.log(`[POST /generate] Creating generation ${generationId} for user ${userId}`);
+    
+    const { data: newGeneration, error: saveError } = await supabase
       .from('generations')
       .insert({
         id: generationId,
@@ -54,13 +60,16 @@ router.post('/generate', optionalAuth, async (req, res) => {
       .single();
 
     if (saveError) {
-      console.error('Failed to create generation:', saveError);
+      console.error('[POST /generate] Failed to create generation:', saveError);
       res.status(500).json({
         success: false,
         error: 'Failed to create generation',
+        details: saveError.message,
       });
       return;
     }
+
+    console.log(`[POST /generate] Generation ${generationId} created successfully. User ID saved: ${newGeneration?.user_id}`);
 
     // Enqueue the generation job for background processing
     await generationQueue.enqueue({
@@ -112,8 +121,11 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
     const userId = (req as AuthenticatedRequest).userId;
     const { id } = req.params;
 
+    console.log(`[GET /generate/${id}] Request received. UserId: ${userId || 'NOT AUTHENTICATED'}`);
+
     // Check if user is authenticated
     if (!userId) {
+      console.warn(`[GET /generate/${id}] No userId found - authentication failed`);
       res.status(401).json({
         success: false,
         error: 'Authentication required. Please log in to view generations.',
@@ -121,21 +133,53 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Fetch generation from database (only if it belongs to the user)
+    // First, check if generation exists at all
+    const { data: generationCheck, error: checkError } = await supabase
+      .from('generations')
+      .select('id, user_id')
+      .eq('id', id)
+      .single();
+
+    if (checkError || !generationCheck) {
+      console.error(`[GET /generate/${id}] Generation not found in database. Error:`, checkError);
+      res.status(404).json({
+        success: false,
+        error: 'Generation not found',
+        details: checkError?.message || 'No generation record exists with this ID',
+      });
+      return;
+    }
+
+    // Check if user owns this generation
+    if (generationCheck.user_id !== userId) {
+      console.warn(`[GET /generate/${id}] Permission denied. Generation belongs to user ${generationCheck.user_id}, request from ${userId}`);
+      res.status(403).json({
+        success: false,
+        error: 'You do not have permission to view this generation',
+        details: 'This generation belongs to a different user',
+      });
+      return;
+    }
+
+    // Fetch full generation from database
     const { data: generation, error } = await supabase
       .from('generations')
       .select('*')
       .eq('id', id)
-      .eq('user_id', userId) // Only get user's own generations
+      .eq('user_id', userId)
       .single();
 
     if (error || !generation) {
-      res.status(404).json({
+      console.error(`[GET /generate/${id}] Failed to fetch generation details:`, error);
+      res.status(500).json({
         success: false,
-        error: 'Generation not found or you do not have permission to view it',
+        error: 'Failed to fetch generation details',
+        details: error?.message,
       });
       return;
     }
+
+    console.log(`[GET /generate/${id}] Successfully fetched generation. Status: ${generation.status}`);
 
     // Return generation status and data
     res.json({
