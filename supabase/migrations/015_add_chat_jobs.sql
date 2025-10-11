@@ -1,7 +1,7 @@
 -- Create chat_jobs table to track chat request processing
 CREATE TABLE IF NOT EXISTS public.chat_jobs (
-  id UUID PRIMARY KEY,
-  generation_id UUID NOT NULL REFERENCES public.generations(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY,
+  generation_id TEXT NOT NULL REFERENCES public.generations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   current_files JSONB NOT NULL DEFAULT '[]'::jsonb,
