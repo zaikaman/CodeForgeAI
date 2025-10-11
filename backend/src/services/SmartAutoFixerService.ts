@@ -87,13 +87,16 @@ export class SmartAutoFixerService {
    */
   private canFixWithRules(error: ValidationError): boolean {
     const ruleFixableTypes = [
+      'regex_syntax_error',
+      'invalid_dependency_version',
       'missing_dependency',
       'placeholder_code',
       'console_log',
       'print_statement',
       'empty_file',
       'duplicate_file',
-      'placeholder_file'
+      'placeholder_file',
+      'json_escaping_error'
     ];
     
     return ruleFixableTypes.includes(error.type);
@@ -121,6 +124,16 @@ export class SmartAutoFixerService {
     // Apply fixes by type
     for (const [type, typeErrors] of errorsByType) {
       switch (type) {
+        case 'regex_syntax_error':
+          fixedFiles = this.fixRegexErrors(fixedFiles, typeErrors);
+          fixes.push(`Fixed ${typeErrors.length} regex syntax errors`);
+          break;
+          
+        case 'invalid_dependency_version':
+          fixedFiles = this.fixInvalidVersions(fixedFiles, typeErrors);
+          fixes.push(`Fixed ${typeErrors.length} invalid dependency versions`);
+          break;
+          
         case 'missing_dependency':
           fixedFiles = this.fixMissingDependencies(fixedFiles, typeErrors);
           fixes.push(`Added ${typeErrors.length} missing dependencies`);
@@ -370,21 +383,117 @@ IMPORTANT:
   }
   
   /**
-   * Get default version for common packages
+   * Get default version for common packages (UPDATED Oct 2025)
    */
   private getDefaultVersion(pkg: string): string {
     const versions: Record<string, string> = {
-      'react': '^18.2.0',
-      'react-dom': '^18.2.0',
-      'express': '^4.18.0',
-      'typescript': '^5.4.5',
-      'vite': '^5.0.0',
-      '@vitejs/plugin-react': '^4.0.0',
-      'cors': '^2.8.5',
-      'axios': '^1.6.0',
-      'zustand': '^4.4.0'
+        // React ecosystem
+        'react': '^19.2.0',
+        'react-dom': '^19.2.0',
+        '@types/react': '^19.2.2',
+        '@types/react-dom': '^19.2.1',
+        
+        // Build tools
+        'vite': '^7.1.9',
+        '@vitejs/plugin-react': '^5.0.4',
+        'typescript': '^5.9.3',
+        '@types/node': '^24.7.1',
+        
+        // Backend
+        'express': '^5.1.0',
+        '@types/express': '^5.0.3',
+        'cors': '^2.8.5',
+        '@types/cors': '^2.8.19',
+        'dotenv': '^17.2.3',
+        
+        // Utilities
+        'axios': '^1.7.2',
+        'zustand': '^5.0.8',
+        'zod': '^4.1.12'
     };
     
-    return versions[pkg] || 'latest';
+    return versions[pkg] || '^1.0.0'; // Conservative fallback
+    }
+  
+  /**
+   * Fix invalid dependency versions in package.json
+   */
+  private fixInvalidVersions(
+    files: GeneratedFile[],
+    errors: ValidationError[]
+  ): GeneratedFile[] {
+    const pkgFile = files.find(f => f.path === 'package.json');
+    if (!pkgFile) return files;
+    
+    try {
+      const pkg = JSON.parse(pkgFile.content);
+      
+      // Fix each invalid version error
+      for (const error of errors) {
+        // Extract package name from error message
+        const pkgMatch = error.message.match(/package "([^"]+)"/);
+        if (!pkgMatch) continue;
+        
+        const pkgName = pkgMatch[1];
+        const correctVersion = this.getDefaultVersion(pkgName);
+        
+        // Update in dependencies
+        if (pkg.dependencies && pkg.dependencies[pkgName]) {
+          pkg.dependencies[pkgName] = correctVersion;
+          console.log(`    Fixed ${pkgName}: ${pkg.dependencies[pkgName]} -> ${correctVersion}`);
+        }
+        
+        // Update in devDependencies
+        if (pkg.devDependencies && pkg.devDependencies[pkgName]) {
+          pkg.devDependencies[pkgName] = correctVersion;
+          console.log(`    Fixed ${pkgName}: ${pkg.devDependencies[pkgName]} -> ${correctVersion}`);
+        }
+      }
+      
+      // Update package.json
+      return files.map(f => 
+        f.path === 'package.json'
+          ? { ...f, content: JSON.stringify(pkg, null, 2) }
+          : f
+      );
+    } catch (error) {
+      console.warn('Failed to fix invalid versions:', error);
+      return files;
+    }
+  }
+  
+  /**
+   * Fix regex syntax errors
+   */
+  private fixRegexErrors(
+    files: GeneratedFile[],
+    errors: ValidationError[]
+  ): GeneratedFile[] {
+    const affectedFiles = new Set(errors.map(e => e.file));
+    
+    return files.map(file => {
+      if (!affectedFiles.has(file.path)) return file;
+      
+      let content = file.content;
+      
+      // Fix common regex errors
+      // 1. Range out of order: [9-0] -> [0-9]
+      content = content.replace(/\[([^\]]*?)(\d)-(\d)([^\]]*?)\]/g, (match, before, end, start, after) => {
+        if (parseInt(end) > parseInt(start)) {
+          // Swap the range
+          return `[${before}${start}-${end}${after}]`;
+        }
+        return match;
+      });
+      
+      // 2. Common wrong patterns
+      content = content.replace(/\[9-0\]/g, '[0-9]');
+      content = content.replace(/\[Z-A\]/g, '[A-Z]');
+      content = content.replace(/\[z-a\]/g, '[a-z]');
+      
+      console.log(`    Fixed regex errors in ${file.path}`);
+      
+      return { ...file, content };
+    });
   }
 }

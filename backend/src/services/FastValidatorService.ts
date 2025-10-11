@@ -161,6 +161,17 @@ export class FastValidatorService {
     
     try {
       const ts = await import('typescript');
+      const errors: ValidationError[] = [];
+      
+      // Check for common regex errors FIRST (before transpiling)
+      const regexErrors = this.validateRegexSyntax(file);
+      errors.push(...regexErrors);
+      
+      // Check for invalid JSON-encoded content (double-escaped quotes)
+      if (file.content.includes('\\"') || file.content.includes('\\n')) {
+        const jsonCheckErrors = this.validateJSONEscaping(file);
+        errors.push(...jsonCheckErrors);
+      }
       
       // Quick syntax check using transpileModule
       const result = ts.transpileModule(file.content, {
@@ -175,8 +186,6 @@ export class FastValidatorService {
       });
       
       // Convert diagnostics to errors
-      const errors: ValidationError[] = [];
-      
       if (result.diagnostics && result.diagnostics.length > 0) {
         for (const diagnostic of result.diagnostics) {
           const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
@@ -202,6 +211,73 @@ export class FastValidatorService {
         message: `TypeScript validation failed: ${error.message}`
       }];
     }
+  }
+  
+  /**
+   * Validate regex syntax in code (catches "Range out of order" errors)
+   */
+  private validateRegexSyntax(file: GeneratedFile): ValidationError[] {
+    const errors: ValidationError[] = [];
+    const lines = file.content.split('\n');
+    
+    // Match regex patterns: /.../ or new RegExp('...')
+    const regexPatterns = [
+      /\/([^\/\n\\]|\\.)+\/[gimsuvy]*/g,  // Regex literals: /pattern/flags
+      /new\s+RegExp\s*\(\s*['"`]([^'"`]+)['"`]/g  // new RegExp('pattern')
+    ];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineNum = i + 1;
+      
+      for (const pattern of regexPatterns) {
+        const matches = [...line.matchAll(pattern)];
+        
+        for (const match of matches) {
+          const regexStr = match[1] || match[0];
+          
+          // Try to construct the regex to check for errors
+          try {
+            if (regexStr) {
+              new RegExp(regexStr);
+            }
+          } catch (e: any) {
+            errors.push({
+              severity: 'critical',
+              type: 'regex_syntax_error',
+              file: file.path,
+              line: lineNum,
+              message: `Invalid regex syntax: ${e.message}`,
+              suggestedFix: 'Fix the character class range or escape special characters'
+            });
+          }
+        }
+      }
+    }
+    
+    return errors;
+  }
+  
+  /**
+   * Check for double-escaped JSON content (indicates wrong escaping)
+   */
+  private validateJSONEscaping(file: GeneratedFile): ValidationError[] {
+    const errors: ValidationError[] = [];
+    
+    // If file contains \" or \n outside of strings, it's likely double-escaped JSON
+    const doubleEscaped = file.content.match(/[^"'`]\\[n"trfbv]/g);
+    
+    if (doubleEscaped && doubleEscaped.length > 5) {
+      errors.push({
+        severity: 'high',
+        type: 'json_escaping_error',
+        file: file.path,
+        message: 'File contains double-escaped JSON content (\\n, \\", etc.)',
+        suggestedFix: 'Content may have been JSON.stringify() twice - unescape it'
+      });
+    }
+    
+    return errors;
   }
   
   /**
@@ -305,6 +381,43 @@ export class FastValidatorService {
       return errors;
     }
     
+    // Validate package.json syntax if present
+    if (packageFile.path === 'package.json') {
+      try {
+        const pkg = JSON.parse(packageFile.content);
+        
+        // Validate dependency versions
+        const allDeps = {
+          ...pkg.dependencies,
+          ...pkg.devDependencies
+        };
+        
+        for (const [name, version] of Object.entries(allDeps)) {
+          if (typeof version === 'string') {
+            // Check for invalid version patterns
+            if (this.isInvalidVersion(version as string)) {
+              errors.push({
+                severity: 'critical',
+                type: 'invalid_dependency_version',
+                file: packageFile.path,
+                message: `Invalid version "${version}" for package "${name}"`,
+                suggestedFix: `Use a valid semver version (e.g., "^5.0.0" instead of "${version}")`
+              });
+            }
+          }
+        }
+      } catch (e: any) {
+        errors.push({
+          severity: 'critical',
+          type: 'invalid_json',
+          file: packageFile.path,
+          message: `Invalid package.json syntax: ${e.message}`,
+          suggestedFix: 'Fix JSON syntax errors'
+        });
+        return errors; // Can't continue validation if JSON is invalid
+      }
+    }
+    
     // Extract declared dependencies
     const declaredDeps = this.extractDependencies(packageFile, language);
     
@@ -331,6 +444,30 @@ export class FastValidatorService {
     }
     
     return errors;
+  }
+  
+  /**
+   * Check if a version string is invalid
+   */
+  private isInvalidVersion(version: string): boolean {
+    // Check if version uses non-existent major version
+    const majorMatch = version.match(/\^?(\d+)\./);
+    if (majorMatch) {
+      const major = parseInt(majorMatch[1]);
+      
+      // Most npm packages are still on v5 or below (as of 2025)
+      // Vite is at 5.4.x, React at 18.x, TypeScript at 5.x
+      if (major > 5 && !version.includes('typescript') && !version.includes('eslint') && !version.includes('react')) {
+        return true; // Likely too new/doesn't exist yet
+      }
+    }
+    
+    // Check for specific known problematic versions
+    if (version.includes('5.5')) {
+      return true; // Vite 5.5 doesn't exist (max is 5.4.x)
+    }
+    
+    return false;
   }
   
   /**
