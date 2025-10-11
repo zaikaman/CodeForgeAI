@@ -485,10 +485,12 @@ class SyntaxFixerAgent {
       let newContent = file.content;
       let modified = false;
 
-      // Fix 1: Unterminated string literal in template strings
-      if (error.message.includes('Unterminated string literal')) {
-        // Common issue: backticks not properly escaped in nested template strings
-        // Pattern: `...${var.map(x => `...`).join('...')}...`
+      // Fix 1: Unterminated string literal
+      if (error.message.includes('Unterminated string literal') || error.message.includes('unterminated')) {
+        // Common issues:
+        // 1. Nested template strings without proper escaping
+        // 2. Actual newlines in JSON strings (should be \n)
+        // 3. Missing closing quotes
         
         // Fix sitemap.xml.ts specific issue
         if (file.path.includes('sitemap.xml')) {
@@ -496,6 +498,41 @@ class SyntaxFixerAgent {
           if (newContent !== file.content) {
             modified = true;
             appliedFixes.push(`Fixed template string in ${file.path}`);
+          }
+        }
+        
+        // Fix general unterminated strings by escaping actual newlines
+        if (error.line) {
+          const lines = newContent.split('\n');
+          const errorLine = lines[error.line - 1];
+          
+          if (errorLine) {
+            // Check if line has unmatched quotes
+            const doubleQuoteCount = (errorLine.match(/(?<!\\)"/g) || []).length;
+            const singleQuoteCount = (errorLine.match(/(?<!\\)'/g) || []).length;
+            
+            // If odd number of quotes, try to fix
+            if (doubleQuoteCount % 2 !== 0 || singleQuoteCount % 2 !== 0) {
+              // Look for multiline string that should be single line
+              // Pattern: "something\n  continuation" -> "something\\n  continuation"
+              let fixedLine = errorLine;
+              
+              // If next line exists and looks like continuation
+              if (error.line < lines.length) {
+                const nextLine = lines[error.line];
+                
+                // If current line has opening quote but no closing, and next line exists
+                if (doubleQuoteCount % 2 !== 0) {
+                  // Merge lines with \n escape
+                  fixedLine = errorLine + '\\n' + nextLine.trim();
+                  lines[error.line - 1] = fixedLine;
+                  lines.splice(error.line, 1); // Remove next line
+                  newContent = lines.join('\n');
+                  modified = true;
+                  appliedFixes.push(`Fixed unterminated string at line ${error.line} in ${file.path}`);
+                }
+              }
+            }
           }
         }
       }

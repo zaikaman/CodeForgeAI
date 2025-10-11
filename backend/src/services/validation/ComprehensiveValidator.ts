@@ -379,6 +379,41 @@ export class ComprehensiveValidator {
       });
     }
 
+    // Check 6: Unterminated string literals (multiline strings without proper escaping)
+    // This catches strings that have actual newlines inside them (not \n escapes)
+    const lines = file.content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check for strings that start but don't end on the same line
+      // (excluding template literals which are valid)
+      const doubleQuoteStart = (line.match(/"/g) || []).length;
+      const singleQuoteStart = (line.match(/'/g) || []).length;
+      
+      // Skip template literals
+      if (line.includes('`')) continue;
+      
+      // If odd number of quotes, likely unterminated
+      if (doubleQuoteStart % 2 !== 0 || singleQuoteStart % 2 !== 0) {
+        // Check if it's genuinely unterminated (not escaped)
+        const hasUnterminatedDouble = /(?<!\\)"[^"\n]*$/g.test(line);
+        const hasUnterminatedSingle = /(?<!\\)'[^'\n]*$/g.test(line);
+        
+        if (hasUnterminatedDouble || hasUnterminatedSingle) {
+          errors.push({
+            severity: 'critical',
+            layer: 'static',
+            category: 'syntax',
+            file: file.path,
+            line: i + 1,
+            message: 'Unterminated string literal detected. Check for missing closing quote or use \\n for newlines in JSON strings.',
+            fixable: true,
+            fixStrategy: 'syntax_fixer'
+          });
+        }
+      }
+    }
+
     return errors;
   }
 
