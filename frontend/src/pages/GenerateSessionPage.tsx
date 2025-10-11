@@ -309,48 +309,58 @@ export const GenerateSessionPage: React.FC = () => {
     if (!generation || !id) return;
 
     try {
-      // Use apiClient with proper baseURL configuration
-      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const downloadUrl = `${baseURL}/api/download`;
+      console.log('📦 Creating ZIP from generation files...');
       
-      const response = await fetch(downloadUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          generationId: id,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-
-      // Get the blob from response with correct MIME type
-      const blob = await response.blob();
-      const zipBlob = new Blob([blob], { type: 'application/zip' });
+      // Get files from generation (either from store or fetch from database)
+      let files = generation.response?.files;
       
-      // Extract filename from Content-Disposition header
-      const contentDisposition = response.headers.get('content-disposition');
-      let filename = `codeforge-${id.slice(0, 8)}.zip`;
-      
-      if (contentDisposition) {
-        // Try different patterns to extract filename
-        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-        const matches = filenameRegex.exec(contentDisposition);
-        if (matches != null && matches[1]) {
-          filename = matches[1].replace(/['"]/g, '');
+      if (!files || files.length === 0) {
+        console.log('No files in store, fetching from database...');
+        const { data: generationData, error: dbError } = await supabase
+          .from('generations')
+          .select('files')
+          .eq('id', id)
+          .single();
+        
+        if (dbError || !generationData?.files) {
+          throw new Error('No files found to download');
         }
+        
+        files = generationData.files;
       }
-
-      // Ensure filename ends with .zip
-      if (!filename.endsWith('.zip')) {
-        filename = filename.replace(/\.[^.]*$/, '') + '.zip';
+      
+      // Final check
+      if (!files || files.length === 0) {
+        throw new Error('No files available to download');
       }
-
+      
+      console.log(`Found ${files.length} files to zip`);
+      
+      // Dynamically import JSZip (code splitting)
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      
+      // Add each file to the zip
+      files.forEach((file: { path: string; content: string }) => {
+        zip.file(file.path, file.content);
+      });
+      
+      console.log('Generating ZIP blob...');
+      
+      // Generate the zip file
+      const blob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+      
+      // Create filename
+      const filename = `codeforge-${id.slice(0, 8)}.zip`;
+      
+      console.log(`✅ ZIP created (${(blob.size / 1024).toFixed(2)} KB), downloading...`);
+      
       // Create download link
-      const url = URL.createObjectURL(zipBlob);
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
@@ -363,6 +373,8 @@ export const GenerateSessionPage: React.FC = () => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
       }, 100);
+      
+      console.log('✅ Download started successfully');
     } catch (error) {
       console.error('Failed to download ZIP:', error);
       alert('Failed to download ZIP file. Please try again.');
