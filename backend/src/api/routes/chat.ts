@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from '../../services/ChatMemoryManager';
+import { chatQueue } from '../../services/ChatQueue';
 import { supabase } from '../../storage/SupabaseClient';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
 const router = Router();
@@ -18,15 +19,16 @@ const chatRequestSchema = z.object({
   imageUrls: z.array(z.string()).optional(),
 });
 
+// POST /chat - Start a chat request as background job (returns immediately)
 router.post('/chat', async (req, res): Promise<void> => {
-  // Set timeout to 55 seconds (Heroku has 30s limit, but we want to handle gracefully)
-  req.setTimeout(55000);
-  
   try {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
     const { generationId, message, currentFiles, language, imageUrls } = validatedRequest;
+
+    // Create unique job ID
+    const jobId = randomUUID();
 
     // Ensure generation exists in DB before storing chat messages
     const { data: existingGeneration } = await supabase
@@ -70,156 +72,26 @@ router.post('/chat', async (req, res): Promise<void> => {
       console.warn('⚠ Failed to store user message, continuing anyway...');
     }
 
-    // Build context with conversation history
-    const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
+    // Enqueue the chat job for background processing
+    await chatQueue.enqueue({
+      id: jobId,
       generationId,
       message,
       currentFiles,
       language,
-      imageUrls
-    );
+      imageUrls,
+    });
 
-    console.log(`📝 Chat context built: ${totalTokens} estimated tokens`);
-
-    // Set a timeout warning at 25 seconds (before Heroku's 30s limit)
-    const timeoutWarning = setTimeout(() => {
-      console.warn(`⚠️  Chat request for ${generationId} is taking longer than 25s...`);
-    }, 25000);
-
-    try {
-      // Use ChatAgent for all requests
-      const { runner } = await ChatAgent();
-      
-      // Build the message with images if provided
-      let chatMessage: any;
-    
-    if (imageUrls && imageUrls.length > 0) {
-      // Download images and convert to base64
-      const imageParts = await Promise.all(
-        imageUrls.map(async (url) => {
-          try {
-            const response = await globalThis.fetch(url);
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            const base64 = buffer.toString('base64');
-            const contentType = response.headers.get('content-type') || 'image/jpeg';
-            
-            return {
-              inline_data: {
-                mime_type: contentType,
-                data: base64
-              }
-            };
-          } catch (error) {
-            console.error(`Failed to fetch image from ${url}:`, error);
-            return null;
-          }
-        })
-      );
-      
-      // Filter out failed downloads
-      const validImageParts = imageParts.filter(part => part !== null);
-      
-      // Build message with text and images (includes conversation history)
-      const textPart = {
-        text: contextMessage
-      };
-      
-      chatMessage = {
-        parts: [textPart, ...validImageParts]
-      };
-    } else {
-      // Text-only message (includes conversation history)
-      chatMessage = contextMessage;
-    }
-
-    const response = await runner.ask(chatMessage) as any;
-    
-    // Validate and sanitize response files
-    if (response.files && Array.isArray(response.files)) {
-      for (let i = 0; i < response.files.length; i++) {
-        const file = response.files[i];
-        
-        // Ensure content is always a string
-        if (typeof file.content !== 'string') {
-          console.warn(`⚠ File ${file.path} has non-string content, converting...`);
-          
-          if (typeof file.content === 'object') {
-            response.files[i].content = JSON.stringify(file.content, null, 2);
-          } else {
-            response.files[i].content = String(file.content);
-          }
-        } else {
-          // Content is already a string, but check if it's a double-escaped JSON string
-          // This happens when LLM returns already-stringified JSON content
-          if (file.path.endsWith('.json') && file.content.startsWith('"') && file.content.endsWith('"')) {
-            try {
-              // Try to parse it once to remove outer quotes and unescape
-              const unescaped = JSON.parse(file.content);
-              if (typeof unescaped === 'string') {
-                response.files[i].content = unescaped;
-                console.log(`✓ Unescaped double-stringified content for ${file.path}`);
-              }
-            } catch (err) {
-              // If parsing fails, keep original content
-              console.warn(`⚠ Could not unescape content for ${file.path}, keeping as-is`);
-            }
-          }
-        }
-      }
-    }
-    
-    // Merge modified/new files with existing files
-    let updatedFiles: Array<{ path: string; content: string }> = [...currentFiles];
-    
-    if (response.files && Array.isArray(response.files) && response.files.length > 0) {
-      const responseFilesMap = new Map<string, { path: string; content: string }>(
-        response.files.map((f: any) => [f.path, f as { path: string; content: string }])
-      );
-      
-      // Update existing files that were modified
-      updatedFiles = currentFiles.map(originalFile => {
-        const modifiedFile = responseFilesMap.get(originalFile.path);
-        if (modifiedFile) {
-          responseFilesMap.delete(originalFile.path);
-          return modifiedFile;
-        }
-        return originalFile;
-      });
-      
-      // Add any new files
-      responseFilesMap.forEach((newFile: { path: string; content: string }) => {
-        updatedFiles.push(newFile);
-      });
-    }
-
-      // Store assistant response in memory
-      await ChatMemoryManager.storeMessage({
-        generationId,
-        role: 'assistant',
-        content: response.summary || 'Applied requested changes to the codebase',
-        metadata: {
-          filesModified: response.files?.length || 0,
-        },
-      });
-
-      const responseData = {
-        success: true,
-        data: {
-          files: updatedFiles,
-          agentThought: {
-            agent: 'ChatAgent',
-            thought: response.summary || 'Applied requested changes to the codebase'
-          }
-        },
-      };
-
-      res.json(responseData);
-      return;
-    } finally {
-      // Clear timeout warning
-      clearTimeout(timeoutWarning);
-    }
+    // Return immediately with job ID
+    res.json({
+      success: true,
+      data: {
+        jobId,
+        status: 'pending',
+        message: 'Chat request queued. Use job ID to check status.',
+      },
+    });
+    return;
   } catch (error: any) {
     console.error('Chat error:', error);
     
@@ -237,6 +109,59 @@ router.post('/chat', async (req, res): Promise<void> => {
     res.status(500).json({
       success: false,
       error: error.message || 'Chat request failed',
+    });
+    return;
+  }
+});
+
+// GET /chat/:jobId - Get chat job status and result
+router.get('/chat/:jobId', async (req, res): Promise<void> => {
+  try {
+    const { jobId } = req.params;
+
+    const job = chatQueue.getJob(jobId);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        error: 'Chat job not found or expired',
+      });
+      return;
+    }
+
+    // Return job status
+    const responseData: any = {
+      success: true,
+      data: {
+        jobId: job.id,
+        generationId: job.generationId,
+        status: job.status,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+      },
+    };
+
+    // Include result if completed
+    if (job.status === 'completed' && job.result) {
+      responseData.data.files = job.result.files;
+      responseData.data.agentThought = {
+        agent: 'ChatAgent',
+        thought: job.result.summary,
+      };
+    }
+
+    // Include error if failed
+    if (job.status === 'error') {
+      responseData.data.error = job.error;
+    }
+
+    res.json(responseData);
+    return;
+  } catch (error: any) {
+    console.error('Error fetching chat job:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch chat job',
     });
     return;
   }

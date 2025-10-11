@@ -100,14 +100,21 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  files: Array<{
+  jobId?: string
+  status?: 'pending' | 'processing' | 'completed' | 'error'
+  message?: string
+  generationId?: string
+  files?: Array<{
     path: string
     content: string
   }>
-  agentThought: {
+  agentThought?: {
     agent: string
     thought: string
   }
+  error?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface UserSettings {
@@ -433,8 +440,15 @@ class ApiClient {
   }
 
   // Chat with AI to modify generation
+  // Start a chat request (returns job ID immediately)
   async chat(request: ChatRequest): Promise<ApiResponse<ChatResponse>> {
     const response = await this.client.post('/api/chat', request)
+    return response.data
+  }
+
+  // Get chat job status (for polling)
+  async getChatStatus(jobId: string): Promise<ApiResponse<ChatResponse>> {
+    const response = await this.client.get(`/api/chat/${jobId}`)
     return response.data
   }
 

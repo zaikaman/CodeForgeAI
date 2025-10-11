@@ -400,7 +400,7 @@ export const GenerateSessionPage: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      // Call chat API with image URLs
+      // Call chat API to start the job
       const apiRes = await apiClient.chat({
         generationId: id,
         message: userMessage,
@@ -409,11 +409,46 @@ export const GenerateSessionPage: React.FC = () => {
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       });
 
-      if (!apiRes.success || !apiRes.data) {
+      if (!apiRes.success || !apiRes.data || !apiRes.data.jobId) {
         throw new Error(apiRes.error || 'Chat request failed');
       }
 
-      const data = apiRes.data;
+      const jobId = apiRes.data.jobId;
+      console.log(`🔄 Chat job ${jobId} started, polling for results...`);
+
+      // Poll for results
+      const pollInterval = 1000; // Poll every 1 second
+      const maxAttempts = 120; // Max 2 minutes
+      let attempts = 0;
+      let data: any = null;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        
+        const statusRes = await apiClient.getChatStatus(jobId);
+        
+        if (!statusRes.success || !statusRes.data) {
+          throw new Error(statusRes.error || 'Failed to check chat status');
+        }
+
+        const status = statusRes.data.status;
+        console.log(`📊 Chat job ${jobId} status: ${status} (attempt ${attempts}/${maxAttempts})`);
+
+        if (status === 'completed') {
+          data = statusRes.data;
+          console.log('✅ Chat job completed!');
+          break;
+        } else if (status === 'error') {
+          throw new Error(statusRes.data.error || 'Chat job failed');
+        }
+
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+
+      if (!data) {
+        throw new Error('Chat request timed out. Please try again.');
+      }
 
       // Generate preview with new files FIRST (force regenerate since code changed)
       setIsGeneratingPreview(true);
