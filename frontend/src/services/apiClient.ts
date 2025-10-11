@@ -395,8 +395,28 @@ class ApiClient {
       hasData: 'data' in (response.data || {}),
       successValue: response.data?.success,
       dataValue: response.data?.data,
+      dataValueType: typeof response.data?.data,
+      dataValueKeys: response.data?.data ? Object.keys(response.data.data) : 'NO DATA IN data',
       fullResponseData: response.data,
     });
+    
+    // Extra validation: check if response.data is valid
+    if (!response.data || typeof response.data !== 'object') {
+      console.error('❌ [apiClient.getGenerationStatus] Invalid response structure - response.data is not an object');
+      return {
+        success: false,
+        error: 'Server error: Invalid response format'
+      };
+    }
+    
+    // If backend returned success=true but data is missing/undefined, it's an error
+    if (response.data.success === true && !response.data.data) {
+      console.error('❌ [apiClient.getGenerationStatus] Backend returned success=true but data is undefined/null');
+      return {
+        success: false,
+        error: 'Server error: Invalid response format'
+      };
+    }
     
     return response.data
   }

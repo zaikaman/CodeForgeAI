@@ -8,6 +8,7 @@ import { useGenerationStore } from '../stores/generationStore';
 import apiClient from '../services/apiClient';
 import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
 import { useAuthContext } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import '../styles/theme.css';
 import './GenerateSessionPage.css';
 
@@ -65,9 +66,8 @@ export const GenerateSessionPage: React.FC = () => {
     return currentGeneration?.id === id ? currentGeneration : getGenerationById(id);
   }, [id, currentGeneration, history, getGenerationById]);
 
-  // Fetch generation data from backend on page load (to get preview_url and latest data)
-  // Also creates store entry if generation doesn't exist locally yet
-  // AND polls for updates if generation is still processing
+  // Fetch generation data directly from Supabase database
+  // Poll for updates if generation is still processing
   useEffect(() => {
     let pollInterval: NodeJS.Timeout | null = null;
     let isMounted = true;
@@ -80,98 +80,102 @@ export const GenerateSessionPage: React.FC = () => {
       pollAttempts++;
       
       try {
-        console.log('🔄 Fetching generation data from backend...');
-        // Don't include full data during polling to reduce payload size
-        const response = await apiClient.getGenerationStatus(id, false);
+        console.log('🔄 Fetching generation data directly from Supabase...');
         
-        // Debug logging
-        console.log('📦 Raw response structure:', {
-          hasSuccess: 'success' in response,
-          hasData: 'data' in response,
-          successValue: response.success,
-          dataType: typeof response.data,
-          dataValue: response.data,
-          dataKeys: response.data ? Object.keys(response.data) : 'NO DATA',
-          fullResponse: response,
-        });
+        // Query Supabase directly instead of going through backend API
+        const { data: generationData, error: dbError } = await supabase
+          .from('generations')
+          .select('*')
+          .eq('id', id)
+          .single();
         
-        if (!response.success || !response.data) {
-          // Failed to get status
-          console.error('❌ Failed to get generation status:', {
-            success: response.success,
-            hasData: !!response.data,
-            error: response.error,
-            rawData: (response as any).rawData,
-            isHtmlResponse: (response as any).isHtmlResponse,
-          });
+        if (dbError || !generationData) {
+          console.error('❌ Failed to fetch generation from database:', dbError);
           
-          if (response.error?.includes('Authentication required')) {
-            console.error('❌ Authentication required - user may need to log in again');
-            setTimeout(() => navigate('/login'), 2000);
-            return;
-          }
-          
-          // If this is an HTML response or parse error, the backend might be having issues
-          // Don't redirect immediately - let the retry/backoff logic handle it
-          if ((response as any).isHtmlResponse || response.error?.includes('Invalid JSON')) {
-            console.warn('⚠️ Backend response issue - will retry with backoff...');
-            // Don't return here - let the catch block's retry logic handle it
-            throw new Error(response.error || 'Invalid response from server');
-          }
-          
-          // Generation not found
-          console.error('❌ Failed to get generation status:', response.error);
-          if (!generation) {
-            setTimeout(() => navigate('/generate'), 2000);
+          // Check for specific errors
+          if (dbError?.code === 'PGRST116') {
+            // Row not found
+            console.error('❌ Generation not found in database');
+            if (!generation) {
+              setTimeout(() => navigate('/generate'), 2000);
+            }
           }
           return;
         }
         
-        console.log('✅ Fetched generation data:', response.data);
+        console.log('✅ Fetched generation from database:', {
+          id: generationData.id,
+          status: generationData.status,
+          hasFiles: !!generationData.files,
+          fileCount: generationData.files ? (Array.isArray(generationData.files) ? generationData.files.length : Object.keys(generationData.files).length) : 0,
+        });
+        
+        // Convert snake_case to camelCase for frontend
+        const response = {
+          success: true,
+          data: {
+            id: generationData.id,
+            status: generationData.status,
+            prompt: generationData.prompt,
+            targetLanguage: generationData.target_language,
+            complexity: generationData.complexity,
+            files: generationData.files,
+            agentThoughts: generationData.agent_thoughts,
+            error: generationData.error,
+            previewUrl: generationData.preview_url,
+            deploymentStatus: generationData.deployment_status,
+            createdAt: generationData.created_at,
+            updatedAt: generationData.updated_at,
+          }
+        };
+        
+        const data = response.data;
+        
+        console.log('✅ Fetched generation data from Supabase:', data);
         
         // If generation doesn't exist in store yet, create it
         if (!generation) {
           console.log('📝 Creating store entry for generation', id);
           const storeState = useGenerationStore.getState();
           storeState.startGenerationWithId(id, {
-            prompt: response.data.prompt || '',
-            targetLanguage: response.data.targetLanguage || 'typescript',
-            complexity: response.data.complexity || 'moderate',
+            prompt: data.prompt || '',
+            targetLanguage: data.targetLanguage || 'typescript',
+            complexity: data.complexity || 'moderate',
             agents: ['CodeGenerator'],
           });
           
-          // If generation is complete, update the store with response data
-          if (response.data.status === 'completed') {
-            storeState.completeGeneration(id, response.data);
+          // If generation is complete, update the store with data
+          if (data.status === 'completed') {
+            storeState.completeGeneration(id, data);
           }
         }
         
-        // Set deployment status based on backend data
-        const backendDeploymentStatus = response.data.deploymentStatus;
-        if (backendDeploymentStatus === 'deployed') {
+        // Set deployment status based on database data
+        const dbDeploymentStatus = data.deploymentStatus;
+        if (dbDeploymentStatus === 'deployed') {
           setDeploymentStatus('ready');
-        } else if (backendDeploymentStatus === 'deploying') {
+        } else if (dbDeploymentStatus === 'deploying') {
           setDeploymentStatus('deploying');
-          console.log('🚀 Deployment is in progress, will start polling...');
-        } else if (backendDeploymentStatus === 'failed') {
+          console.log('🚀 Deployment is in progress, will continue polling...');
+        } else if (dbDeploymentStatus === 'failed') {
           setDeploymentStatus('error');
         }
         
-        // If we got a preview URL from backend, set it
-        if (response.data.previewUrl && !previewUrl) {
-          const url = withCacheBust(response.data.previewUrl);
-          console.log('✅ Found preview URL from backend:', response.data.previewUrl);
+        // If we got a preview URL from database, set it
+        if (data.previewUrl && !previewUrl) {
+          const url = withCacheBust(data.previewUrl);
+          console.log('✅ Found preview URL from database:', data.previewUrl);
           console.log('📍 Setting iframe src:', url);
           setPreviewUrl(url);
         }
         
         // Update store with latest data if needed
-        if (response.data.files) {
-          updateGenerationFiles(id, response.data.files);
+        if (data.files) {
+          updateGenerationFiles(id, data.files);
         }
         
         // If generation is still processing, continue polling
-        const status = response.data.status;
+        const status = data.status;
         if (status === 'pending' || status === 'processing') {
           console.log(`📊 Generation status: ${status} - will continue polling in ${pollDelayRef.current}ms (attempt ${pollAttempts})...`);
           setIsGenerating(true);
@@ -196,40 +200,27 @@ export const GenerateSessionPage: React.FC = () => {
             pollInterval = null;
           }
           
-          // Fetch full data (including files) now that generation is complete
-          // Note: Backend now automatically includes files when status=completed
-          // But we fetch with full=true to also get agent_thoughts
-          console.log('📥 Fetching full generation data (including files)...');
-          const fullResponse = await apiClient.getGenerationStatus(id, true);
+          // Data from Supabase already includes everything we need
+          console.log('✅ Got complete generation data:', {
+            hasFiles: !!data.files,
+            fileCount: data.files ? (Array.isArray(data.files) ? data.files.length : Object.keys(data.files).length) : 0,
+            filesType: typeof data.files,
+          });
           
-          if (fullResponse.success && fullResponse.data) {
-            console.log('✅ Got full generation data:', {
-              hasFiles: !!fullResponse.data.files,
-              fileCount: (fullResponse.data as any).fileCount || 0,
-              filesType: typeof fullResponse.data.files,
-              filesKeys: fullResponse.data.files ? Object.keys(fullResponse.data.files) : [],
-            });
-            
-            // Update store with complete data including files
-            const storeState = useGenerationStore.getState();
-            storeState.completeGeneration(id, fullResponse.data);
-            
-            // Also verify store was updated
-            const storeGenerations = (useGenerationStore.getState() as any).generations;
-            const updatedGen = storeGenerations ? storeGenerations.get(id) : null;
-            console.log('📦 Store updated, generation files:', {
-              hasGen: !!updatedGen,
-              hasFiles: !!updatedGen?.files,
-              fileCount: updatedGen?.files ? Object.keys(updatedGen.files).length : 0,
-            });
-          } else {
-            console.warn('⚠️ Failed to fetch full data, using partial data from polling');
-            // Fallback: use data from polling response (should also have files now)
-            const storeState = useGenerationStore.getState();
-            storeState.completeGeneration(id, response.data);
-          }
+          // Update store with complete data including files
+          const storeState = useGenerationStore.getState();
+          storeState.completeGeneration(id, data);
+          
+          // Also verify store was updated
+          const storeGenerations = (useGenerationStore.getState() as any).generations;
+          const updatedGen = storeGenerations ? storeGenerations.get(id) : null;
+          console.log('📦 Store updated, generation files:', {
+            hasGen: !!updatedGen,
+            hasFiles: !!updatedGen?.files,
+            fileCount: updatedGen?.files ? Object.keys(updatedGen.files).length : 0,
+          });
         } else if (status === 'failed') {
-          console.error('❌ Generation failed:', response.data.error);
+          console.error('❌ Generation failed:', data.error);
           setIsGenerating(false);
           
           // Stop polling
@@ -239,71 +230,19 @@ export const GenerateSessionPage: React.FC = () => {
           }
         }
       } catch (error: any) {
-        console.error(' ❌ Failed to get generation status:', error?.message || error);
-        console.error('🔍 Error details:', {
-          status: error?.status,
-          message: error?.message,
-          isHtmlError: error?.isHtmlError,
-          fullError: error,
-        });
+        console.error('❌ Failed to fetch from database:', error?.message || error);
         
-        // Check for authentication errors
-        if (error?.status === 401 || error?.message?.includes('Authentication')) {
-          console.error('❌ Authentication error - redirecting to login');
-          setTimeout(() => navigate('/login'), 2000);
-          return;
-        }
-        
-        // Don't redirect on network errors - user might be offline
-        if (error?.status === 404) {
-          console.error('❌ Generation 404 - redirecting to /generate');
-          setTimeout(() => navigate('/generate'), 2000);
-          return;
-        }
-        
-        // Handle rate limiting (429)
-        if (error?.status === 429) {
-          console.warn('⚠️ Rate limited - backing off...');
-          
-          // Exponential backoff: increase delay, max 30 seconds
-          pollDelayRef.current = Math.min(pollDelayRef.current * 1.5, 30000);
-          
-          // Restart polling with new delay
+        // For database errors, just continue polling with backoff
+        // Supabase client handles auth, rate limiting, etc. automatically
+        if (isMounted && pollAttempts < 60) { // Max 60 attempts (5 minutes with 5s delay)
+          console.log(`🔄 Will retry fetching (attempt ${pollAttempts}/60)...`);
+          // Polling will continue automatically
+        } else {
+          console.error('❌ Too many failed attempts - stopping polling');
+          setIsGenerating(false);
           if (pollInterval) {
             clearInterval(pollInterval);
             pollInterval = null;
-          }
-          
-          if (isMounted) {
-            console.log(`🔄 Restarting poll with ${pollDelayRef.current}ms delay...`);
-            pollInterval = setInterval(() => {
-              fetchGenerationData();
-            }, pollDelayRef.current);
-          }
-          return;
-        }
-        
-        // If HTML error, might be backend deployment issue - slow down polling
-        if (error?.isHtmlError || error?.message?.includes('Invalid JSON')) {
-          console.error('❌ Backend returned non-JSON response - slowing down polling');
-          
-          // Increase delay significantly
-          pollDelayRef.current = Math.min(pollDelayRef.current * 2, 30000);
-          
-          // Continue polling with longer delay instead of stopping
-          if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-          }
-          
-          if (isMounted && pollAttempts < 20) {
-            console.log(`🔄 Retrying with ${pollDelayRef.current}ms delay (attempt ${pollAttempts}/20)...`);
-            pollInterval = setInterval(() => {
-              fetchGenerationData();
-            }, pollDelayRef.current);
-          } else {
-            console.error('❌ Too many failed attempts - stopping polling');
-            setIsGenerating(false);
           }
         }
       }

@@ -191,28 +191,48 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
     // - Always include if completed/failed (user needs to see result)
     const shouldIncludeFiles = includeFull || ['completed', 'failed'].includes(generation.status);
     
+    // Build response data object
+    const responseData = {
+      id: generation.id,
+      status: generation.status,
+      prompt: generation.prompt,
+      targetLanguage: generation.target_language,
+      complexity: generation.complexity,
+      // Include files based on status or explicit request
+      files: shouldIncludeFiles ? generation.files : undefined,
+      // Only include agent thoughts if explicitly requested
+      agentThoughts: includeFull ? generation.agent_thoughts : undefined,
+      // Always include these lightweight fields
+      error: generation.error,
+      previewUrl: generation.preview_url,
+      deploymentStatus: generation.deployment_status,
+      createdAt: generation.created_at,
+      updatedAt: generation.updated_at,
+      // Add file count so frontend knows if files exist
+      fileCount: generation.files ? (Array.isArray(generation.files) ? generation.files.length : Object.keys(generation.files).length) : 0,
+    };
+
+    console.log(`[GET /generate/${id}] Sending response with status=${responseData.status}, hasFiles=${!!responseData.files}, fileCount=${responseData.fileCount}`);
+    
+    // Validate responseData can be serialized before sending
+    try {
+      JSON.stringify(responseData);
+    } catch (stringifyError: any) {
+      console.error(`[GET /generate/${id}] Failed to stringify response data:`, stringifyError.message);
+      console.error(`[GET /generate/${id}] Response data size:`, JSON.stringify(responseData).length);
+      
+      // Send error response
+      res.status(500).json({
+        success: false,
+        error: 'Failed to serialize generation data. Response may be too large.',
+      });
+      return;
+    }
+    
     // Return generation status and data
     res.json({
       success: true,
-      data: {
-        id: generation.id,
-        status: generation.status,
-        prompt: generation.prompt,
-        targetLanguage: generation.target_language,
-        complexity: generation.complexity,
-        // Include files based on status or explicit request
-        files: shouldIncludeFiles ? generation.files : undefined,
-        // Only include agent thoughts if explicitly requested
-        agentThoughts: includeFull ? generation.agent_thoughts : undefined,
-        // Always include these lightweight fields
-        error: generation.error,
-        previewUrl: generation.preview_url,
-        deploymentStatus: generation.deployment_status,
-        createdAt: generation.created_at,
-        updatedAt: generation.updated_at,
-        // Add file count so frontend knows if files exist
-        fileCount: generation.files ? (Array.isArray(generation.files) ? generation.files.length : Object.keys(generation.files).length) : 0,
-      },
+      data: responseData,
     });
     return;
   } catch (error: any) {
