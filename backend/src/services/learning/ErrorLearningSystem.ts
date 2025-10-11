@@ -129,32 +129,36 @@ export class ErrorLearningSystem {
    * Use AI to deeply analyze an error
    */
   private async analyzeErrorWithAI(error: DeploymentError): Promise<any> {
+    // Build instruction text BEFORE AgentBuilder to avoid template injection issues
+    const errorType = error.errorType;
+    const language = error.language;
+    const framework = error.framework || 'Not specified';
+    const platform = error.platform;
+    const errorMessage = error.errorMessage;
+    const buildLogs = error.buildLogs?.slice(-2000) || 'Not available';
+    const filesInvolved = error.filesInvolved.join(', ');
+    
+    const instructionText = 'You are an expert software engineer analyzing deployment errors.\n\n' +
+      'Analyze the following deployment error and provide insights:\n\n' +
+      'Error Type: ' + errorType + '\n' +
+      'Language: ' + language + '\n' +
+      'Framework: ' + framework + '\n' +
+      'Platform: ' + platform + '\n' +
+      'Error Message: ' + errorMessage + '\n\n' +
+      'Build Logs:\n' + buildLogs + '\n\n' +
+      'Files Involved: ' + filesInvolved + '\n\n' +
+      'Provide:\n' +
+      '1. Root cause analysis (what actually caused this error)\n' +
+      '2. Category (dependency, syntax, configuration, module system, etc.)\n' +
+      '3. Prevention strategy (how to prevent this in future code generation)\n' +
+      '4. Fix strategy (how to automatically fix this type of error)\n' +
+      '5. Related error patterns (similar errors that might occur)\n' +
+      '6. Specific rules for this language/framework/platform\n\n' +
+      'Be specific and actionable. Focus on patterns that can be automated.';
+
     const { runner } = await AgentBuilder.create('ErrorAnalysisAgent')
       .withModel('gpt-5-nano')
-      .withInstruction(`You are an expert software engineer analyzing deployment errors.
-
-Analyze the following deployment error and provide insights:
-
-Error Type: ${error.errorType}
-Language: ${error.language}
-Framework: ${error.framework || 'Not specified'}
-Platform: ${error.platform}
-Error Message: ${error.errorMessage}
-
-Build Logs:
-${error.buildLogs?.slice(-2000) || 'Not available'}
-
-Files Involved: ${error.filesInvolved.join(', ')}
-
-Provide:
-1. Root cause analysis (what actually caused this error)
-2. Category (dependency, syntax, configuration, module system, etc.)
-3. Prevention strategy (how to prevent this in future code generation)
-4. Fix strategy (how to automatically fix this type of error)
-5. Related error patterns (similar errors that might occur)
-6. Specific rules for this language/framework/platform
-
-Be specific and actionable. Focus on patterns that can be automated.`)
+      .withInstruction(instructionText)
       .withOutputSchema(z.object({
         rootCause: z.string(),
         category: z.string(),
@@ -166,7 +170,7 @@ Be specific and actionable. Focus on patterns that can be automated.`)
       }) as z.ZodTypeAny)
       .build();
 
-    const result = await runner.ask(`Analyze this deployment error and help me prevent it in the future.`);
+    const result = await runner.ask('Analyze this deployment error and help me prevent it in the future.');
     
     return result;
   }
@@ -365,15 +369,17 @@ Be specific and actionable. Focus on patterns that can be automated.`)
 
     // If no match, use AI to suggest fixes
     if (suggestions.length === 0) {
+      // Build instruction text without template literals to avoid ADK injection issues
+      const instructionText = 'Suggest 3 quick fixes for this error:\n' +
+        'Error: ' + error + '\n' +
+        'Language: ' + context.language + '\n' +
+        'Framework: ' + (context.framework || 'N/A') + '\n' +
+        'Platform: ' + (context.platform || 'N/A') + '\n\n' +
+        'Provide specific, actionable fixes that can be automated.';
+
       const { runner } = await AgentBuilder.create('QuickFixAgent')
         .withModel('gpt-5-nano')
-        .withInstruction(`Suggest 3 quick fixes for this error:
-Error: ${error}
-Language: ${context.language}
-Framework: ${context.framework || 'N/A'}
-Platform: ${context.platform || 'N/A'}
-
-Provide specific, actionable fixes that can be automated.`)
+        .withInstruction(instructionText)
         .withOutputSchema(z.object({
           fixes: z.array(z.string())
         }) as z.ZodTypeAny)
