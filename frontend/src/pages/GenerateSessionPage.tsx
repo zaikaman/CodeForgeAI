@@ -274,7 +274,7 @@ export const GenerateSessionPage: React.FC = () => {
             agent: msg.role === 'user' ? 'User' : 'ChatAgent',
             role: msg.role === 'assistant' ? 'agent' : msg.role as 'user' | 'system',
             content: msg.content,
-            timestamp: new Date(msg.createdAt),
+            timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
             imageUrls: msg.imageUrls,
           }));
 

@@ -73,6 +73,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({
 
   const formatTimestamp = (date: Date | string | number) => {
     const dateObj = date instanceof Date ? date : new Date(date);
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+      return '--:--:--';
+    }
+    
     return dateObj.toLocaleTimeString('en-US', {
       hour12: false,
       hour: '2-digit',
@@ -256,6 +262,12 @@ export const AgentChatCompact: React.FC<{
 
 function formatTimestamp(timestamp: Date | string | number): string {
   const dateObj = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  
+  // Check if date is valid
+  if (isNaN(dateObj.getTime())) {
+    return '--:--:--';
+  }
+  
   return dateObj.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
