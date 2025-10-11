@@ -69,10 +69,13 @@ export const GenerateSessionPage: React.FC = () => {
   // Fetch generation data directly from Supabase database
   // Poll for updates if generation is still processing
   useEffect(() => {
+    if (!id) return;
+
     let pollInterval: NodeJS.Timeout | null = null;
     let isMounted = true;
     let pollAttempts = 0;
-    const pollDelayRef = { current: 5000 }; // Start with 5 seconds, use ref to avoid stale closure
+    const POLL_INTERVAL = 3000; // Poll every 3 seconds
+    const MAX_ATTEMPTS = 120; // Max 6 minutes (120 * 3s = 360s)
 
     const fetchGenerationData = async () => {
       if (!id || !isMounted) return;
@@ -80,7 +83,7 @@ export const GenerateSessionPage: React.FC = () => {
       pollAttempts++;
       
       try {
-        console.log('🔄 Fetching generation data directly from Supabase...');
+        console.log(`🔄 Fetching generation data from Supabase (attempt ${pollAttempts})...`);
         
         // Query Supabase directly instead of going through backend API
         const { data: generationData, error: dbError } = await supabase
@@ -96,7 +99,7 @@ export const GenerateSessionPage: React.FC = () => {
           if (dbError?.code === 'PGRST116') {
             // Row not found
             console.error('❌ Generation not found in database');
-            if (!generation) {
+            if (!generation && pollAttempts > 5) {
               setTimeout(() => navigate('/generate'), 2000);
             }
           }
@@ -130,8 +133,9 @@ export const GenerateSessionPage: React.FC = () => {
         };
         
         const data = response.data;
+        const status = data.status;
         
-        console.log('✅ Fetched generation data from Supabase:', data);
+        console.log(`📊 Generation status: ${status}`);
         
         // If generation doesn't exist in store yet, create it
         if (!generation) {
@@ -145,7 +149,7 @@ export const GenerateSessionPage: React.FC = () => {
           });
           
           // If generation is complete, update the store with data
-          if (data.status === 'completed') {
+          if (status === 'completed') {
             storeState.completeGeneration(id, data);
           }
         }
@@ -174,22 +178,14 @@ export const GenerateSessionPage: React.FC = () => {
           updateGenerationFiles(id, data.files);
         }
         
-        // If generation is still processing, continue polling
-        const status = data.status;
+        // Reset poll attempts on successful fetch
+        pollAttempts = 0;
+        
+        // Check if we should continue polling
         if (status === 'pending' || status === 'processing') {
-          console.log(`📊 Generation status: ${status} - will continue polling in ${pollDelayRef.current}ms (attempt ${pollAttempts})...`);
+          console.log(`� Generation is ${status}, continuing to poll...`);
           setIsGenerating(true);
-          
-          // Reset poll attempts on success
-          pollAttempts = 0;
-          
-          // Continue polling if not already polling
-          if (!pollInterval && isMounted) {
-            // Use exponential backoff: start at 5s, max 15s
-            pollInterval = setInterval(() => {
-              fetchGenerationData();
-            }, pollDelayRef.current);
-          }
+          // Polling interval will handle the next fetch
         } else if (status === 'completed') {
           console.log('✅ Generation completed!');
           setIsGenerating(false);
@@ -200,26 +196,15 @@ export const GenerateSessionPage: React.FC = () => {
             pollInterval = null;
           }
           
-          // Data from Supabase already includes everything we need
-          console.log('✅ Got complete generation data:', {
-            hasFiles: !!data.files,
-            fileCount: data.files ? (Array.isArray(data.files) ? data.files.length : Object.keys(data.files).length) : 0,
-            filesType: typeof data.files,
-          });
-          
           // Update store with complete data including files
           const storeState = useGenerationStore.getState();
           storeState.completeGeneration(id, data);
           
-          // Also verify store was updated
-          const storeGenerations = (useGenerationStore.getState() as any).generations;
-          const updatedGen = storeGenerations ? storeGenerations.get(id) : null;
-          console.log('📦 Store updated, generation files:', {
-            hasGen: !!updatedGen,
-            hasFiles: !!updatedGen?.files,
-            fileCount: updatedGen?.files ? Object.keys(updatedGen.files).length : 0,
+          console.log('✅ Got complete generation data:', {
+            hasFiles: !!data.files,
+            fileCount: data.files ? (Array.isArray(data.files) ? data.files.length : Object.keys(data.files).length) : 0,
           });
-        } else if (status === 'failed') {
+        } else if (status === 'failed' || status === 'error') {
           console.error('❌ Generation failed:', data.error);
           setIsGenerating(false);
           
@@ -232,12 +217,8 @@ export const GenerateSessionPage: React.FC = () => {
       } catch (error: any) {
         console.error('❌ Failed to fetch from database:', error?.message || error);
         
-        // For database errors, just continue polling with backoff
-        // Supabase client handles auth, rate limiting, etc. automatically
-        if (isMounted && pollAttempts < 60) { // Max 60 attempts (5 minutes with 5s delay)
-          console.log(`🔄 Will retry fetching (attempt ${pollAttempts}/60)...`);
-          // Polling will continue automatically
-        } else {
+        // Continue polling unless we hit max attempts
+        if (pollAttempts >= MAX_ATTEMPTS) {
           console.error('❌ Too many failed attempts - stopping polling');
           setIsGenerating(false);
           if (pollInterval) {
@@ -248,17 +229,23 @@ export const GenerateSessionPage: React.FC = () => {
       }
     };
     
-    // Initial fetch
+    // Initial fetch immediately
     fetchGenerationData();
+    
+    // Start polling interval
+    pollInterval = setInterval(() => {
+      fetchGenerationData();
+    }, POLL_INTERVAL);
     
     // Cleanup function
     return () => {
       isMounted = false;
       if (pollInterval) {
         clearInterval(pollInterval);
+        pollInterval = null;
       }
     };
-  }, [id]); // Only run once on mount
+  }, [id]); // Only depend on id
 
   // Load chat history when page loads
   useEffect(() => {
