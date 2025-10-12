@@ -30,6 +30,7 @@ export interface DeploymentError {
   fixAttempts: number;
   resolved: boolean;
   appliedFix?: string;
+  metadata?: Record<string, any>; // Additional error-specific data
 }
 
 export interface ErrorPattern {

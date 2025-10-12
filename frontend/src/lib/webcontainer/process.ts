@@ -1,4 +1,5 @@
 import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+import { webcontainerState } from './state';
 
 export interface ProcessResult {
   exitCode: number;
@@ -46,32 +47,61 @@ export async function runCommand(
 }
 
 /**
- * Install npm packages
+ * Install npm packages with state tracking
  */
 export async function installPackages(container: WebContainer): Promise<ProcessResult> {
+  // Check if packages are already installed
+  if (webcontainerState.isInstalled()) {
+    console.log('[WebContainer] Packages already installed, skipping...');
+    return { exitCode: 0, output: 'Packages already installed' };
+  }
+
   console.log('[WebContainer] Installing npm packages...');
-  return await runCommand(container, 'npm', ['install']);
+  const result = await runCommand(container, 'npm', ['install']);
+  
+  if (result.exitCode === 0) {
+    webcontainerState.setInstalled(true);
+  }
+  
+  return result;
 }
 
 /**
- * Start development server
+ * Start development server with state tracking
  */
 export async function startDevServer(
   container: WebContainer,
   onReady?: (port: number, url: string) => void
 ): Promise<WebContainerProcess> {
+  // Check if server is already running
+  const existingProcess = webcontainerState.getServerProcess();
+  const existingUrl = webcontainerState.getServerUrl();
+  
+  if (existingProcess && existingUrl) {
+    console.log('[WebContainer] Server already running at:', existingUrl);
+    // Call onReady immediately with existing URL
+    if (onReady) {
+      const port = parseInt(existingUrl.match(/:(\d+)/)?.[1] || '3000', 10);
+      onReady(port, existingUrl);
+    }
+    return existingProcess;
+  }
+
   console.log('[WebContainer] Starting dev server...');
 
   // Listen for server-ready event
   if (onReady) {
     container.on('server-ready', (port, url) => {
       console.log(`[WebContainer] Server ready on port ${port}: ${url}`);
+      webcontainerState.setServerUrl(url);
       onReady(port, url);
     });
   }
 
   // Start dev server in background
   const process = await container.spawn('npm', ['run', 'dev']);
+  
+  webcontainerState.setServerProcess(process);
 
   return process;
 }

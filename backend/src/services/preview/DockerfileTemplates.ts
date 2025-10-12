@@ -145,36 +145,89 @@ CMD ["nginx", "-g", "daemon off;"]
 `;
   }
 
-  // For Node.js apps with build step
+  // For Node.js apps with build step (Vite, React, etc.)
   return `# Stage 1: Build the application
 FROM node:18-alpine AS build
 WORKDIR /app
+COPY package*.json ./
+RUN npm install
 COPY . .
-RUN yarn install --frozen-lockfile || npm install
-RUN yarn build || npm run build || true
+RUN npm run build
 
-# Stage 2: Serve the application
-FROM node:18-alpine
-WORKDIR /app
-COPY --from=build /app .
+# Stage 2: Serve with nginx
+FROM nginx:1.21-alpine
 
-# If dist/build folder exists, use nginx; otherwise run node server
-RUN if [ -d "dist" ] || [ -d "build" ]; then \\
-      apk add --no-cache nginx && \\
-      mkdir -p /usr/share/nginx/html && \\
-      (cp -r dist/* /usr/share/nginx/html/ 2>/dev/null || cp -r build/* /usr/share/nginx/html/ 2>/dev/null || cp -r . /usr/share/nginx/html/); \\
-    fi
+# Copy built files from build stage
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Create nginx MIME types configuration
+RUN printf 'types {\\n\\
+    text/html                             html htm shtml;\\n\\
+    text/css                              css;\\n\\
+    text/xml                              xml;\\n\\
+    application/javascript                js;\\n\\
+    application/json                      json;\\n\\
+    image/gif                             gif;\\n\\
+    image/jpeg                            jpeg jpg;\\n\\
+    image/png                             png;\\n\\
+    image/svg+xml                         svg svgz;\\n\\
+    image/webp                            webp;\\n\\
+    font/woff                             woff;\\n\\
+    font/woff2                            woff2;\\n\\
+    font/ttf                              ttf;\\n\\
+    font/otf                              otf;\\n\\
+}' > /etc/nginx/mime.types
+
+# Create nginx config for SPA (Single Page Application)
+RUN printf 'server {\\n\\
+    listen 80;\\n\\
+    server_name _;\\n\\
+    root /usr/share/nginx/html;\\n\\
+    index index.html;\\n\\
+\\n\\
+    # Include MIME types\\n\\
+    include /etc/nginx/mime.types;\\n\\
+    default_type application/octet-stream;\\n\\
+\\n\\
+    # Serve static assets directly (CSS, JS, images, fonts)\\n\\
+    location ~* \\.(css|js)$ {\\n\\
+        try_files $uri =404;\\n\\
+        expires 30d;\\n\\
+        add_header Cache-Control "public, no-transform";\\n\\
+    }\\n\\
+\\n\\
+    location ~* \\.(jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {\\n\\
+        try_files $uri =404;\\n\\
+        expires 1y;\\n\\
+        add_header Cache-Control "public, immutable";\\n\\
+    }\\n\\
+\\n\\
+    # SPA fallback: serve index.html for all routes\\n\\
+    location / {\\n\\
+        try_files $uri $uri/ /index.html;\\n\\
+    }\\n\\
+\\n\\
+    # Enable gzip compression\\n\\
+    gzip on;\\n\\
+    gzip_vary on;\\n\\
+    gzip_proxied any;\\n\\
+    gzip_comp_level 6;\\n\\
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;\\n\\
+}' > /etc/nginx/conf.d/default.conf
+
+# Debug: List files to verify copy
+RUN echo "=== Files in nginx html directory ===" && \\
+    ls -la /usr/share/nginx/html/ && \\
+    echo "=== Contents of assets/ if exists ===" && \\
+    (ls -la /usr/share/nginx/html/assets/ 2>/dev/null || echo "No assets folder") && \\
+    echo "=== Checking index.html ===" && \\
+    (cat /usr/share/nginx/html/index.html | head -n 10 || echo "No index.html")
+
+# Fix permissions
+RUN chmod -R 755 /usr/share/nginx/html
 
 EXPOSE 80
-CMD if [ -d "/usr/share/nginx/html/index.html" ] || [ -f "/usr/share/nginx/html/index.html" ]; then \\
-      nginx -g 'daemon off;'; \\
-    elif [ -f "dist/server.js" ]; then \\
-      node dist/server.js; \\
-    elif [ -f "dist/index.js" ]; then \\
-      node dist/index.js; \\
-    else \\
-      node server.js || node index.js || npm start; \\
-    fi
+CMD ["nginx", "-g", "daemon off;"]
 `;
 }
 

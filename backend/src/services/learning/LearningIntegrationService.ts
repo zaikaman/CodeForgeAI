@@ -37,6 +37,13 @@ export class LearningIntegrationService {
     files: GeneratedFile[];
     userPrompt: string;
     fixAttempts: number;
+    typeScriptErrors?: Array<{
+      code: string;
+      file: string;
+      line: number;
+      category: string;
+      message: string;
+    }>;
   }): Promise<void> {
     const deploymentError: DeploymentError = {
       id: `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -50,7 +57,11 @@ export class LearningIntegrationService {
       filesInvolved: error.files.map(f => f.path),
       userPrompt: error.userPrompt,
       fixAttempts: error.fixAttempts,
-      resolved: false
+      resolved: false,
+      // Add TypeScript-specific error details if available
+      metadata: error.typeScriptErrors ? {
+        typeScriptErrors: error.typeScriptErrors
+      } : undefined
     };
 
     await this.learningSystem.captureError(deploymentError);

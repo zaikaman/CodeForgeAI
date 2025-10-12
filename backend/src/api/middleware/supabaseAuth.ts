@@ -106,22 +106,44 @@ export async function optionalAuth(
       return
     }
 
-    // Try to verify token, but don't fail if invalid
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.auth.getUser(token)
+    // Try to verify token with timeout, but don't fail if network issues
+    try {
+      const supabase = getSupabaseClient()
+      
+      // Create a timeout promise (5 seconds)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Supabase auth timeout')), 5000)
+      })
+      
+      // Race between auth check and timeout
+      const { data, error } = await Promise.race([
+        supabase.auth.getUser(token),
+        timeoutPromise
+      ])
 
-    if (!error && data.user) {
-      req.supabaseUser = data.user
-      req.user = {
-        id: data.user.id,
-        email: data.user.email,
-        role: (data.user.user_metadata?.role as string) || 'user',
+      if (!error && data.user) {
+        req.supabaseUser = data.user
+        req.user = {
+          id: data.user.id,
+          email: data.user.email,
+          role: (data.user.user_metadata?.role as string) || 'user',
+        }
+        req.userId = data.user.id
+        req.accessToken = token
+        console.log(`[optionalAuth] ✓ User authenticated: ${data.user.id} (${data.user.email}) for ${req.method} ${req.path}`)
+      } else {
+        console.warn(`[optionalAuth] ✗ Token validation failed for ${req.method} ${req.path}:`, error?.message)
       }
-      req.userId = data.user.id
-      req.accessToken = token
-      console.log(`[optionalAuth] ✓ User authenticated: ${data.user.id} (${data.user.email}) for ${req.method} ${req.path}`)
-    } else {
-      console.warn(`[optionalAuth] ✗ Token validation failed for ${req.method} ${req.path}:`, error?.message)
+    } catch (authError: any) {
+      // Handle network/timeout errors gracefully
+      if (authError?.message?.includes('timeout') || authError?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+        console.warn(`[optionalAuth] ⏱️ Supabase auth timeout for ${req.method} ${req.path} - continuing without auth`)
+      } else if (authError?.message?.includes('fetch failed')) {
+        console.warn(`[optionalAuth] 🌐 Supabase connection failed for ${req.method} ${req.path} - continuing without auth`)
+      } else {
+        console.warn(`[optionalAuth] ⚠️ Auth check failed for ${req.method} ${req.path}:`, authError?.message)
+      }
+      // Continue without authentication
     }
 
     next()

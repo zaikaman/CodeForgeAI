@@ -242,13 +242,21 @@ export const useGenerationStore = create<GenerationState>()(
       updateGenerationFiles: (generationId: string, files: Array<{ path: string; content: string }>) => {
         const { currentGeneration, history } = get()
 
+        // Create a deep copy of files to ensure React detects the change
+        const filesCopy = files.map(f => ({ path: f.path, content: f.content }));
+        
+        console.log(`[GenerationStore] Updating files for generation ${generationId}:`, {
+          filesCount: filesCopy.length,
+          isCurrentGeneration: currentGeneration?.id === generationId
+        });
+
         // Update current generation if it matches
         if (currentGeneration?.id === generationId && currentGeneration.response) {
           const updatedGeneration = {
             ...currentGeneration,
             response: {
               ...currentGeneration.response,
-              files,
+              files: filesCopy, // Use the copy
             },
           }
 
@@ -272,7 +280,7 @@ export const useGenerationStore = create<GenerationState>()(
               ...updatedHistory[historyIndex],
               response: {
                 ...updatedHistory[historyIndex].response!,
-                files,
+                files: filesCopy, // Use the copy
               },
             }
             set({ history: updatedHistory })

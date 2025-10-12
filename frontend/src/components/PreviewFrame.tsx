@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { webcontainer, mountFiles, installPackages, startDevServer } from '@/lib/webcontainer/exports';
-import type { WebContainerProcess } from '@/lib/webcontainer/exports';
+import { 
+  webcontainer, 
+  mountFiles, 
+  installPackages, 
+  startDevServer,
+  webcontainerState 
+} from '@/lib/webcontainer/exports';
+import { createFilesHash } from '@/lib/webcontainer/files';
 
 interface PreviewFrameProps {
   files: Array<{ path: string; content: string }>;
@@ -13,12 +19,17 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [status, setStatus] = useState<'idle' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const devServerProcessRef = useRef<WebContainerProcess | null>(null);
   const isInitializingRef = useRef<boolean>(false);
 
-  // Create stable hash of files to prevent infinite loops
+  // Create a stable hash of files to detect changes
+  // This ensures useEffect runs when files actually change
   const filesHash = useMemo(() => {
-    return JSON.stringify(files.map(f => ({ path: f.path, length: f.content.length })));
+    const hash = createFilesHash(files);
+    console.log('[PreviewFrame] Files hash computed:', {
+      hash: hash.substring(0, 50) + '...',
+      filesCount: files.length
+    });
+    return hash;
   }, [files]);
 
   useEffect(() => {
@@ -38,22 +49,54 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
         }
 
         isInitializingRef.current = true;
+
+        const container = await webcontainer;
+        if (!mounted) return;
+
+        // Check if we can reuse existing setup
+        const filesHash = createFilesHash(files);
+        const existingUrl = webcontainerState.getServerUrl();
+        const currentHash = webcontainerState.getCurrentFilesHash();
+        
+        console.log('[PreviewFrame] Files hash comparison:', {
+          currentHash: currentHash?.substring(0, 50) + '...',
+          newHash: filesHash.substring(0, 50) + '...',
+          isSame: currentHash === filesHash,
+          filesCount: files.length
+        });
+        
+        if (
+          webcontainerState.isMounted() &&
+          webcontainerState.isInstalled() &&
+          webcontainerState.isServerRunning() &&
+          currentHash === filesHash &&
+          existingUrl
+        ) {
+          console.log('[PreviewFrame] Reusing existing WebContainer setup (files unchanged)');
+          setPreviewUrl(existingUrl);
+          setStatus('ready');
+          onReady?.();
+          return;
+        }
+
+        // Files have changed or need to initialize
+        if (webcontainerState.isMounted() && currentHash !== filesHash) {
+          console.log('[PreviewFrame] ⚡ Files changed! Updating WebContainer...');
+        }
+
+        // Need to initialize or update
         setStatus('mounting');
         setErrorMessage('');
 
-        const container = await webcontainer;
-
-        if (!mounted) return;
-
-        // Mount files
-        console.log('[PreviewFrame] Mounting files...');
+        // Mount files (will update if hash is different)
+        console.log('[PreviewFrame] Mounting/updating files...');
         await mountFiles(container, files);
 
         if (!mounted) return;
 
         setStatus('installing');
 
-        // Install packages
+        // Install packages (will skip if already installed)
         console.log('[PreviewFrame] Installing packages...');
         const installResult = await installPackages(container);
 
@@ -71,9 +114,9 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
         console.log('[PreviewFrame] Setting status to starting...');
         setStatus('starting');
 
-        // Start dev server
+        // Start dev server (will reuse if already running)
         console.log('[PreviewFrame] Starting dev server...');
-        const devServerProcess = await startDevServer(container, (_port, url) => {
+        await startDevServer(container, (_port, url) => {
           console.log('[PreviewFrame] Server ready:', url);
           if (mounted) {
             setPreviewUrl(url);
@@ -81,8 +124,6 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
             onReady?.();
           }
         });
-
-        devServerProcessRef.current = devServerProcess;
 
       } catch (error) {
         console.error('[PreviewFrame] Error:', error);
@@ -102,13 +143,9 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
     return () => {
       mounted = false;
       isInitializingRef.current = false;
-      // Kill dev server process when component unmounts
-      if (devServerProcessRef.current) {
-        devServerProcessRef.current.kill();
-        devServerProcessRef.current = null;
-      }
+      // Don't kill server on unmount - keep it running for reuse
     };
-  }, [filesHash]);
+  }, [filesHash, files, onError, onReady]); // filesHash ensures we detect file changes
 
   const getStatusMessage = () => {
     switch (status) {
@@ -141,16 +178,6 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
           }`} />
           <span className="text-sm text-gray-300">{getStatusMessage()}</span>
         </div>
-        {previewUrl && (
-          <a
-            href={previewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-400 hover:text-blue-300 underline"
-          >
-            Open in new tab
-          </a>
-        )}
       </div>
 
       {/* Preview Content */}

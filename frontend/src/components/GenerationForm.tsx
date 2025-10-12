@@ -27,7 +27,6 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
 }) => {
   const [prompt, setPrompt] = useState('')
   const [projectContext, setProjectContext] = useState('')
-  const [targetLanguage, setTargetLanguage] = useState('typescript')
   const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('simple')
   const [selectedAgents, setSelectedAgents] = useState<string[]>(['CodeGenerator'])
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -43,15 +42,13 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
     { id: 'PerformanceProfiler', name: 'PERFORMANCE PROFILER', icon: '◉' },
   ]
 
-  const languages = ['typescript', 'javascript', 'python', 'java', 'go', 'rust']
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const imageUrls = uploadedImages.map(img => img.url)
     onSubmit({
       prompt,
       projectContext,
-      targetLanguage,
+      targetLanguage: 'typescript',
       complexity,
       agents: selectedAgents,
       imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
@@ -148,25 +145,6 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
 
           {showAdvanced && (
             <div className="advanced-options">
-              {/* Language Selection */}
-              <div className="form-section mt-lg">
-                <label className="form-label phosphor-glow">&gt; TARGET LANGUAGE:</label>
-                <div className="language-grid">
-                  {languages.map((lang) => (
-                    <button
-                      key={lang}
-                      type="button"
-                      className={`language-btn ${targetLanguage === lang ? 'active' : ''}`}
-                      onClick={() => setTargetLanguage(lang)}
-                      disabled={isGenerating}
-                    >
-                      <span className="lang-icon">◆</span>
-                      {lang.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Complexity Selection */}
               <div className="form-section mt-lg">
                 <label className="form-label phosphor-glow">&gt; COMPLEXITY LEVEL:</label>

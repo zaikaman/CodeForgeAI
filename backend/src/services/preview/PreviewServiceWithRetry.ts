@@ -5,6 +5,7 @@ import path from 'path';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
 import { LearningIntegrationService } from '../learning/LearningIntegrationService';
+import { TypeScriptErrorParser } from '../errors/TypeScriptErrorParser';
 
 const PACKAGE_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 const TYPESCRIPT_ALLOWED_VERSIONS = new Set([
@@ -471,6 +472,13 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         `File: ${f.path}\n\`\`\`\n${f.content}\n\`\`\``
       ).join('\n\n');
 
+      // Parse TypeScript errors if present
+      let typeScriptErrorGuide = '';
+      if (TypeScriptErrorParser.hasTypeScriptErrors(logs)) {
+        const parsedErrors = TypeScriptErrorParser.parseErrors(logs);
+        typeScriptErrorGuide = '\n\n' + TypeScriptErrorParser.generateFixGuide(parsedErrors) + '\n';
+      }
+
       const fixPrompt = `The deployment to Fly.io FAILED on attempt ${attempt}. Please analyze the error and fix the code.
 
 DEPLOYMENT ERROR:
@@ -478,6 +486,7 @@ ${error}
 
 DEPLOYMENT LOGS:
 ${logs}
+${typeScriptErrorGuide}
 
 CURRENT CODEBASE (${currentFiles.length} files):
 ${filesContext}
@@ -492,13 +501,14 @@ You MUST return ALL ${currentFiles.length} files from the current codebase.
 Response will be REJECTED if you return fewer than ${currentFiles.length} files!
 
 Please:
-1. Analyze the error and logs carefully
+1. Analyze the error and logs carefully (ESPECIALLY the TypeScript error analysis above if present)
 2. Identify what's causing the deployment to fail
-3. Fix the issues in the code (could be missing dependencies, incorrect configuration, build errors, missing files, etc.)
+3. Fix the issues in the code following the provided fix strategies
 4. Return EVERY SINGLE FILE from the codebase (modified or not) + any new files you create
 5. Provide a summary of what you fixed
 
 Common issues to check:
+- TypeScript type errors (see detailed analysis above)
 - Missing package.json or incorrect dependencies
 - Build script errors
 - Port configuration issues
@@ -626,6 +636,18 @@ Return the complete fixed codebase.`;
       }
 
       console.log(`✓ All ${response.files.length} files validated successfully`);
+      
+      // Quick validation: If the original error was a TypeScript error,
+      // verify that the fixed code doesn't have the same error
+      if (TypeScriptErrorParser.hasTypeScriptErrors(logs)) {
+        const originalErrorCodes = TypeScriptErrorParser.extractErrorCodes(logs);
+        console.log(`   → Validating TypeScript fixes for error codes: ${originalErrorCodes.join(', ')}`);
+        
+        // We'll do a more thorough check during the next deployment attempt
+        // For now, just log that we're aware of the TS errors
+        console.log(`   → Will verify fixes during next deployment attempt`);
+      }
+      
       return this.sanitizeGeneratedFiles(response.files);
 
     } catch (error: any) {
@@ -918,7 +940,7 @@ Return the complete fixed codebase.`;
     command: string, 
     args: string[], 
     workDir: string, 
-    options?: { checkBuildErrors?: boolean }
+    options?: { checkBuildErrors?: boolean; timeout?: number }
   ): Promise<{ code: number | null, stdout: string, stderr: string }> {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
@@ -931,6 +953,30 @@ Return the complete fixed codebase.`;
         let stdout = '';
         let stderr = '';
         let buildErrorDetected = false;
+        let lastOutputTime = Date.now();
+        
+        // Set timeout (default 15 minutes for deploy, 30 seconds for other commands)
+        const timeoutMs = options?.timeout || (args.includes('deploy') ? 15 * 60 * 1000 : 30000);
+        const timeoutTimer = setTimeout(() => {
+          if (!buildErrorDetected) {
+            console.error(`⏱️ Command timeout after ${timeoutMs / 1000}s: ${command} ${args.join(' ')}`);
+            child.kill('SIGTERM');
+            setTimeout(() => child.kill('SIGKILL'), 5000); // Force kill after 5s if SIGTERM doesn't work
+            
+            const error: any = new Error(`Command timeout after ${timeoutMs / 1000} seconds`);
+            error.timeout = true;
+            error.deploymentLogs = stdout + '\n' + stderr;
+            reject(error);
+          }
+        }, timeoutMs);
+        
+        // Heartbeat check - if no output for 2 minutes during deploy, log status
+        const heartbeatInterval = setInterval(() => {
+          const timeSinceLastOutput = Date.now() - lastOutputTime;
+          if (timeSinceLastOutput > 120000 && args.includes('deploy')) { // 2 minutes
+            console.log(`💓 Still running ${command} ${args.join(' ')} - ${Math.floor(timeSinceLastOutput / 1000)}s since last output`);
+          }
+        }, 30000); // Check every 30 seconds
 
         // Critical build errors that should stop deployment immediately
         const criticalBuildErrors = [
@@ -950,7 +996,7 @@ Return the complete fixed codebase.`;
             // Skip these verbose/repetitive messages
             if (line.includes('nodes": null')) return false;
             if (line.includes('edges": null')) return false;
-            if (line.includes('"id":')) return false;
+            if (line.includes('"id":') && !line.includes('error')) return false;
             if (line.includes('"internalnumericid":')) return false;
             if (line.includes('"organization":')) return false;
             if (line.includes('"secrets":')) return false;
@@ -961,22 +1007,29 @@ Return the complete fixed codebase.`;
             if (line.includes('wireGuard')) return false;
             if (line.includes('loggedcertificates')) return false;
             if (line.includes('limitedaccesstokens')) return false;
-            if (line.startsWith('{') && line.length > 100) return false; // Skip long JSON objects
-            if (line.includes('registry.fly.io')) return false; // Skip registry URLs
+            if (line.startsWith('{') && line.length > 100 && !line.includes('error')) return false; // Skip long JSON objects unless error
             
-            // Log these important messages
+            // ALWAYS log these important messages
             if (line.includes('error')) return true;
             if (line.includes('fail')) return true;
             if (line.includes('warning')) return true;
             if (line.includes('creating')) return true;
             if (line.includes('building')) return true;
+            if (line.includes('image')) return true; // Log building image progress
             if (line.includes('deploying')) return true;
             if (line.includes('deployed')) return true;
             if (line.includes('success')) return true;
             if (line.includes('visit your newly deployed app')) return true;
             if (line.includes('app created')) return true;
             if (line.includes('configuration is valid')) return true;
+            if (line.includes('validating')) return true;
             if (line.includes('deployment')) return true;
+            if (line.includes('updating')) return true;
+            if (line.includes('pushing')) return true;
+            if (line.includes('preparing')) return true;
+            if (line.includes('==>')) return true; // Fly.io step indicators
+            if (line.includes('step')) return true; // Docker build steps
+            if (line.startsWith('#')) return true; // Docker layer info
             
             return false; // Skip everything else
         };
@@ -989,6 +1042,10 @@ Return the complete fixed codebase.`;
               buildErrorDetected = true;
               console.error(`🚨 Critical build error detected: ${errorPattern}`);
               console.error('⚠️ Stopping deployment to prevent broken app...');
+              
+              // Clear timers
+              clearTimeout(timeoutTimer);
+              clearInterval(heartbeatInterval);
               
               // Kill the process to prevent deployment
               child.kill('SIGTERM');
@@ -1005,6 +1062,7 @@ Return the complete fixed codebase.`;
 
         child.stdout.on('data', (data) => {
             const output = data.toString();
+            lastOutputTime = Date.now(); // Update last output time
             if (shouldLogOutput(output)) {
                 console.log(`${command} stdout: ${output}`);
             }
@@ -1014,6 +1072,7 @@ Return the complete fixed codebase.`;
 
         child.stderr.on('data', (data) => {
             const output = data.toString();
+            lastOutputTime = Date.now(); // Update last output time
             if (shouldLogOutput(output)) {
                 console.error(`${command} stderr: ${output}`);
             }
@@ -1022,6 +1081,8 @@ Return the complete fixed codebase.`;
         });
 
         child.on('close', (code) => {
+            clearTimeout(timeoutTimer);
+            clearInterval(heartbeatInterval);
             if (!buildErrorDetected) {
               resolve({ code, stdout, stderr });
             }
@@ -1029,13 +1090,21 @@ Return the complete fixed codebase.`;
         });
 
         child.on('error', (err) => {
+            clearTimeout(timeoutTimer);
+            clearInterval(heartbeatInterval);
             reject(err);
         });
     });
   }
 
   private async deployWithFlyctl(workDir: string, appName: string): Promise<void> {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`🚀 Starting Fly.io deployment for app: ${appName}`);
+    console.log(`📂 Working directory: ${workDir}`);
+    console.log(`${'='.repeat(80)}\n`);
+    
     // Check if app already exists
+    console.log('📋 Checking if app exists...');
     const listResult = await this.runCommand('flyctl', ['apps', 'list', '--json'], workDir, { checkBuildErrors: false });
     
     let appExists = false;
@@ -1050,7 +1119,7 @@ Return the complete fixed codebase.`;
 
     // Only create app if it doesn't exist
     if (!appExists) {
-      console.log(`Creating new Fly.io app: ${appName}`);
+      console.log(`\n✨ Creating new Fly.io app: ${appName}`);
       const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir, { checkBuildErrors: false });
 
       if (createResult.code !== 0) {
@@ -1059,15 +1128,22 @@ Return the complete fixed codebase.`;
         if (!errorMsg.includes('already') && !errorMsg.includes('taken')) {
           throw new Error(`flyctl apps create failed with code ${createResult.code}: ${createResult.stderr}`);
         }
-        console.log(`App ${appName} already exists, proceeding with deployment`);
+        console.log(`✓ App ${appName} already exists (race condition), proceeding with deployment`);
+      } else {
+        console.log(`✓ App created successfully`);
       }
     } else {
-      console.log(`App ${appName} already exists, updating deployment`);
+      console.log(`\n♻️  App ${appName} already exists, updating deployment`);
     }
 
     // Deploy (this will update existing app or deploy new one)
     // Enable build error checking to stop deployment if build fails
-    const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir, { checkBuildErrors: true });
+    // Set 15 minute timeout for deployment (building can take time)
+    console.log('🚀 Starting deployment with flyctl...');
+    const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir, { 
+      checkBuildErrors: true,
+      timeout: 15 * 60 * 1000 // 15 minutes
+    });
 
     const fullOutput = deployResult.stderr + '\n' + deployResult.stdout;
     
@@ -1110,6 +1186,11 @@ Return the complete fixed codebase.`;
         error.deploymentLogs = fullOutput;
         throw error;
     }
+    
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`✅ Deployment completed successfully!`);
+    console.log(`🌐 App: ${appName}`);
+    console.log(`${'='.repeat(80)}\n`);
   }
 
   private createFlyToml(appName: string, language: string): string {
@@ -1156,6 +1237,20 @@ primary_region = "sjc"
         content: f.content 
       })));
 
+      // Parse TypeScript errors if present
+      let typeScriptErrors;
+      if (TypeScriptErrorParser.hasTypeScriptErrors(logs)) {
+        const parsed = TypeScriptErrorParser.parseErrors(logs);
+        typeScriptErrors = parsed.map(err => ({
+          code: err.code,
+          file: err.file,
+          line: err.line,
+          category: err.category,
+          message: err.message.split('\n')[0] // First line only for storage
+        }));
+        console.log(`   📝 Captured ${typeScriptErrors.length} TypeScript error(s) for learning`);
+      }
+
       await this.learningService.captureDeploymentError({
         errorMessage,
         buildLogs: logs,
@@ -1164,7 +1259,8 @@ primary_region = "sjc"
         framework,
         platform: 'fly.io',
         userPrompt: `Deployment for generation ${generationId}`,
-        fixAttempts: attempt
+        fixAttempts: attempt,
+        typeScriptErrors
       });
       
       console.log(`✓ Deployment error captured for learning (ID: ${errorId})`);

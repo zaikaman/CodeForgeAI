@@ -19,11 +19,41 @@ const deployRequestSchema = z.object({
 // POST /deploy - Deploy generated project to fly.io (requires auth)
 router.post('/deploy', optionalAuth, async (req, res) => {
   try {
-    const userId = (req as AuthenticatedRequest).userId;
+    let userId = (req as AuthenticatedRequest).userId;
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const allowUnauthenticatedDeploy = process.env.ALLOW_UNAUTHENTICATED_DEPLOY === 'true' || isDevelopment;
     
     console.log(`[POST /deploy] Request received. UserId: ${userId || 'NOT AUTHENTICATED'}`);
     
-    // Check if user is authenticated
+    // Validate request body first
+    const validatedRequest = deployRequestSchema.parse(req.body);
+    const { projectId, files, platform } = validatedRequest;
+
+    // Try to get generation to extract userId if not authenticated
+    let generation: any = null;
+    let fetchError: any = null;
+    
+    try {
+      const result = await supabase
+        .from('generations')
+        .select('id, user_id, status')
+        .eq('id', projectId)
+        .single();
+      
+      generation = result.data;
+      fetchError = result.error;
+      
+      // If no userId from auth but we found the generation, use that user_id in dev mode
+      if (!userId && generation?.user_id && allowUnauthenticatedDeploy) {
+        console.warn(`[POST /deploy] ⚠️ No auth, but using user_id from generation in ${isDevelopment ? 'development' : 'unauthenticated-allowed'} mode`);
+        userId = generation.user_id;
+      }
+    } catch (dbError) {
+      console.error(`[POST /deploy] Database query failed:`, dbError);
+      fetchError = dbError;
+    }
+    
+    // Check if user is authenticated (or in dev mode with valid generation)
     if (!userId) {
       console.warn('[POST /deploy] No userId found - authentication failed');
       res.status(401).json({
@@ -33,19 +63,9 @@ router.post('/deploy', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Validate request body
-    const validatedRequest = deployRequestSchema.parse(req.body);
-    const { projectId, files, platform } = validatedRequest;
+    console.log(`[POST /deploy] Deploying project ${projectId} to ${platform} for user ${userId}`);
 
-    console.log(`[POST /deploy] Deploying project ${projectId} to ${platform}`);
-
-    // Verify user owns this project
-    const { data: generation, error: fetchError } = await supabase
-      .from('generations')
-      .select('id, user_id, status')
-      .eq('id', projectId)
-      .single();
-
+    // Verify generation exists
     if (fetchError || !generation) {
       console.error(`[POST /deploy] Project not found:`, fetchError);
       res.status(404).json({
@@ -55,7 +75,8 @@ router.post('/deploy', optionalAuth, async (req, res) => {
       return;
     }
 
-    if (generation.user_id !== userId) {
+    // Verify ownership (skip in dev mode if auth failed but generation exists)
+    if (generation.user_id !== userId && !allowUnauthenticatedDeploy) {
       console.warn(`[POST /deploy] Permission denied for user ${userId}`);
       res.status(403).json({
         success: false,

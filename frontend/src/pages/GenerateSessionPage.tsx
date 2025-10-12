@@ -4,7 +4,8 @@ import { Layout } from '../components/Layout';
 import { AgentChat, AgentMessage } from '../components/AgentChat';
 import { CodeEditor } from '../components/CodeEditor';
 import { FileTree } from '../components/FileTree';
-import { PreviewFrame } from '../components/PreviewFrame';
+import { ProjectWorkspace } from '../components/ProjectWorkspace';
+import { DeployButton } from '../components/DeployButton';
 import { useGenerationStore } from '../stores/generationStore';
 import apiClient from '../services/apiClient';
 import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
@@ -45,6 +46,12 @@ export const GenerateSessionPage: React.FC = () => {
   const [_isGeneratingPreview, _setIsGeneratingPreview] = useState(false);
   const [_deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'ready' | 'error'>('idle');
   const [_iframeKey, _setIframeKey] = useState<number>(Date.now());
+  
+  // Store deployment data from database
+  const [deploymentData, setDeploymentData] = useState<{
+    url: string | null;
+    status: 'pending' | 'deploying' | 'deployed' | 'failed' | null;
+  }>({ url: null, status: null });
   
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -169,6 +176,12 @@ export const GenerateSessionPage: React.FC = () => {
         } else if (dbDeploymentStatus === 'failed') {
           setDeploymentStatus('error');
         }
+        
+        // Store deployment data for DeployButton
+        setDeploymentData({
+          url: data.previewUrl || null,
+          status: dbDeploymentStatus || null,
+        });
         
         // If we got a preview URL from database, set it
         if (data.previewUrl && !previewUrl) {
@@ -810,6 +823,12 @@ export const GenerateSessionPage: React.FC = () => {
             >
               PREVIEW
             </button>
+            <button 
+              className={activeTab === 'deploy' ? 'active' : ''} 
+              onClick={() => setActiveTab('deploy')}
+            >
+              DEPLOY
+            </button>
             {activeTab === 'source' && generation?.response?.files && (
               <button 
                 className="btn-download-zip"
@@ -877,12 +896,11 @@ export const GenerateSessionPage: React.FC = () => {
 
           {activeTab === 'preview' && (
             <div className="preview-view">
-              {/* WebContainer instant preview - no deployment needed */}
+              {/* WebContainer instant preview */}
               {generation?.response?.files && generation.response.files.length > 0 ? (
-                <PreviewFrame
+                <ProjectWorkspace
                   files={generation.response.files}
-                  onError={(error) => console.error('WebContainer preview error:', error)}
-                  onReady={() => console.log('✅ WebContainer preview ready')}
+                  onPreviewReady={() => console.log('✅ WebContainer preview ready')}
                 />
               ) : (
                 <div className="no-preview">
@@ -894,6 +912,51 @@ export const GenerateSessionPage: React.FC = () => {
     ║      WAITING FOR GENERATION...    ║
     ║                                   ║
     ║   ►  Preview will appear          ║
+    ║      when code is ready           ║
+    ║                                   ║
+    ╚═══════════════════════════════════╝`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'deploy' && (
+            <div className="deploy-view">
+              {generation?.response?.files && generation.response.files.length > 0 && id ? (
+                <div className="deploy-container">
+                  <div className="deploy-content">
+                    <h2 className="deploy-title">Deploy to Fly.io</h2>
+                    <p className="deploy-description">
+                      Deploy your application to production hosting on Fly.io with a single click.
+                    </p>
+                    <div className="deploy-button-wrapper">
+                      <DeployButton
+                        projectId={id}
+                        files={generation.response.files}
+                        initialDeploymentUrl={deploymentData.url}
+                        initialDeploymentStatus={deploymentData.status}
+                        onDeployComplete={(url: string) => {
+                          console.log('✅ Deployed to:', url);
+                          // Update deployment data state
+                          setDeploymentData({ url, status: 'deployed' });
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="no-preview">
+                  <div className="terminal-window">
+                    <div className="terminal-content">
+                      <pre className="ascii-logo phosphor-glow">
+{`    ╔═══════════════════════════════════╗
+    ║                                   ║
+    ║      WAITING FOR GENERATION...    ║
+    ║                                   ║
+    ║   ►  Deploy will be available     ║
     ║      when code is ready           ║
     ║                                   ║
     ╚═══════════════════════════════════╝`}

@@ -1,4 +1,5 @@
 import type { WebContainer, FileSystemTree } from '@webcontainer/api';
+import { webcontainerState } from './state';
 
 /**
  * Convert file structure to WebContainer FileSystemTree format
@@ -37,15 +38,85 @@ export function convertToFileSystemTree(files: Array<{ path: string; content: st
 }
 
 /**
- * Mount files to WebContainer
+ * Create a hash of files for change detection
+ */
+export function createFilesHash(files: Array<{ path: string; content: string }>): string {
+  return JSON.stringify(
+    files
+      .map(f => ({ path: f.path, hash: simpleHash(f.content) }))
+      .sort((a, b) => a.path.localeCompare(b.path))
+  );
+}
+
+/**
+ * Simple hash function for content comparison
+ */
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash;
+}
+
+/**
+ * Mount files to WebContainer with state tracking
  */
 export async function mountFiles(
   container: WebContainer,
   files: Array<{ path: string; content: string }>
 ): Promise<void> {
+  const filesHash = createFilesHash(files);
+  
+  // Check if same files are already mounted
+  if (webcontainerState.isMounted() && webcontainerState.getCurrentFilesHash() === filesHash) {
+    console.log('[WebContainer] Files already mounted, skipping...');
+    return;
+  }
+
+  // If files already mounted but changed, update them instead of remounting
+  if (webcontainerState.isMounted() && webcontainerState.getCurrentFilesHash() !== filesHash) {
+    console.log('[WebContainer] Files changed, updating...');
+    await updateFiles(container, files);
+    webcontainerState.setCurrentFilesHash(filesHash);
+    return;
+  }
+
   const tree = convertToFileSystemTree(files);
   console.log('[WebContainer] Mounting files:', Object.keys(tree));
   await container.mount(tree);
+  
+  webcontainerState.setMounted(true);
+  webcontainerState.setCurrentFilesHash(filesHash);
+}
+
+/**
+ * Update existing files in WebContainer without remounting
+ */
+export async function updateFiles(
+  container: WebContainer,
+  files: Array<{ path: string; content: string }>
+): Promise<void> {
+  console.log('[WebContainer] ⚡ Updating files in WebContainer...');
+  console.log(`[WebContainer] Files to update: ${files.length}`);
+  
+  let updatedCount = 0;
+  for (const file of files) {
+    try {
+      await writeFile(container, file.path, file.content);
+      updatedCount++;
+    } catch (error) {
+      console.error(`[WebContainer] ❌ Failed to update file ${file.path}:`, error);
+      // Continue with other files even if one fails
+    }
+  }
+  
+  console.log(`[WebContainer] ✅ Files updated successfully (${updatedCount}/${files.length})`);
+  
+  // Note: Dev server should auto-reload when files change via HMR
+  // No need to restart the server manually
 }
 
 /**
