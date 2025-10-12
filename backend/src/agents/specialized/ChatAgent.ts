@@ -1,11 +1,13 @@
 /**
  * ChatAgent - Simple conversational agent for code modifications
+ * OPTIMIZED with pre-compiled schema and compressed prompt
  */
 
 import { AgentBuilder } from '@iqai/adk';
-import { z } from 'zod';
+import { chatResponseSchema } from '../../schemas/chat-schema';
+import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 
-const systemPrompt = `You are a helpful coding assistant. Users will ask you to make changes to their codebase, and you will modify the files accordingly.
+const rawSystemPrompt = `You are a helpful coding assistant. Users will ask you to make changes to their codebase, and you will modify the files accordingly.
 
 You will receive:
 1. The user's request
@@ -139,18 +141,19 @@ CRITICAL: JSON Response Format Rules
 
 If your response doesn't match this EXACT format, the system will crash!`;
 
-const chatResponseSchema = z.object({
-  files: z.array(z.object({
-    path: z.string(),
-    content: z.string()
-  })),
-  summary: z.string().optional()
-});
+// Compress the prompt to reduce size while maintaining critical info
+const systemPrompt = smartCompress(rawSystemPrompt);
+
+// Log compression stats in development
+if (process.env.NODE_ENV !== 'production') {
+  const stats = getCompressionStats(rawSystemPrompt, systemPrompt);
+  console.log(`[ChatAgent] Prompt compressed: ${stats.originalSize} → ${stats.compressedSize} bytes (saved ${stats.savedPercent}%)`);
+}
 
 export const ChatAgent = async () => {
   return AgentBuilder.create('ChatAgent')
     .withModel('gpt-5-nano')
     .withInstruction(systemPrompt)
-    .withOutputSchema(chatResponseSchema as z.ZodTypeAny)
+    .withOutputSchema(chatResponseSchema as any)
     .build();
 };

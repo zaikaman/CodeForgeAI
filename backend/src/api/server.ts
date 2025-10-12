@@ -21,6 +21,8 @@ import chatRouter from './routes/chat';
 import chatHistoryRouter from './routes/chatHistory';
 import downloadRouter from './routes/download';
 import deployRouter from './routes/deploy';
+import fixPreviewErrorsRouter from '../routes/fix-preview-errors';
+import cacheRouter from './cache';
 
 const app = express();
 
@@ -87,6 +89,8 @@ app.use('/api', chatRouter);
 app.use('/api', chatHistoryRouter);
 app.use('/api', downloadRouter);
 app.use('/api', deployRouter);
+app.use('/api/fix-preview-errors', fixPreviewErrorsRouter);
+app.use('/api/cache', cacheRouter);
 
 // Socket.io connection
 io.on('connection', (socket) => {

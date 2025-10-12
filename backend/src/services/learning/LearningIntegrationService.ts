@@ -6,11 +6,20 @@
 import { getLearningSystem, DeploymentError } from './ErrorLearningSystem';
 import type { GeneratedFile } from '../validation/ComprehensiveValidator';
 
+// In-memory cache for learned rules
+interface CacheEntry {
+  rules: string;
+  timestamp: number;
+}
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const rulesCache = new Map<string, CacheEntry>();
+
 export class LearningIntegrationService {
   private learningSystem = getLearningSystem();
 
   /**
-   * Get dynamic, learned rules for code generation
+   * Get dynamic, learned rules for code generation (with caching)
    */
   async getSmartPromptAddition(context: {
     language: string;
@@ -18,9 +27,32 @@ export class LearningIntegrationService {
     platform?: string;
     prompt: string;
   }): Promise<string> {
-    console.log(`📚 [Learning] Fetching learned rules for ${context.language}`);
+    // Generate cache key
+    const cacheKey = `${context.language}:${context.framework || 'none'}:${context.platform || 'none'}`;
+    
+    // Check cache
+    const cached = rulesCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+      console.log(`📚 [Learning] Using cached rules for ${context.language} (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
+      return cached.rules;
+    }
+    
+    console.log(`📚 [Learning] Fetching fresh learned rules for ${context.language}`);
     
     const dynamicRules = this.learningSystem.getDynamicRulesForGeneration(context);
+    
+    // Update cache
+    rulesCache.set(cacheKey, {
+      rules: dynamicRules,
+      timestamp: Date.now()
+    });
+    
+    // Clean old cache entries (simple LRU)
+    if (rulesCache.size > 50) {
+      const oldestKey = Array.from(rulesCache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)[0][0];
+      rulesCache.delete(oldestKey);
+    }
     
     return dynamicRules;
   }

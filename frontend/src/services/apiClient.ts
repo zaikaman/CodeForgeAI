@@ -676,6 +676,57 @@ class ApiClient {
     return response.data
   }
 
+  // Fix preview errors - send errors to LLM to analyze and fix
+  async fixPreviewErrors(request: {
+    generationId: string
+    currentFiles: Array<{ path: string; content: string }>
+    errors: Array<{
+      type: string
+      message: string
+      stack?: string
+      file?: string
+      line?: number
+      column?: number
+    }>
+    language: string
+  }): Promise<ApiResponse<{
+    jobId: string
+    status: 'pending' | 'processing' | 'completed' | 'error'
+    message?: string
+    files?: Array<{ path: string; content: string }>
+    error?: string
+  }>> {
+    try {
+      const response = await this.client.post('/api/fix-preview-errors', request)
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] fixPreviewErrors error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to fix preview errors',
+      }
+    }
+  }
+
+  // Get fix preview errors job status
+  async getFixErrorsStatus(jobId: string): Promise<ApiResponse<{
+    status: 'pending' | 'processing' | 'completed' | 'error'
+    message?: string
+    files?: Array<{ path: string; content: string }>
+    error?: string
+  }>> {
+    try {
+      const response = await this.client.get(`/api/fix-preview-errors/${jobId}`)
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] getFixErrorsStatus error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to get fix status',
+      }
+    }
+  }
+
   // Custom request method for advanced use cases
   async request<T = any>(config: AxiosRequestConfig): Promise<ApiResponse<T>> {
     const response = await this.client.request<ApiResponse<T>>(config)

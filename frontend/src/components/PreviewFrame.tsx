@@ -7,20 +7,46 @@ import {
   webcontainerState 
 } from '@/lib/webcontainer/exports';
 import { createFilesHash } from '@/lib/webcontainer/files';
+import { getPreviewErrorCapture, PreviewError } from '@/utils/previewErrorCapture';
 
 interface PreviewFrameProps {
   files: Array<{ path: string; content: string }>;
   onError?: (error: string) => void;
   onReady?: () => void;
+  onPreviewError?: (errors: PreviewError[]) => void;
 }
 
-export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
+export function PreviewFrame({ files, onError, onReady, onPreviewError }: PreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [status, setStatus] = useState<'idle' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isEnlarged, setIsEnlarged] = useState<boolean>(false);
   const isInitializingRef = useRef<boolean>(false);
+  const [previewErrors, setPreviewErrors] = useState<PreviewError[]>([]);
+
+  // Setup error capture
+  useEffect(() => {
+    const errorCapture = getPreviewErrorCapture();
+    
+    // Clear previous errors when files change
+    errorCapture.clearErrors();
+    setPreviewErrors([]);
+
+    // Listen for new errors
+    const unsubscribe = errorCapture.onError((error) => {
+      console.log('[PreviewFrame] Preview error captured:', error);
+      setPreviewErrors(prev => [...prev, error]);
+      
+      // Notify parent component
+      const allErrors = errorCapture.getErrors();
+      onPreviewError?.(allErrors);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [onPreviewError]);
 
   // Create a stable hash of files to detect changes
   // This ensures useEffect runs when files actually change
@@ -175,11 +201,16 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
       <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${
-            status === 'ready' ? 'bg-green-500' :
+            status === 'ready' ? (previewErrors.length > 0 ? 'bg-orange-500' : 'bg-green-500') :
             status === 'error' ? 'bg-red-500' :
             'bg-yellow-500 animate-pulse'
           }`} />
           <span className="text-sm text-gray-300">{getStatusMessage()}</span>
+          {previewErrors.length > 0 && (
+            <span className="px-2 py-0.5 text-xs bg-orange-500 text-white rounded-full">
+              {previewErrors.length} error{previewErrors.length > 1 ? 's' : ''}
+            </span>
+          )}
         </div>
         <button
           onClick={() => setIsEnlarged(!isEnlarged)}

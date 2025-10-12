@@ -2,6 +2,7 @@
  * CodeGeneratorAgent - AI-powered code generation using local ADK
  * Uses language-specific prompt templates for better code generation
  * Now includes DYNAMIC learned rules from ErrorLearningSystem
+ * OPTIMIZED with prompt caching and lazy loading
  */
 
 import { AgentBuilder } from '@iqai/adk';
@@ -9,6 +10,8 @@ import { generationSchema } from '../../schemas/generation-schema';
 import { getLanguagePrompt } from '../../prompts/webcontainer-templates';
 import { generateValidationPrompt, getAIChecklistPrompt } from '../../services/validation/PreValidationRules';
 import { getLearningIntegration } from '../../services/learning/LearningIntegrationService';
+import { getPromptCache } from '../../utils/PromptCache';
+import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 
 interface CodeGeneratorOptions {
   language?: string;
@@ -23,12 +26,23 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
   
   console.log('[CodeGeneratorAgent] Using WebContainer-optimized TypeScript/React prompt');
   
-  // Get the WebContainer-optimized prompt
-  let systemPrompt = getLanguagePrompt(targetLanguage);
+  const promptCache = getPromptCache();
   
-  // Add static validation rules (fallback for common issues)
-  const staticValidationRules = generateValidationPrompt(targetLanguage || 'typescript');
-  const checklist = getAIChecklistPrompt();
+  // Use lazy-loaded cached prompts
+  let systemPrompt = promptCache.getOrLoad(
+    `language:${targetLanguage}`,
+    () => getLanguagePrompt(targetLanguage)
+  );
+  
+  // Add static validation rules (cached)
+  const staticValidationRules = promptCache.getOrLoad(
+    `validation:${targetLanguage}`,
+    () => generateValidationPrompt(targetLanguage || 'typescript')
+  );
+  const checklist = promptCache.getOrLoad(
+    'checklist:ai',
+    () => getAIChecklistPrompt()
+  );
   
   // Get DYNAMIC learned rules from ErrorLearningSystem
   let learnedRules = '';
@@ -56,19 +70,25 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
   
   // Combine: base prompt + static rules + learned rules + checklist
   // Note: learnedRules already sanitized above to prevent template variable conflicts
-  systemPrompt = systemPrompt + 
-                 '\n\n' + staticValidationRules + 
-                 (learnedRules ? '\n\n' + learnedRules : '') + 
-                 '\n\n' + checklist;
+  let combinedPrompt = systemPrompt + 
+                       '\n\n' + staticValidationRules + 
+                       (learnedRules ? '\n\n' + learnedRules : '') + 
+                       '\n\n' + checklist;
   
+  // Compress the final prompt to reduce size
+  const compressedPrompt = smartCompress(combinedPrompt);
+  
+  // Log compression stats
+  const stats = getCompressionStats(combinedPrompt, compressedPrompt);
   console.log(`[CodeGeneratorAgent] Using prompt for language: ${targetLanguage || 'default'}`);
   console.log(`  - Static rules: ✓`);
   console.log(`  - Learned rules: ${learnedRules ? '✓' : '✗'}`);
   console.log(`  - Checklist: ✓`);
+  console.log(`  - Compressed: ${stats.originalSize} → ${stats.compressedSize} bytes (saved ${stats.savedPercent}%)`);
   
   return AgentBuilder.create('CodeGeneratorAgent')
     .withModel('gpt-5-nano')
-    .withInstruction(systemPrompt)
+    .withInstruction(compressedPrompt)
     .withOutputSchema(generationSchema)
     .build();
 };

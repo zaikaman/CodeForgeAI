@@ -1,13 +1,14 @@
 import dotenv from 'dotenv';
 import { server } from './api/server';
 import { checkSupabaseConnection } from './storage/SupabaseClient';
+import { preloadAgentCaches } from './services/AgentInitService';
 
 // Load environment variables from .env file
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`
 🚀 CodeForge AI Backend Server Starting...
 📡 Server running on: http://localhost:${PORT}
@@ -29,6 +30,13 @@ server.listen(PORT, () => {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error('❌ Supabase connection error:', message);
     });
+
+  // Preload agent caches for faster first request
+  console.log('');
+  await preloadAgentCaches().catch(error => {
+    console.warn('⚠️  Cache preload failed (non-critical):', error);
+  });
+  console.log('');
 });
 
 export default server;
