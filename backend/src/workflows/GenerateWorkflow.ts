@@ -3,7 +3,6 @@
  * Uses AI agents with FAST validation (< 2s overhead) and smart auto-fixing.
  */
 import { CodeGeneratorAgent } from '../agents/specialized/CodeGeneratorAgent';
-import { SpecInterpreterAgent } from '../agents/specialized/SpecInterpreterAgent';
 import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent';
 import { DocWeaverAgent } from '../agents/specialized/DocWeaverAgent';
 import { RefactorGuruAgent } from '../agents/specialized/RefactorGuruAgent';
@@ -44,31 +43,118 @@ export class GenerateWorkflow {
         let tests = '';
         
         try {
-            // Step 1: Interpret requirements using SpecInterpreterAgent
+            // Step 1: Interpret requirements (includes ConversationalAgent check)
             console.log('\n[STEP 1] Interpreting prompt...');
             const requirements = await this.interpretPrompt(request.prompt);
             console.log('[STEP 1] Requirements:', JSON.stringify(requirements, null, 2).substring(0, 500));
+            
+            // If it's conversational only (greeting/casual chat), return early
+            if (requirements.conversationalOnly) {
+                console.log('[WORKFLOW] Conversational response only, no code generation needed');
+                return {
+                    files: [],
+                    summary: requirements.conversationResponse || requirements.summary,
+                    agentThoughts: [{
+                        agent: 'ConversationalAgent',
+                        thought: requirements.conversationResponse
+                    }],
+                    tests: '',
+                    conversationalOnly: true,
+                    intent: requirements.intent
+                };
+            }
+            
             agentThoughts.push({
                 agent: 'SpecInterpreter',
                 thought: `Analyzed requirements: ${requirements.summary || 'Requirements parsed successfully'}`
             });
 
-            // Step 2: Generate code using CodeGeneratorAgent
-            console.log('\n[STEP 2] Generating code...');
-            let codeResult = await this.generateCode({
-                ...request,
-                requirements
-            });
-            console.log('[STEP 2] Code result files count:', codeResult?.files?.length || 0);
-            console.log('[STEP 2] Code result metadata:', JSON.stringify(codeResult?.metadata || {}));
-            
-            agentThoughts.push({
-                agent: 'CodeGenerator',
-                thought: `Generated ${request.targetLanguage} code using AI agent (${codeResult.metadata.generatedBy})`
-            });
+            // Check if this is a documentation-only request with existing code
+            const isDocOnlyWithExistingCode = 
+                request.agents && 
+                request.agents.length === 1 && 
+                request.agents[0] === 'DocWeaver' &&
+                request.currentFiles && 
+                request.currentFiles.length > 0;
 
-            // Step 3: Validate and fix code if validation is enabled
-            if (this.VALIDATION_ENABLED) {
+            // Check if DocWeaver is the ONLY agent and user wants to document their IDEA (no code yet)
+            const isDocForNewProject = 
+                request.agents && 
+                request.agents.length === 1 && 
+                request.agents[0] === 'DocWeaver' &&
+                (!request.currentFiles || request.currentFiles.length === 0);
+
+            // Check if this is a test-only request (TestCrafter only)
+            const isTestOnlyRequest = 
+                request.agents && 
+                request.agents.length === 1 && 
+                request.agents[0] === 'TestCrafter' &&
+                request.currentFiles && 
+                request.currentFiles.length > 0;
+
+            let codeResult: any;
+
+            if (isDocOnlyWithExistingCode) {
+                // Skip code generation, use existing files
+                console.log('\n[STEP 2] Documentation-only request, using existing files...');
+                codeResult = {
+                    files: request.currentFiles,
+                    metadata: {
+                        generatedBy: 'existing',
+                        skippedGeneration: true
+                    }
+                };
+                agentThoughts.push({
+                    agent: 'System',
+                    thought: 'Using existing codebase for documentation generation'
+                });
+            } else if (isDocForNewProject) {
+                // Generate project plan/structure documentation without code
+                console.log('\n[STEP 2] Documentation for new project (no code yet)...');
+                codeResult = {
+                    files: [],
+                    metadata: {
+                        generatedBy: 'none',
+                        documentationOnly: true
+                    }
+                };
+                agentThoughts.push({
+                    agent: 'System',
+                    thought: 'Generating project documentation and planning guide'
+                });
+            } else if (isTestOnlyRequest) {
+                // Skip code generation, use existing files for test generation
+                console.log('\n[STEP 2] Test-only request, using existing codebase...');
+                codeResult = {
+                    files: request.currentFiles,
+                    metadata: {
+                        generatedBy: 'existing',
+                        testsOnly: true
+                    }
+                };
+                agentThoughts.push({
+                    agent: 'System',
+                    thought: 'Using existing codebase for test generation'
+                });
+            } else {
+                // Step 2: Generate code using CodeGeneratorAgent
+                console.log('\n[STEP 2] Generating code...');
+                codeResult = await this.generateCode({
+                    ...request,
+                    requirements
+                });
+                console.log('[STEP 2] Code result files count:', codeResult?.files?.length || 0);
+                console.log('[STEP 2] Code result metadata:', JSON.stringify(codeResult?.metadata || {}));
+                
+                agentThoughts.push({
+                    agent: 'CodeGenerator',
+                    thought: `Generated ${request.targetLanguage} code using AI agent (${codeResult.metadata.generatedBy})`
+                });
+            }
+
+            // Step 3: Validate and fix code if validation is enabled (skip for doc-only and test-only)
+            const skipValidation = isDocOnlyWithExistingCode || isDocForNewProject || isTestOnlyRequest;
+            if (this.VALIDATION_ENABLED && !skipValidation) {
                 const validationResult = await this.validateAndFixCode(
                     codeResult.files,
                     request,
@@ -81,6 +167,12 @@ export class GenerateWorkflow {
                 } else {
                     codeResult.validation = validationResult.validation;
                 }
+            } else if (skipValidation) {
+                // Skip validation for doc-only requests
+                codeResult.validation = {
+                    isValid: true,
+                    skipped: true
+                };
             }
 
             // Combine all generated files into a single code string for test generation
@@ -159,10 +251,32 @@ export class GenerateWorkflow {
                 const docsResult = await this.generateDocumentation({
                     files: codeResult.files,
                     requirements,
-                    language: request.targetLanguage
+                    language: request.targetLanguage,
+                    prompt: request.prompt, // Pass original prompt for context
                 });
                 
                 documentation = docsResult.documentation || '';
+                
+                // If documentation-only request, add docs as a README.md file
+                if ((isDocOnlyWithExistingCode || isDocForNewProject) && documentation) {
+                    const readmeFile = {
+                        path: 'README.md',
+                        content: documentation
+                    };
+                    
+                    // For doc-only with existing code, add README to files
+                    if (isDocOnlyWithExistingCode) {
+                        const existingReadme = codeResult.files.findIndex((f: any) => f.path === 'README.md');
+                        if (existingReadme >= 0) {
+                            codeResult.files[existingReadme] = readmeFile;
+                        } else {
+                            codeResult.files.push(readmeFile);
+                        }
+                    } else {
+                        // For new project docs, only return README
+                        codeResult.files = [readmeFile];
+                    }
+                }
                 
                 agentThoughts.push({
                     agent: 'DocWeaver',
@@ -171,10 +285,23 @@ export class GenerateWorkflow {
             }
 
             // Step 9: Return final result with all enhancements
+            // Create appropriate summary based on request type
+            let summary = '';
+            if (isDocForNewProject) {
+                summary = '✅ Generated project planning documentation and roadmap';
+            } else if (isDocOnlyWithExistingCode) {
+                summary = `✅ Generated comprehensive documentation for your ${request.targetLanguage} codebase`;
+            } else if (isTestOnlyRequest) {
+                summary = `✅ Generated comprehensive test suite for your ${request.targetLanguage} codebase`;
+            } else {
+                summary = `✅ Generated ${request.targetLanguage} code with ${codeResult.files?.length || 0} files`;
+            }
+            
             return {
                 files: codeResult.files,
                 tests,
                 documentation,
+                summary, // Add summary for ChatQueue
                 language: request.targetLanguage,
                 confidence: codeResult.validation?.isValid ? 0.95 : 0.75,
                 validation: codeResult.validation,
@@ -278,9 +405,66 @@ export class GenerateWorkflow {
 
     private async interpretPrompt(prompt: string): Promise<any> {
         try {
+            // STEP 0: First check with ConversationalAgent to detect intent
+            console.log('\n[STEP 0] Analyzing conversation intent...');
+            const { ConversationalAgent } = await import('../agents/specialized/ConversationalAgent');
+            const conversationAgent = await ConversationalAgent();
+            const { runner: convRunner } = conversationAgent;
+            
+            const intentResponse = await convRunner.ask(prompt);
+            console.log('Response from ConversationalAgent:', intentResponse);
+            
+            // Parse conversation response
+            let conversationResult;
+            try {
+                // Check if response is already an object
+                if (typeof intentResponse === 'object' && intentResponse !== null) {
+                    conversationResult = intentResponse;
+                } else if (typeof intentResponse === 'string') {
+                    // Try to parse as JSON string
+                    const jsonMatch = intentResponse.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        conversationResult = JSON.parse(jsonMatch[0]);
+                    } else {
+                        throw new Error('No JSON found in ConversationalAgent response');
+                    }
+                } else {
+                    throw new Error('Unexpected response type from ConversationalAgent');
+                }
+            } catch (parseError) {
+                console.error('Failed to parse ConversationalAgent response:', parseError);
+                conversationResult = {
+                    intent: 'unclear',
+                    response: 'I understand you want help, but could you provide more details?',
+                    needsSpecializedAgent: false
+                };
+            }
+            
+            console.log('[STEP 0] Intent detected:', conversationResult.intent);
+            console.log('[STEP 0] Needs specialized agent:', conversationResult.needsSpecializedAgent);
+            
+            // If it's just a greeting or casual chat, return conversational response
+            if (!conversationResult.needsSpecializedAgent) {
+                console.log('[STEP 0] No specialized agent needed. Returning conversation response.');
+                return {
+                    summary: conversationResult.response,
+                    requirements: [],
+                    nonFunctionalRequirements: [],
+                    complexity: 'simple',
+                    domain: 'Conversation',
+                    technicalConstraints: [],
+                    conversationalOnly: true,
+                    conversationResponse: conversationResult.response,
+                    intent: conversationResult.intent
+                };
+            }
+            
+            console.log('[STEP 0] Specialized agent needed:', conversationResult.suggestedAgent);
+            
             // Use SpecInterpreterAgent to analyze requirements
             console.log('Calling SpecInterpreterAgent to analyze prompt:', prompt);
             
+            const { SpecInterpreterAgent } = await import('../agents/specialized/SpecInterpreterAgent');
             const { runner } = await SpecInterpreterAgent();
             const analysisPrompt = `Analyze the following requirement and extract structured requirements:
 
@@ -1006,26 +1190,36 @@ Return the result as JSON with the following structure:
             
             const { runner } = await DocWeaverAgent();
             
-            // Combine all files for documentation
-            const codeToDocument = request.files
-                .map((f: any) => `// File: ${f.path}\n${f.content}`)
-                .join('\n\n');
+            const hasCode = request.files && request.files.length > 0;
             
-            const docsPrompt = `Generate comprehensive documentation for the following ${request.language} code:
+            let docsPrompt: string;
+            
+            if (hasCode) {
+                // Generate documentation for existing code
+                const codeToDocument = request.files
+                    .map((f: any) => `// File: ${f.path}\n${f.content}`)
+                    .join('\n\n');
+                
+                docsPrompt = `TASK: Generate a comprehensive README.md file for the following ${request.language} codebase.
 
 ${codeToDocument}
 
 Project Requirements:
 ${request.requirements?.summary || 'N/A'}
 
-Please generate:
-1. README.md with project overview and setup instructions
-2. API documentation (if applicable)
-3. Usage examples
-4. Configuration guide
-5. Contributing guidelines (brief)
+INSTRUCTIONS:
+- DO NOT use commentInserterTool
+- DO NOT modify the code
+- ONLY generate README documentation
 
-Return the result as JSON with the following structure:
+Include these sections:
+1. Project Overview and Setup
+2. API Documentation (if applicable)
+3. Usage Examples
+4. Configuration Guide
+5. Contributing Guidelines (brief)
+
+CRITICAL: Return ONLY JSON in this exact format (no tool calls):
 {
   "documentation": "# Project Title\\n\\nFull markdown documentation here...",
   "metadata": {
@@ -1034,6 +1228,38 @@ Return the result as JSON with the following structure:
     "hasAPI": false
   }
 }`;
+            } else {
+                // Generate project planning documentation (no code yet)
+                docsPrompt = `TASK: Generate a project planning document for the following concept.
+
+Project Concept: ${request.prompt}
+
+Requirements:
+${request.requirements?.summary || 'User wants to create documentation for their app idea'}
+
+INSTRUCTIONS:
+- DO NOT use commentInserterTool (no code exists yet)
+- Generate planning/specification documentation
+- Be detailed and practical
+
+Include these sections:
+1. Project Overview and Goals
+2. Technical Architecture Plan
+3. Feature Specifications
+4. Development Roadmap
+5. Getting Started Guide (for future development)
+6. API Design (if applicable)
+
+CRITICAL: Return ONLY JSON in this exact format (no tool calls):
+{
+  "documentation": "# Project Planning Document\\n\\nFull markdown documentation here...",
+  "metadata": {
+    "sectionCount": 6,
+    "hasExamples": true,
+    "hasAPI": true
+  }
+}`;
+            }
 
             const response = await runner.ask(docsPrompt) as string;
             console.log('Response from DocWeaverAgent:', response);

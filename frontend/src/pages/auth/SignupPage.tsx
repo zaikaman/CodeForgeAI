@@ -17,7 +17,7 @@ export const SignupPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/dashboard')
+      navigate('/terminal')
     }
   }, [user, navigate])
 
@@ -47,7 +47,7 @@ export const SignupPage: React.FC = () => {
 
     try {
       await signUp({ email, password })
-      navigate('/dashboard')
+      navigate('/terminal')
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.')
     } finally {

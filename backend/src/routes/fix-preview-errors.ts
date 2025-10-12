@@ -52,7 +52,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     console.log(`[FixPreviewErrors] Received request to fix ${errors.length} error(s) for generation ${generationId}`);
 
-    // Get userId from generation
+    // Get userId from generation (can be null for anonymous users)
     const { data: generationData, error: genError } = await supabase
       .from('generations')
       .select('user_id')
@@ -67,7 +67,8 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const userId = generationData.user_id;
+    // Use a placeholder UUID for anonymous users
+    const userId = generationData.user_id || '00000000-0000-0000-0000-000000000000';
 
     // Format errors for LLM
     const errorReport = formatErrorsForLLM(errors);

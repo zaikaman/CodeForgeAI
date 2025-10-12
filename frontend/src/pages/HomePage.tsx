@@ -73,11 +73,11 @@ export const HomePage: React.FC = () => {
             </p>
 
             <div className="hero-actions mt-xl">
-              <Link to="/signup" className="btn btn-primary btn-large">
-                ► INITIALIZE SYSTEM
+              <Link to="/terminal" className="btn btn-primary btn-large">
+                ► INITIALIZE TERMINAL
               </Link>
               <Link to="/login" className="btn btn-large">
-                ACCESS TERMINAL
+                ACCESS SYSTEM
               </Link>
             </div>
 

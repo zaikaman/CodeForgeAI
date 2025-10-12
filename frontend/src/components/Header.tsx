@@ -48,6 +48,12 @@ export const Header: React.FC = () => {
               ◆ DASHBOARD
             </Link>
             <Link 
+              to="/chat" 
+              className={`nav-link ${(isActive('/chat') || location.pathname.startsWith('/chat/')) ? 'active' : ''}`}
+            >
+              🤖 AI CHAT
+            </Link>
+            <Link 
               to="/generate" 
               className={`nav-link ${isActive('/generate') ? 'active' : ''}`}
             >

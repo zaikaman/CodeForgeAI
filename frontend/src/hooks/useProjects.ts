@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useUIStore } from '../stores/uiStore'
 import apiClient from '../services/apiClient'
-import { Project } from '../components/ProjectList'
+import { Project } from '../types/project'
 
 export interface UseProjectsReturn {
   // State

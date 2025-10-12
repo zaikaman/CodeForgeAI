@@ -9,12 +9,8 @@ import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { SignupPage } from './pages/auth/SignupPage'
 import { AuthCallback } from './pages/auth/AuthCallback'
-import { DashboardPage } from './pages/DashboardPage'
-import { GeneratePage } from './pages/GeneratePage'
-import { GenerateSessionPage } from './pages/GenerateSessionPage'
-import { ReviewPage } from './pages/ReviewPage'
-import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { TerminalPage } from './pages/TerminalPage'
 
 // Styles
 import './styles/theme.css'
@@ -62,46 +58,24 @@ function App() {
             <Route path="/auth/callback" element={<AuthCallback />} />
 
             {/* Protected Routes */}
+            {/* Main Terminal Interface (Cursor-style) */}
             <Route
-              path="/dashboard"
+              path="/terminal"
               element={
                 <ProtectedRoute>
-                  <DashboardPage />
+                  <TerminalPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/generate"
+              path="/terminal/:id"
               element={
                 <ProtectedRoute>
-                  <GeneratePage />
+                  <TerminalPage />
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/generate/:id"
-              element={
-                <ProtectedRoute>
-                  <GenerateSessionPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/review"
-              element={
-                <ProtectedRoute>
-                  <ReviewPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/history"
-              element={
-                <ProtectedRoute>
-                  <HistoryPage />
-                </ProtectedRoute>
-              }
-            />
+            {/* Settings */}
             <Route
               path="/settings"
               element={
@@ -110,6 +84,15 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            
+            {/* Legacy redirects - redirect old routes to terminal */}
+            <Route path="/dashboard" element={<Navigate to="/terminal" replace />} />
+            <Route path="/chat" element={<Navigate to="/terminal" replace />} />
+            <Route path="/chat/:id" element={<Navigate to="/terminal/$1" replace />} />
+            <Route path="/generate" element={<Navigate to="/terminal" replace />} />
+            <Route path="/generate/:id" element={<Navigate to="/terminal/$1" replace />} />
+            <Route path="/review" element={<Navigate to="/terminal" replace />} />
+            <Route path="/history" element={<Navigate to="/terminal" replace />} />
 
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -44,6 +44,57 @@ class ChatQueueManager {
   }): Promise<void> {
     console.log(`[ChatQueue] Creating chat job ${params.id} in database...`);
     
+    // Check if job already exists
+    const { data: existingJob } = await supabase
+      .from('chat_jobs')
+      .select('id, status')
+      .eq('id', params.id)
+      .single();
+    
+    if (existingJob) {
+      console.log(`[ChatQueue] Job ${params.id} already exists with status: ${existingJob.status}`);
+      
+      // If job is already pending, check if it's in our queue
+      if (existingJob.status === 'pending') {
+        const inQueue = this.queue.some(j => j.id === params.id);
+        if (inQueue) {
+          console.log(`[ChatQueue] Job ${params.id} already in queue, skipping`);
+          return;
+        }
+        // Job exists in DB but not in queue, load it
+        console.log(`[ChatQueue] Job ${params.id} exists in DB but not in queue, adding to queue`);
+        const job: ChatJob = {
+          id: params.id,
+          generationId: params.generationId,
+          userId: params.userId,
+          message: params.message,
+          currentFiles: params.currentFiles,
+          language: params.language,
+          imageUrls: params.imageUrls,
+          status: 'pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        this.queue.push(job);
+        
+        // Start processing if not already
+        if (!this.isProcessing) {
+          this.processQueue();
+        }
+        return;
+      }
+      
+      // If already processing, skip
+      if (existingJob.status === 'processing') {
+        console.log(`[ChatQueue] Job ${params.id} is already being processed, skipping`);
+        return;
+      }
+      
+      // If completed/error, delete and recreate
+      console.log(`[ChatQueue] Job ${params.id} status is ${existingJob.status}, recreating`);
+      await supabase.from('chat_jobs').delete().eq('id', params.id);
+    }
+    
     // Save to database
     const { error: dbError } = await supabase
       .from('chat_jobs')
@@ -210,10 +261,144 @@ class ChatQueueManager {
         context: 'ChatQueue'
       });
       
-      // Merge modified/new files with existing files
+      // Check if specialist agent is needed
+      if (response.needsSpecialist) {
+        // Normalize agent names to handle variations
+        const agentNameMap: Record<string, string> = {
+          'DocsWeaver': 'DocWeaver',  // Fix common typo
+          'DocWeaverAgent': 'DocWeaver',
+          'CodeGeneratorAgent': 'CodeGenerator',
+          'TestCrafterAgent': 'TestCrafter',
+          'SecuritySentinelAgent': 'SecuritySentinel',
+          'PerformanceProfilerAgent': 'PerformanceProfiler',
+          'BugHunterAgent': 'BugHunter',
+        };
+        
+        let specialistAgent = response.specialistAgent || 'CodeGenerator';
+        if (agentNameMap[specialistAgent]) {
+          console.log(`[ChatQueue] Normalizing agent name: ${specialistAgent} → ${agentNameMap[specialistAgent]}`);
+          specialistAgent = agentNameMap[specialistAgent];
+        }
+        
+        console.log(`[ChatQueue] Routing to specialist: ${specialistAgent}`);
+        
+        // Determine which workflow to use based on the agent
+        const reviewAgents = ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler'];
+        const isReviewWorkflow = reviewAgents.includes(specialistAgent);
+        
+        let workflowResult: any;
+        
+        if (isReviewWorkflow) {
+          // Route to ReviewWorkflow for code analysis
+          const { ReviewWorkflow } = await import('../workflows/ReviewWorkflow');
+          const workflow = new ReviewWorkflow();
+          
+          // Map specialist agent to review options
+          const reviewOptions = {
+            checkBugs: specialistAgent === 'BugHunter',
+            checkSecurity: specialistAgent === 'SecuritySentinel',
+            checkPerformance: specialistAgent === 'PerformanceProfiler',
+            checkStyle: false,
+          };
+          
+          workflowResult = await workflow.run({
+            code: job.currentFiles,
+            language: job.language,
+            options: reviewOptions,
+          });
+        } else {
+          // Route to GenerateWorkflow for code generation/modification
+          const { GenerateWorkflow } = await import('../workflows/GenerateWorkflow');
+          const workflow = new GenerateWorkflow();
+          
+          workflowResult = await workflow.run({
+            prompt: job.message,
+            projectContext: '',
+            targetLanguage: job.language,
+            complexity: 'moderate',
+            agents: [specialistAgent],
+            imageUrls: job.imageUrls,
+            currentFiles: job.currentFiles || [], // Pass existing files for doc-only requests
+          });
+        }
+        
+        // Format the result based on workflow type
+        let jobResult: { files: any[]; summary: string; agent?: string; suggestions?: string[] };
+        
+        if (isReviewWorkflow) {
+          // ReviewWorkflow returns { findings, summary, agentsInvolved, overallScore }
+          const reviewSummary = workflowResult.summary || 'Code review completed';
+          const findingsCount = workflowResult.findings?.length || 0;
+          const criticalCount = workflowResult.findings?.filter((f: any) => f.severity === 'critical').length || 0;
+          
+          const detailedSummary = `${reviewSummary}\n\nFound ${findingsCount} issue(s)${criticalCount > 0 ? ` (${criticalCount} critical)` : ''}`;
+          
+          jobResult = {
+            files: [], // Review doesn't modify files
+            summary: detailedSummary,
+            agent: specialistAgent,
+            suggestions: workflowResult.findings?.slice(0, 3).map((f: any) => 
+              `${f.severity}: ${f.message}${f.file ? ` in ${f.file}` : ''}`
+            ),
+          };
+        } else {
+          // GenerateWorkflow returns { files, summary, ... }
+          jobResult = {
+            files: workflowResult.files || [],
+            summary: workflowResult.summary || 'Request completed successfully',
+            agent: specialistAgent,
+          };
+        }
+        
+        // Store the workflow result
+        job.status = 'completed';
+        job.result = jobResult;
+        job.updatedAt = new Date();
+        
+        await supabase
+          .from('chat_jobs')
+          .update({
+            status: 'completed',
+            result: job.result,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', job.id);
+        
+        // Update generation with new files (only if files were generated)
+        if (!isReviewWorkflow && workflowResult.files && workflowResult.files.length > 0) {
+          await supabase
+            .from('generations')
+            .update({
+              deployment_status: 'pending',
+              files: workflowResult.files,
+            })
+            .eq('id', job.generationId);
+        }
+        
+        // Store assistant response in memory for specialist agents
+        await ChatMemoryManager.storeMessage({
+          generationId: job.generationId,
+          role: 'assistant',
+          content: jobResult.summary,
+          metadata: {
+            agent: specialistAgent,
+            filesModified: jobResult.files.length,
+            isReviewWorkflow,
+            suggestions: jobResult.suggestions,
+          },
+        });
+        
+        console.log(`[ChatQueue] Chat job ${job.id} completed via ${isReviewWorkflow ? 'ReviewWorkflow' : 'GenerateWorkflow'} (${specialistAgent})`);
+        return;
+      }
+      
+      // Check if this is a conversational response (no files) or code changes
+      const isConversational = !response.files || response.files.length === 0;
+      
       let updatedFiles: Array<{ path: string; content: string }> = [...job.currentFiles];
       
-      if (response.files && Array.isArray(response.files) && response.files.length > 0) {
+      if (!isConversational && response.files) {
+        // Merge modified/new files with existing files
         const responseFilesMap = new Map<string, { path: string; content: string }>(
           response.files.map((f: any) => [f.path, f as { path: string; content: string }])
         );
@@ -239,14 +424,15 @@ class ChatQueueManager {
         content: response.summary || 'Applied requested changes to the codebase',
         metadata: {
           filesModified: response.files?.length || 0,
+          isConversational,
         },
       });
 
       // Update job with result in database
       job.status = 'completed';
       job.result = {
-        files: updatedFiles,
-        summary: response.summary || 'Applied requested changes to the codebase',
+        files: isConversational ? [] : updatedFiles, // Empty array for conversational responses
+        summary: response.summary || (isConversational ? 'Chat response' : 'Applied requested changes to the codebase'),
       };
       job.updatedAt = new Date();
 
@@ -259,16 +445,19 @@ class ChatQueueManager {
         })
         .eq('id', job.id);
 
-      // Reset deployment status since code changed
-      // This signals frontend that a new deployment is needed
-      console.log(`[ChatQueue] Resetting deployment status for generation ${job.generationId}`);
-      await supabase
-        .from('generations')
-        .update({
-          deployment_status: 'pending',
-          files: updatedFiles,
-        })
-        .eq('id', job.generationId);
+      // Only reset deployment status if there were file changes
+      if (!isConversational) {
+        console.log(`[ChatQueue] Resetting deployment status for generation ${job.generationId}`);
+        await supabase
+          .from('generations')
+          .update({
+            deployment_status: 'pending',
+            files: updatedFiles,
+          })
+          .eq('id', job.generationId);
+      } else {
+        console.log(`[ChatQueue] Conversational response only, no file changes`);
+      }
 
       console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
 

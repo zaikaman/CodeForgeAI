@@ -38,9 +38,9 @@ export const AuthCallback: React.FC = () => {
             setStatus('success')
             setMessage('Authentication successful! Redirecting...')
 
-            // Redirect to dashboard after a brief delay
+            // Redirect to terminal after a brief delay
             setTimeout(() => {
-              navigate('/dashboard')
+              navigate('/terminal')
             }, 1500)
           } else {
             throw new Error('Failed to establish session')
@@ -57,7 +57,7 @@ export const AuthCallback: React.FC = () => {
           setMessage('Session restored! Redirecting...')
 
           setTimeout(() => {
-            navigate('/dashboard')
+            navigate('/terminal')
           }, 1500)
         }
       } catch (err: any) {

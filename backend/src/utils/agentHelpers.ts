@@ -4,8 +4,10 @@
  */
 
 interface AgentResponse {
-  files: Array<{ path: string; content: string }>;
-  summary?: string;
+  files?: Array<{ path: string; content: string }>;
+  summary: string;
+  needsSpecialist?: boolean;
+  specialistAgent?: string;
 }
 
 /**
@@ -111,12 +113,32 @@ function normalizeAgentResponse(response: any, context: string): AgentResponse {
     throw new Error(`Response is not an object (type: ${typeof response})`);
   }
 
-  // Validate files property
+  // Check if this is a conversational response or specialist transfer (no files)
   if (!response.files) {
-    console.error(`[${context}] Response keys:`, Object.keys(response));
-    throw new Error('Response missing required "files" property');
+    console.log(`[${context}] Conversational response or specialist transfer detected (no files)`);
+    
+    // Validate summary exists
+    if (!response.summary || typeof response.summary !== 'string') {
+      console.error(`[${context}] Response keys:`, Object.keys(response));
+      throw new Error('Response missing required "summary" property');
+    }
+    
+    // Check if this needs specialist routing
+    if (response.needsSpecialist) {
+      console.log(`[${context}] Specialist agent requested: ${response.specialistAgent || 'unknown'}`);
+      return {
+        summary: response.summary,
+        needsSpecialist: true,
+        specialistAgent: response.specialistAgent
+      };
+    }
+    
+    return {
+      summary: response.summary
+    };
   }
 
+  // Validate files array if present
   if (!Array.isArray(response.files)) {
     throw new Error(`Response "files" is not an array (type: ${typeof response.files})`);
   }

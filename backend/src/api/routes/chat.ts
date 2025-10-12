@@ -38,52 +38,95 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     
     const { generationId, message, currentFiles, language, imageUrls } = validatedRequest;
 
+    console.log(`[POST /chat] Processing message for generation ${generationId}`);
+    console.log(`[POST /chat] Message: ${message.substring(0, 100)}...`);
+    console.log(`[POST /chat] Current files: ${currentFiles.length}`);
+
     // Create unique job ID
     const jobId = randomUUID();
+    
+    console.log('[POST /chat] Creating chat job without complex routing...');
 
     // Ensure generation exists in DB before storing chat messages
     const { data: existingGeneration } = await supabase
       .from('generations')
-      .select('id')
+      .select('id, user_id')
       .eq('id', generationId)
       .single();
 
     if (!existingGeneration) {
-      console.warn(`⚠ Generation ${generationId} not found in DB, creating placeholder...`);
+      console.warn(`⚠ Generation ${generationId} not found in DB, creating...`);
       
-      // Create a placeholder generation record
+      // Create a generation record
       const { error: createError } = await supabase
         .from('generations')
         .insert({
           id: generationId,
-          user_id: null, // Will be set when user logs in
-          prompt: 'Chat session',
+          user_id: userId,
+          prompt: message.slice(0, 500), // Store first part of first message as prompt
           target_language: language,
           complexity: 'moderate',
           status: 'completed',
           files: currentFiles,
+          created_at: new Date().toISOString(),
         });
 
       if (createError) {
-        console.error('Failed to create placeholder generation:', createError);
+        console.error('Failed to create generation:', createError);
+        throw new Error('Failed to create chat session');
       } else {
-        console.log(`✅ Created placeholder generation ${generationId}`);
+        console.log(`✅ Created generation ${generationId} with user_id: ${userId}`);
       }
+    } else if (!existingGeneration.user_id || existingGeneration.user_id !== userId) {
+      // Update user_id if it's missing or different
+      console.log(`🔄 Updating generation ${generationId} with user_id: ${userId}`);
+      const { error: updateError } = await supabase
+        .from('generations')
+        .update({ user_id: userId })
+        .eq('id', generationId);
+      
+      if (updateError) {
+        console.error('Failed to update generation user_id:', updateError);
+      }
+    } else {
+      console.log(`✅ Generation ${generationId} exists in DB with correct user_id`);
     }
 
-    // Store user message in memory (but don't fail if it errors)
-    const userMessageStored = await ChatMemoryManager.storeMessage({
+    // Store user message via ChatMemoryManager
+    console.log('💾 Storing user message via ChatMemoryManager...');
+    const userMessageId = await ChatMemoryManager.storeMessage({
       generationId,
       role: 'user',
       content: message,
       imageUrls: imageUrls || [],
     });
 
-    if (!userMessageStored) {
-      console.warn('⚠ Failed to store user message, continuing anyway...');
+    if (!userMessageId) {
+      console.error('❌ Failed to store user message');
+      throw new Error('Failed to store user message');
+    }
+    
+    console.log(`✅ User message stored: ${userMessageId}`);
+
+    // Store job in database
+    const { error: jobError } = await supabase
+      .from('chat_jobs')
+      .insert({
+        id: jobId,
+        generation_id: generationId,
+        user_id: userId,
+        message,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+    if (jobError) {
+      console.error('[POST /chat] Failed to create job in database:', jobError);
+      // Continue anyway, chatQueue has its own storage
     }
 
     // Enqueue the chat job for background processing
+    // ChatAgent will decide if code generation is needed
     await chatQueue.enqueue({
       id: jobId,
       generationId,
@@ -93,6 +136,8 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       language,
       imageUrls,
     });
+
+    console.log(`[POST /chat] Job ${jobId} enqueued, ChatAgent will handle routing`);
 
     // Return immediately with job ID
     res.json({

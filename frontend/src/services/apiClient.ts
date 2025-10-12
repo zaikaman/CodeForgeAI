@@ -9,19 +9,6 @@ export interface ApiResponse<T = any> {
   message?: string
 }
 
-export interface OnboardRequest {
-  repositoryPath: string
-  projectName: string
-  language: string
-}
-
-export interface OnboardResponse {
-  projectId: string
-  filesScanned: number
-  embeddingsCount: number
-  message: string
-}
-
 export interface GenerateRequest {
   prompt: string
   projectId?: string
@@ -54,46 +41,6 @@ export interface GenerateResponse {
   deploymentStatus?: 'pending' | 'deploying' | 'deployed' | 'failed'
   createdAt?: string
   updatedAt?: string
-}
-
-export interface ReviewRequest {
-  code: string
-  language: string
-  options?: {
-    checkSecurity?: boolean
-    checkPerformance?: boolean
-    checkStyle?: boolean
-  }
-}
-
-export interface ReviewResponse {
-  findings: Array<{
-    severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
-    title: string
-    description: string
-    file?: string
-    line?: number
-    category: string
-    suggestion?: string
-  }>
-  overallScore: number
-  summary: string
-}
-
-export interface EnhanceRequest {
-  code: string
-  language: string
-  enhancementType: 'refactor' | 'optimize' | 'security' | 'all'
-}
-
-export interface EnhanceResponse {
-  proposals: Array<{
-    title: string
-    description: string
-    diff: string
-    impact: string
-  }>
-  message: string
 }
 
 export interface ChatRequest {
@@ -367,12 +314,6 @@ class ApiClient {
     return response.data
   }
 
-  // Onboard project
-  async onboard(request: OnboardRequest): Promise<ApiResponse<OnboardResponse>> {
-    const response = await this.client.post('/api/onboard', request)
-    return response.data
-  }
-
   // Generate code - starts generation and returns immediately with ID
   async generate(request: GenerateRequest): Promise<ApiResponse<GenerateResponse>> {
     const response = await this.client.post('/api/generate', request)
@@ -491,18 +432,6 @@ class ApiClient {
       // Start polling
       poll()
     })
-  }
-
-  // Review code
-  async review(request: ReviewRequest): Promise<ApiResponse<ReviewResponse>> {
-    const response = await this.client.post('/api/review', request)
-    return response.data
-  }
-
-  // Enhance code
-  async enhance(request: EnhanceRequest): Promise<ApiResponse<EnhanceResponse>> {
-    const response = await this.client.post('/api/enhance', request)
-    return response.data
   }
 
   // Get projects

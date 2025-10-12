@@ -16,7 +16,7 @@ export const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/dashboard')
+      navigate('/terminal')
     }
   }, [user, navigate])
 
@@ -35,7 +35,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       await signIn({ email, password })
-      navigate('/dashboard')
+      navigate('/terminal')
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Access denied.')
     } finally {

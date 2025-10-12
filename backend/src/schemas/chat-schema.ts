@@ -7,8 +7,10 @@ export const chatFileSchema = z.object({
 });
 
 export const chatResponseSchema = z.object({
-  files: z.array(chatFileSchema),
-  summary: z.string().optional()
+  files: z.array(chatFileSchema).optional(),
+  summary: z.string(),
+  needsSpecialist: z.boolean().optional(),
+  specialistAgent: z.string().optional()
 });
 
 // Pre-compiled and frozen schemas (immutable for performance)
