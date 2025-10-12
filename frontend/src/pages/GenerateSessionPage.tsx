@@ -272,18 +272,31 @@ export const GenerateSessionPage: React.FC = () => {
       
       // Don't reload if generation already has messages
       if (generation?.agentMessages && generation.agentMessages.length > 0) {
-        console.log('⏭️ Skipping chat history load - messages already exist');
+        console.log('⏭️ Skipping chat history load - messages already exist:', generation.agentMessages.length, 'messages');
         setChatHistoryLoaded(true);
         return;
       }
       
       try {
+        console.log(`📜 Loading chat history for generation ${id}...`);
         const response = await apiClient.getChatHistory(id);
         if (response.success && response.data?.messages) {
+          console.log(`📦 Received ${response.data.messages.length} messages from history`);
+          
           // Filter out invalid messages before converting
-          const validDbMessages = response.data.messages.filter(msg => 
-            msg.content && msg.content.trim() !== '' && msg.createdAt
-          );
+          const validDbMessages = response.data.messages.filter(msg => {
+            const isValid = msg.content && msg.content.trim() !== '' && msg.createdAt;
+            if (!isValid) {
+              console.warn('[ChatHistory] Filtering out invalid message:', {
+                id: msg.id,
+                hasContent: !!msg.content,
+                hasCreatedAt: !!msg.createdAt
+              });
+            }
+            return isValid;
+          });
+          
+          console.log(`✅ ${validDbMessages.length} valid messages after filtering`);
           
           // Convert stored messages to AgentMessage format
           const historyMessages: AgentMessage[] = validDbMessages.map((msg) => ({
@@ -296,15 +309,21 @@ export const GenerateSessionPage: React.FC = () => {
           }));
 
           // Add history messages to the generation
-          historyMessages.forEach((msg) => {
+          console.log(`📥 Adding ${historyMessages.length} messages to generation...`);
+          historyMessages.forEach((msg, index) => {
+            console.log(`  [${index + 1}/${historyMessages.length}] Adding message: ${msg.id} (${msg.role})`);
             addMessageToGeneration(id, msg);
           });
 
           setChatHistoryLoaded(true);
-          console.log(`✅ Loaded ${historyMessages.length} valid chat messages from history (filtered ${response.data.messages.length - validDbMessages.length} invalid)`);
+          console.log(`✅ Successfully loaded ${historyMessages.length} chat messages from history`);
+        } else {
+          console.log('ℹ️ No chat history found for this generation');
+          setChatHistoryLoaded(true);
         }
       } catch (error) {
-        console.error('Failed to load chat history:', error);
+        console.error('❌ Failed to load chat history:', error);
+        setChatHistoryLoaded(true); // Mark as loaded even on error to prevent infinite retries
       }
     };
 
@@ -641,11 +660,23 @@ export const GenerateSessionPage: React.FC = () => {
       // Deploy is now manual via Deploy button
       console.log('✅ Chat changes applied, files updated. WebContainer will show preview automatically.');
 
-      // Remove thinking message and add agent response AFTER preview is loaded
-      const updatedMessages = generation.agentMessages?.filter(
-        (msg) => msg.id !== thinkingMessageId
-      ) || [];
+      // Remove thinking message first
+      const currentMessages = generation.agentMessages || [];
+      console.log(`[Chat] Current messages count: ${currentMessages.length}, removing thinking message: ${thinkingMessageId}`);
       
+      // Filter out thinking message from generation's messages
+      const updatedGeneration = {
+        ...generation,
+        agentMessages: currentMessages.filter(msg => msg.id !== thinkingMessageId),
+      };
+      
+      // Update the generation in store without the thinking message
+      const storeState = useGenerationStore.getState();
+      if (storeState.currentGeneration?.id === id) {
+        storeState.currentGeneration.agentMessages = updatedGeneration.agentMessages;
+      }
+      
+      // Now add agent response message
       const agentResponseMessage: AgentMessage = {
         id: `msg_${Date.now()}_agent`,
         agent: data.agentThought.agent,
@@ -654,10 +685,7 @@ export const GenerateSessionPage: React.FC = () => {
         timestamp: new Date(),
       };
       
-      // Replace messages with updated list
-      if (generation.agentMessages) {
-        generation.agentMessages = [...updatedMessages, agentResponseMessage];
-      }
+      console.log(`[Chat] Adding agent response message:`, agentResponseMessage.id);
       addMessageToGeneration(id, agentResponseMessage);
 
       // Update files in the generation AFTER preview is ready

@@ -29,17 +29,38 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
 
+  // Log messages received
+  useEffect(() => {
+    console.log(`[AgentChat] Received ${messages.length} messages`);
+  }, [messages.length]);
+
   // Filter out invalid messages (no content, invalid timestamp, etc)
-  const validMessages = messages.filter(msg => {
-    // Must have content
-    if (!msg.content || msg.content.trim() === '') return false;
+  const validMessages = React.useMemo(() => {
+    const filtered = messages.filter(msg => {
+      // Must have content
+      if (!msg.content || msg.content.trim() === '') {
+        console.warn('[AgentChat] Filtering out message with no content:', msg.id);
+        return false;
+      }
+      
+      // Check timestamp validity - be more lenient
+      try {
+        const dateObj = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
+        if (isNaN(dateObj.getTime())) {
+          console.warn('[AgentChat] Filtering out message with invalid timestamp:', msg.id, msg.timestamp);
+          return false;
+        }
+      } catch (error) {
+        console.warn('[AgentChat] Error checking timestamp for message:', msg.id, error);
+        return false;
+      }
+      
+      return true;
+    });
     
-    // Must have valid timestamp
-    const dateObj = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
-    if (isNaN(dateObj.getTime())) return false;
-    
-    return true;
-  });
+    console.log(`[AgentChat] Filtered messages: ${messages.length} → ${filtered.length}`);
+    return filtered;
+  }, [messages]);
 
   useEffect(() => {
     if (autoScroll && chatEndRef.current) {

@@ -154,6 +154,12 @@ export const useGenerationStore = create<GenerationState>()(
       completeGeneration: (generationId: string, response: GenerateResponse) => {
         const { currentGeneration, history } = get()
 
+        console.log(`[GenerationStore] Completing generation ${generationId}`, {
+          hasCurrent: !!currentGeneration,
+          currentId: currentGeneration?.id,
+          currentMessageCount: currentGeneration?.agentMessages?.length || 0,
+        });
+
         // Match either by generationId or if current generation exists (to handle ID updates)
         if (currentGeneration) {
           const completedAt = new Date()
@@ -166,7 +172,11 @@ export const useGenerationStore = create<GenerationState>()(
             status: 'completed',
             completedAt,
             duration,
+            // Preserve existing agentMessages
+            agentMessages: currentGeneration.agentMessages || [],
           }
+
+          console.log(`[GenerationStore] Completed generation with ${completedGeneration.agentMessages.length} messages`);
 
           set({
             currentGeneration: completedGeneration,
@@ -295,25 +305,36 @@ export const useGenerationStore = create<GenerationState>()(
 
       // Add message to specific generation
       addMessageToGeneration: (generationId: string, message: AgentMessage) => {
+        console.log(`[GenerationStore] Adding message to generation ${generationId}:`, {
+          messageId: message.id,
+          role: message.role,
+          agent: message.agent,
+          contentLength: message.content.length,
+        });
+        
         set((state) => {
           // Update current generation if it matches
           let updatedCurrentGeneration = state.currentGeneration;
           if (state.currentGeneration?.id === generationId) {
+            const currentMessageCount = state.currentGeneration.agentMessages.length;
             updatedCurrentGeneration = {
               ...state.currentGeneration,
               agentMessages: [...state.currentGeneration.agentMessages, message],
             };
+            console.log(`[GenerationStore] Updated current generation: ${currentMessageCount} → ${updatedCurrentGeneration.agentMessages.length} messages`);
           }
 
           // Update in history
           const historyIndex = state.history.findIndex((entry) => entry.id === generationId);
           let updatedHistory = state.history;
           if (historyIndex !== -1) {
+            const currentHistoryMessageCount = state.history[historyIndex].agentMessages.length;
             updatedHistory = [...state.history];
             updatedHistory[historyIndex] = {
               ...updatedHistory[historyIndex],
               agentMessages: [...updatedHistory[historyIndex].agentMessages, message],
             };
+            console.log(`[GenerationStore] Updated history entry: ${currentHistoryMessageCount} → ${updatedHistory[historyIndex].agentMessages.length} messages`);
           }
 
           // Also update agentMessages if this is the current generation
