@@ -950,6 +950,8 @@ export const GenerateSessionPage: React.FC = () => {
               {generation?.response?.files && generation.response.files.length > 0 ? (
                 <ProjectWorkspace
                   files={generation.response.files}
+                  generationId={id || ''}
+                  language={generation.response.targetLanguage || 'typescript'}
                   onPreviewReady={() => console.log('✅ WebContainer preview ready')}
                 />
               ) : (
