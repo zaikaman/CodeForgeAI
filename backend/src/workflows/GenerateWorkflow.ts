@@ -378,61 +378,67 @@ Return the result as JSON with the following structure:
     }
 
     private async generateCode(request: any): Promise<any> {
-        try {
-            // Pass language and requirements to CodeGeneratorAgent for language-specific prompts
-            const { runner } = await CodeGeneratorAgent({
-                language: request.targetLanguage,
-                requirements: request.prompt
-            });
-            
-            // Build the message with images if provided
-            let message: any;
-            
-            if (request.imageUrls && request.imageUrls.length > 0) {
-                // Download images and convert to base64
-                const imageParts = await Promise.all(
-                    request.imageUrls.map(async (url: string) => {
-                        try {
-                            const response = await globalThis.fetch(url);
-                            const arrayBuffer = await response.arrayBuffer();
-                            const buffer = Buffer.from(arrayBuffer);
-                            const base64 = buffer.toString('base64');
-                            const contentType = response.headers.get('content-type') || 'image/jpeg';
-                            
-                            return {
-                                inline_data: {
-                                    mime_type: contentType,
-                                    data: base64
-                                }
-                            };
-                        } catch (error) {
-                            console.error(`Failed to fetch image from ${url}:`, error);
-                            return null;
-                        }
-                    })
-                );
+        const MAX_RETRIES = 3;
+        let lastError: string | null = null;
+        
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                console.log(`\n[STEP 2] CodeGeneratorAgent - Attempt ${attempt}/${MAX_RETRIES}`);
                 
-                // Filter out failed downloads
-                const validImageParts = imageParts.filter(part => part !== null);
+                // Pass language and requirements to CodeGeneratorAgent for language-specific prompts
+                const { runner } = await CodeGeneratorAgent({
+                    language: request.targetLanguage,
+                    requirements: request.prompt
+                });
                 
-                // Build message with text and images
-                const textPart = {
-                    text: this.buildCodeGenerationPrompt(request)
-                };
+                // Build the message with images if provided
+                let message: any;
                 
-                message = {
-                    parts: [textPart, ...validImageParts]
-                };
-            } else {
-                // Text-only message
-                message = this.buildCodeGenerationPrompt(request);
-            }
+                if (request.imageUrls && request.imageUrls.length > 0) {
+                    // Download images and convert to base64
+                    const imageParts = await Promise.all(
+                        request.imageUrls.map(async (url: string) => {
+                            try {
+                                const response = await globalThis.fetch(url);
+                                const arrayBuffer = await response.arrayBuffer();
+                                const buffer = Buffer.from(arrayBuffer);
+                                const base64 = buffer.toString('base64');
+                                const contentType = response.headers.get('content-type') || 'image/jpeg';
+                                
+                                return {
+                                    inline_data: {
+                                        mime_type: contentType,
+                                        data: base64
+                                    }
+                                };
+                            } catch (error) {
+                                console.error(`Failed to fetch image from ${url}:`, error);
+                                return null;
+                            }
+                        })
+                    );
+                    
+                    // Filter out failed downloads
+                    const validImageParts = imageParts.filter(part => part !== null);
+                    
+                    // Build message with text and images
+                    const textPart = {
+                        text: this.buildCodeGenerationPrompt(request, lastError, attempt)
+                    };
+                    
+                    message = {
+                        parts: [textPart, ...validImageParts]
+                    };
+                } else {
+                    // Text-only message
+                    message = this.buildCodeGenerationPrompt(request, lastError, attempt);
+                }
 
-            console.log('Calling CodeGeneratorAgent with message');
-            console.log('Target language:', request.targetLanguage);
-            console.log('Message preview:', typeof message === 'string' ? message.substring(0, 200) : 'multipart message');
-            
-            const response = await runner.ask(message) as any;
+                console.log('Calling CodeGeneratorAgent with message');
+                console.log('Target language:', request.targetLanguage);
+                console.log('Message preview:', typeof message === 'string' ? message.substring(0, 200) : 'multipart message');
+                
+                const response = await runner.ask(message) as any;
             
             console.log('Raw response from CodeGeneratorAgent:', JSON.stringify(response, null, 2));
             console.log('Response type:', typeof response);
@@ -553,34 +559,58 @@ Return the result as JSON with the following structure:
             // Combine formatted and skipped files
             const finalFiles = [...formattedFiles, ...filesToSkip];
 
+                console.log(`✅ [Attempt ${attempt}/${MAX_RETRIES}] Successfully generated ${finalFiles.length} files`);
+                
             return {
                 files: finalFiles,  // Use formatted files
                 confidence: 0.8,
                 metadata: {
                     generatedBy: 'AI Agent (gpt-5-nano)',
                     formatted: true,
-                    formattedCount: formattedFiles.length
+                    formattedCount: formattedFiles.length,
+                        attempt: attempt
                 }
             };
-        } catch (error) {
-            console.error('Code generation error:', error);
-            console.error('Error details:', error instanceof Error ? error.message : String(error));
-            console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-            return {
-                files: [{
-                    path: `fallback-code.${request.targetLanguage}`,
-                    content: this.generateFallbackCode(request)
-                }],
-                confidence: 0.1,
-                metadata: {
-                    generatedBy: 'Template Fallback (Error)'
+            } catch (error) {
+                console.error(`❌ [Attempt ${attempt}/${MAX_RETRIES}] Code generation error:`, error);
+                console.error('Error details:', error instanceof Error ? error.message : String(error));
+                console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+                
+                // Store error message for next retry
+                lastError = error instanceof Error ? error.message : String(error);
+                
+                // If this was the last attempt, throw the error
+                if (attempt === MAX_RETRIES) {
+                    console.error(`❌ All ${MAX_RETRIES} attempts failed. Last error: ${lastError}`);
+                    throw error;
                 }
-            };
+                
+                // Otherwise, log and retry
+                console.log(`🔄 Retrying with error feedback... (${attempt + 1}/${MAX_RETRIES})`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+            }
         }
+        
+        // Should never reach here, but TypeScript requires a return
+        throw new Error('Unexpected: Exited retry loop without return');
     }
 
-    private buildCodeGenerationPrompt(request: any): string {
+    private buildCodeGenerationPrompt(request: any, previousError?: string | null, attempt?: number): string {
         const language = request.targetLanguage || 'typescript';
+        
+        // If this is a retry with error feedback, include the error
+        const errorFeedback = previousError && attempt && attempt > 1 ? `
+
+⚠️ IMPORTANT: Previous attempt failed with this error:
+${previousError}
+
+Please fix this error and generate valid output. Ensure your JSON is properly formatted with:
+- No trailing commas
+- Properly escaped quotes inside strings
+- Valid JSON structure that matches the schema: { "files": [{ "path": "...", "content": "..." }] }
+- Content field must be a valid string (escape special characters properly)
+
+` : '';
         
         // Build a concise prompt - language-specific details are in the system prompt
         return `Generate a complete, production-ready ${language.toUpperCase()} application.
@@ -604,7 +634,7 @@ ${request.requirements?.technicalConstraints ?
     'Constraints:\n- ' + request.requirements.technicalConstraints.join('\n- ') 
     : ''
 }
-
+${errorFeedback}
 Generate a complete, functional codebase with multiple files. Return JSON:
 {
   "files": [
