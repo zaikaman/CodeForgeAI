@@ -20,6 +20,7 @@ import previewRouter from './routes/preview';
 import chatRouter from './routes/chat';
 import chatHistoryRouter from './routes/chatHistory';
 import downloadRouter from './routes/download';
+import deployRouter from './routes/deploy';
 
 const app = express();
 
@@ -85,6 +86,7 @@ app.use('/api', previewRouter);
 app.use('/api', chatRouter);
 app.use('/api', chatHistoryRouter);
 app.use('/api', downloadRouter);
+app.use('/api', deployRouter);
 
 // Socket.io connection
 io.on('connection', (socket) => {

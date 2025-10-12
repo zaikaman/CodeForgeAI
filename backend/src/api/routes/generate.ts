@@ -16,7 +16,7 @@ const generateRequestSchema = z.object({
   complexity: z.enum(['simple', 'moderate', 'complex']).default('moderate'),
   agents: z.array(z.string()).default(['CodeGenerator']),
   imageUrls: z.array(z.string()).optional(),
-  autoPreview: z.boolean().default(true), // Auto-deploy to Fly.io after generation
+  autoPreview: z.boolean().default(false), // CHANGED: Auto-preview is now DISABLED by default - use WebContainer instead
 });
 
 // POST /generate - Start a new generation job (requires auth)

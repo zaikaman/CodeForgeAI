@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { AgentChat, AgentMessage } from '../components/AgentChat';
 import { CodeEditor } from '../components/CodeEditor';
 import { FileTree } from '../components/FileTree';
+import { PreviewFrame } from '../components/PreviewFrame';
 import { useGenerationStore } from '../stores/generationStore';
 import apiClient from '../services/apiClient';
 import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
@@ -38,15 +39,19 @@ export const GenerateSessionPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('source');
   const [chatInput, setChatInput] = useState('');
   const [isFileTreeCollapsed, setIsFileTreeCollapsed] = useState(false);
-  const [hasGeneratedInitialPreview, setHasGeneratedInitialPreview] = useState(false);
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  // DISABLED: Preview deployment states kept for compatibility but not actively used
+  // WebContainer handles instant preview now, deployment is manual via Deploy button
+  const [_hasGeneratedInitialPreview, _setHasGeneratedInitialPreview] = useState(false);
+  const [_isGeneratingPreview, _setIsGeneratingPreview] = useState(false);
+  const [_deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'ready' | 'error'>('idle');
+  const [_iframeKey, _setIframeKey] = useState<number>(Date.now());
+  
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
-  const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'ready' | 'error'>('idle');
-  const [iframeKey, setIframeKey] = useState<number>(Date.now());
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const pollingIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  // DISABLED: pollingIntervalRef not needed with WebContainer
+  // const _pollingIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
   
   const store = useGenerationStore();
   const { 
@@ -380,228 +385,87 @@ export const GenerateSessionPage: React.FC = () => {
     }
   };
 
-  // Poll deployment status until ready
-  const pollDeploymentStatus = React.useCallback(async (generationId: string) => {
-    try {
-      const data = await apiClient.checkPreviewStatus(generationId);
+  // DISABLED: pollDeploymentStatus function removed - not needed with WebContainer
+  // Deployment status polling is no longer used since preview is instant via WebContainer
+  // Manual deployment via Deploy button handles its own status checking
+  // const _pollDeploymentStatus = React.useCallback(async (generationId: string) => {
+  //   ... (old fly.io polling logic removed)
+  // }, []);
 
-      if (data.success && data.data) {
-        console.log('📊 Poll result:', data.data.status, 'ready:', data.data.ready, 'previewUrl:', data.data.previewUrl);
-        
-        // Set preview URL if available
-        if (data.data.previewUrl) {
-          const newPreviewUrl = data.data.previewUrl;
-          setPreviewUrl((currentUrl) => {
-            if (!currentUrl) {
-              console.log('✅ Found preview URL from polling:', newPreviewUrl);
-              setActiveTab('preview'); // Switch to preview tab
-              return withCacheBust(newPreviewUrl);
-            }
-            return currentUrl;
-          });
-        }
+  // DISABLED: Deployment polling removed - using WebContainer for instant preview
+  // Deploy status will be checked only when user clicks Deploy button manually
+  // useEffect(() => {
+  //   if (deploymentStatus === 'deploying' && id) {
+  //     // Poll every 3 seconds
+  //     pollingIntervalRef.current = setInterval(() => {
+  //       pollDeploymentStatus(id);
+  //     }, 3000);
+  //     pollDeploymentStatus(id);
+  //   }
+  //   return () => {
+  //     if (pollingIntervalRef.current) {
+  //       clearInterval(pollingIntervalRef.current);
+  //       pollingIntervalRef.current = null;
+  //     }
+  //   };
+  // }, [deploymentStatus, id, pollDeploymentStatus]);
 
-        if (data.data.ready) {
-          setDeploymentStatus('ready');
-          // Force iframe refresh with new key
-          setIframeKey(Date.now());
-          // Stop polling
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-          console.log('✅ Deployment is ready and live');
-        } else if (data.data.previewUrl) {
-          // Has preview URL but not ready yet
-          setDeploymentStatus('deploying');
-        } else if (data.data.status === 'deploying' || data.data.status === 'pending') {
-          // Still deploying or pending deployment, no URL yet
-          setDeploymentStatus('deploying');
-          console.log('🔄 Still deploying...');
-        }
-      } else if (!data.success && data.error) {
-        // API returned error but responded - this might be temporary
-        console.warn('⚠️ Preview status check failed:', data.error);
-        
-        // Only set error status if we get consistent failures
-        // Check if this is a "backend not available" error
-        if (data.error.includes('Backend not available') || data.error.includes('not available')) {
-          // Stop polling only after backend is confirmed unavailable
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-          setDeploymentStatus('error');
-        }
-        // For other errors, keep polling - might be temporary
-      }
-    } catch (error: any) {
-      console.error('Failed to check deployment status:', error);
-      
-      // Only stop polling and show error if it's a fatal error
-      // Network errors or temporary issues should not stop polling
-      if (error?.status === 0 || error?.message?.includes('Network error')) {
-        console.warn('⚠️ Network error - will retry...');
-        // Keep polling, don't set error status
-      } else {
-        // Fatal error - stop polling
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-        setDeploymentStatus('error');
-      }
-    }
-  }, []); // Remove previewUrl dependency to avoid recreating callback
+  // DISABLED: Auto-check deployment removed - using WebContainer for instant preview
+  // Deployment status will only be checked when user manually clicks Deploy button
+  // useEffect(() => {
+  //   const shouldCheckStatus = generation?.response?.files && 
+  //                             generation.response.files.length > 0 &&
+  //                             !hasGeneratedInitialPreview &&
+  //                             generation.id;
+  //   if (shouldCheckStatus) {
+  //     setHasGeneratedInitialPreview(true);
+  //     console.log('🔍 Checking for existing preview deployment...');
+  //     pollDeploymentStatus(generation.id);
+  //   }
+  // }, [generation?.response?.files, hasGeneratedInitialPreview, generation?.id, pollDeploymentStatus]);
 
-  // Start polling when deployment is in progress (not just when preview URL exists)
-  useEffect(() => {
-    if (deploymentStatus === 'deploying' && id) {
-      // Clear any existing interval
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
+  // DISABLED: Check existing preview removed - using WebContainer for instant preview
+  // Preview is now shown instantly in browser via WebContainer, no need to check fly.io deployment
+  // useEffect(() => {
+  //   const checkExistingPreview = async () => {
+  //     if (!id || previewUrl || hasGeneratedInitialPreview) return;
+  //     if (generation?.response?.files && generation.response.files.length > 0) {
+  //       console.log('🔄 Page loaded - checking database for existing preview...');
+  //       await pollDeploymentStatus(id);
+  //       setHasGeneratedInitialPreview(true);
+  //     }
+  //   };
+  //   const timer = setTimeout(checkExistingPreview, 500);
+  //   return () => clearTimeout(timer);
+  // }, [id, generation?.response?.files, previewUrl, hasGeneratedInitialPreview, pollDeploymentStatus]);
 
-      // Poll every 3 seconds
-      pollingIntervalRef.current = setInterval(() => {
-        pollDeploymentStatus(id);
-      }, 3000);
+  // DISABLED: Auto-deployment removed - using WebContainer for instant preview instead
+  // Deploy is now manual via Deploy button
+  // useEffect(() => {
+  //   const checkAndDeploy = async () => {
+  //     if (activeTab !== 'preview' || !id || isGeneratingPreview) return;
+  //     
+  //     // Check current deployment status from database
+  //     const { data: generationData } = await supabase
+  //       .from('generations')
+  //       .select('deployment_status, files')
+  //       .eq('id', id)
+  //       .single();
+  //     
+  //     if (generationData?.deployment_status === 'pending' && generationData?.files) {
+  //       console.log('🔄 Code changed detected (status: pending), triggering deployment...');
+  //       handlePreview(true); // Force regenerate since code changed
+  //     }
+  //   };
+  //   
+  //   checkAndDeploy();
+  // }, [activeTab, id, isGeneratingPreview]); // Only run when switching to preview tab
 
-      // Initial poll
-      pollDeploymentStatus(id);
-    }
-
-    // Cleanup on unmount or when status changes
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [deploymentStatus, id, pollDeploymentStatus]);
-
-  // Check deployment status when generation completes or when component mounts
-  // Backend auto-deploys after generation, so we just need to check for existing preview
-  useEffect(() => {
-    const shouldCheckStatus = generation?.response?.files && 
-                              generation.response.files.length > 0 &&
-                              !hasGeneratedInitialPreview &&
-                              generation.id;
-
-    if (shouldCheckStatus) {
-      // Mark as checked to avoid repeated calls
-      setHasGeneratedInitialPreview(true);
-      
-      console.log('🔍 Checking for existing preview deployment...');
-      
-      // Check if preview already exists from backend auto-deploy
-      pollDeploymentStatus(generation.id);
-    }
-  }, [generation?.response?.files, hasGeneratedInitialPreview, generation?.id, pollDeploymentStatus]);
-
-  // On component mount, if we don't have a preview URL in state but generation exists
-  // Check the database for existing preview_url (in case of page refresh)
-  useEffect(() => {
-    const checkExistingPreview = async () => {
-      if (!id || previewUrl || hasGeneratedInitialPreview) return;
-      
-      if (generation?.response?.files && generation.response.files.length > 0) {
-        console.log('🔄 Page loaded - checking database for existing preview...');
-        
-        // Poll once to check database
-        await pollDeploymentStatus(id);
-        setHasGeneratedInitialPreview(true);
-      }
-    };
-
-    // Small delay to let other useEffects run first
-    const timer = setTimeout(checkExistingPreview, 500);
-    return () => clearTimeout(timer);
-  }, [id, generation?.response?.files, previewUrl, hasGeneratedInitialPreview, pollDeploymentStatus]);
-
-  // Auto-trigger deployment when switching to preview tab if status is pending
-  useEffect(() => {
-    const checkAndDeploy = async () => {
-      if (activeTab !== 'preview' || !id || isGeneratingPreview) return;
-      
-      // Check current deployment status from database
-      const { data: generationData } = await supabase
-        .from('generations')
-        .select('deployment_status, files')
-        .eq('id', id)
-        .single();
-      
-      if (generationData?.deployment_status === 'pending' && generationData?.files) {
-        console.log('🔄 Code changed detected (status: pending), triggering deployment...');
-        handlePreview(true); // Force regenerate since code changed
-      }
-    };
-    
-    checkAndDeploy();
-  }, [activeTab, id, isGeneratingPreview]); // Only run when switching to preview tab
-
-  const handlePreview = async (forceRegenerate: boolean = false) => {
-    if (generation && generation.response?.files && !isGeneratingPreview) {
-      // If preview already exists and not forcing regenerate, just check status
-      if (previewUrl && !forceRegenerate) {
-        console.log('Preview already exists, checking deployment status...');
-        pollDeploymentStatus(generation.id);
-        return;
-      }
-
-      setIsGeneratingPreview(true);
-      setDeploymentStatus('deploying');
-      
-      try {
-        const response = await apiClient.generatePreview({ 
-          generationId: generation.id,
-          files: generation.response.files,
-          forceRegenerate: forceRegenerate
-        });
-
-        const data = response;
-
-        // Check if we got a 202 Accepted response (deployment started)
-        if (data.success && data.data) {
-          if (data.data.status === 'deploying') {
-            console.log('✅ Deployment started, polling for status...');
-            if (!hasGeneratedInitialPreview) {
-              setHasGeneratedInitialPreview(true);
-              setActiveTab('preview');
-            }
-            // Polling will happen automatically via useEffect
-            setDeploymentStatus('deploying');
-          } else if (data.data.previewUrl) {
-            // Got preview URL immediately (cached or already deployed)
-            setPreviewUrl(withCacheBust(data.data.previewUrl));
-            if (!hasGeneratedInitialPreview) {
-              setHasGeneratedInitialPreview(true);
-              setActiveTab('preview');
-            }
-            
-            // Log if using cached preview
-            if (data.data.cached) {
-              console.log('✅ Using cached preview URL');
-              setDeploymentStatus('ready');
-              setIframeKey(Date.now());
-            } else {
-              console.log('✅ Deployment complete, preview ready');
-              setDeploymentStatus('ready');
-              setIframeKey(Date.now());
-            }
-          }
-        } else {
-          console.error('Unexpected response:', data);
-          setDeploymentStatus('error');
-        }
-      } catch (error) {
-        console.error('Failed to generate preview:', error);
-        setDeploymentStatus('error');
-      } finally {
-        setIsGeneratingPreview(false);
-      }
-    }
-  };
+  // DISABLED: handlePreview function removed - using WebContainer for instant preview
+  // Deploy is now manual via Deploy button in ProjectWorkspace component
+  // const handlePreview = async (forceRegenerate: boolean = false) => {
+  //   ... (old fly.io deployment logic removed)
+  // };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -759,47 +623,10 @@ export const GenerateSessionPage: React.FC = () => {
         throw new Error('Chat request timed out. Please try again.');
       }
 
-      // Generate preview with new files FIRST (force regenerate since code changed)
-      setIsGeneratingPreview(true);
-      setDeploymentStatus('deploying');
-      
-      try {
-        const previewResponse = await apiClient.generatePreview({
-          generationId: id,
-          files: data.files,
-          forceRegenerate: true // Force regenerate because code changed
-        });
-
-        if (previewResponse.success && previewResponse.data) {
-          if (previewResponse.data.status === 'deploying') {
-            console.log('✅ Deployment started, polling for status...');
-            if (!hasGeneratedInitialPreview) {
-              setHasGeneratedInitialPreview(true);
-            }
-            // Polling will happen automatically via useEffect
-            setDeploymentStatus('deploying');
-          } else if (previewResponse.data.previewUrl) {
-            setPreviewUrl(withCacheBust(previewResponse.data.previewUrl));
-            if (!hasGeneratedInitialPreview) {
-              setHasGeneratedInitialPreview(true);
-            }
-            
-            if (previewResponse.data.cached) {
-              console.log('✅ Using cached preview URL');
-              setDeploymentStatus('ready');
-              setIframeKey(Date.now());
-            } else {
-              console.log('✅ Deployment complete, preview ready');
-              setDeploymentStatus('deploying'); // Will poll to verify it's actually ready
-            }
-          }
-        }
-      } catch (previewError) {
-        console.error('Failed to generate preview:', previewError);
-        setDeploymentStatus('error');
-      } finally {
-        setIsGeneratingPreview(false);
-      }
+      // DISABLED: Auto-deployment removed - using WebContainer for instant preview
+      // Files will be shown in WebContainer preview automatically
+      // Deploy is now manual via Deploy button
+      console.log('✅ Chat changes applied, files updated. WebContainer will show preview automatically.');
 
       // Remove thinking message and add agent response AFTER preview is loaded
       const updatedMessages = generation.agentMessages?.filter(
@@ -1050,85 +877,12 @@ export const GenerateSessionPage: React.FC = () => {
 
           {activeTab === 'preview' && (
             <div className="preview-view">
-              <div className="preview-actions">
-                <button 
-                  onClick={() => handlePreview(true)} 
-                  disabled={!generation || isGenerating || isGeneratingPreview || deploymentStatus === 'deploying'}
-                  className="btn btn-primary"
-                >
-                  {isGeneratingPreview ? 'GENERATING...' : 'REGENERATE PREVIEW'}
-                </button>
-                {previewUrl && deploymentStatus === 'ready' && (
-                  <button 
-                    onClick={() => window.open(previewUrl, '_blank')}
-                    className="btn btn-secondary"
-                    disabled={isGeneratingPreview}
-                  >
-                    VIEW PAGE ↗
-                  </button>
-                )}
-                {deploymentStatus === 'deploying' && (
-                  <span className="deployment-status deploying">
-                    🔄 Deploying... (auto-refreshing)
-                  </span>
-                )}
-                {deploymentStatus === 'ready' && (
-                  <span className="deployment-status ready">
-                    ✅ Live
-                  </span>
-                )}
-                {deploymentStatus === 'error' && (
-                  <span className="deployment-status error" title="Backend API not available">
-                    ⚠️ Preview Unavailable
-                  </span>
-                )}
-              </div>
-              {deploymentStatus === 'deploying' ? (
-                <div className="no-preview">
-                  <div className="terminal-window">
-                    <div className="terminal-content">
-                      <pre className="ascii-logo phosphor-glow">
-{`    ╔═══════════════════════════════════╗
-    ║                                   ║
-    ║      DEPLOYMENT IN PROGRESS       ║
-    ║                                   ║
-    ║   ►  Building your application... ║
-    ║   ►  Waiting for servers...       ║
-    ║   ►  This may take 30-60 seconds  ║
-    ║                                   ║
-    ║      Preview will load            ║
-    ║      automatically when ready     ║
-    ║                                   ║
-    ╚═══════════════════════════════════╝`}
-                      </pre>
-                      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-                        <div className="deployment-spinner">
-                          <div className="spinner-dot"></div>
-                          <div className="spinner-dot"></div>
-                          <div className="spinner-dot"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : previewUrl ? (
-                <iframe 
-                  key={iframeKey} 
-                  src={previewUrl} 
-                  title="Preview"
-                  width="100%"
-                  height="100%"
-                  style={{ 
-                    border: '1px solid rgba(0, 255, 0, 0.3)',
-                    background: '#000'
-                  }}
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-                  onLoad={() => {
-                    console.log('✅ Iframe loaded successfully:', previewUrl);
-                  }}
-                  onError={(e) => {
-                    console.error('❌ Iframe failed to load:', previewUrl, e);
-                  }}
+              {/* WebContainer instant preview - no deployment needed */}
+              {generation?.response?.files && generation.response.files.length > 0 ? (
+                <PreviewFrame
+                  files={generation.response.files}
+                  onError={(error) => console.error('WebContainer preview error:', error)}
+                  onReady={() => console.log('✅ WebContainer preview ready')}
                 />
               ) : (
                 <div className="no-preview">
@@ -1137,10 +891,10 @@ export const GenerateSessionPage: React.FC = () => {
                       <pre className="ascii-logo phosphor-glow">
 {`    ╔═══════════════════════════════════╗
     ║                                   ║
-    ║      WAITING FOR PREVIEW...       ║
+    ║      WAITING FOR GENERATION...    ║
     ║                                   ║
-    ║   ►  Preview will load            ║
-    ║      automatically                ║
+    ║   ►  Preview will appear          ║
+    ║      when code is ready           ║
     ║                                   ║
     ╚═══════════════════════════════════╝`}
                       </pre>

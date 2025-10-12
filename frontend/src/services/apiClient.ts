@@ -30,6 +30,7 @@ export interface GenerateRequest {
   complexity: 'simple' | 'moderate' | 'complex'
   agents: string[]
   imageUrls?: string[]
+  autoPreview?: boolean // DEPRECATED - auto-preview is now disabled, use /api/deploy endpoint instead
 }
 
 export interface GenerateResponse {

@@ -95,3 +95,5 @@ shared/dist/
 *.backup
 .eslintcache
 docs
+bolt.diy
+webcontainer-docs

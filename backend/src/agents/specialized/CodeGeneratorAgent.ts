@@ -6,7 +6,7 @@
 
 import { AgentBuilder } from '@iqai/adk';
 import { generationSchema } from '../../schemas/generation-schema';
-import { getLanguagePrompt, detectLanguage } from '../../prompts/language-templates';
+import { getLanguagePrompt } from '../../prompts/webcontainer-templates';
 import { generateValidationPrompt, getAIChecklistPrompt } from '../../services/validation/PreValidationRules';
 import { getLearningIntegration } from '../../services/learning/LearningIntegrationService';
 
@@ -18,17 +18,13 @@ interface CodeGeneratorOptions {
 }
 
 export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
-  // Detect language from requirements if not explicitly provided
-  let targetLanguage = options?.language;
+  // WebContainer only supports TypeScript/JavaScript - always use TypeScript
+  const targetLanguage = 'typescript';
   
-  if (!targetLanguage && options?.requirements) {
-    targetLanguage = detectLanguage(options.requirements) || undefined;
-  }
+  console.log('[CodeGeneratorAgent] Using WebContainer-optimized TypeScript/React prompt');
   
-  // Get the appropriate language-specific prompt
-  let systemPrompt = targetLanguage 
-    ? getLanguagePrompt(targetLanguage)
-    : getLanguagePrompt('default');
+  // Get the WebContainer-optimized prompt
+  let systemPrompt = getLanguagePrompt(targetLanguage);
   
   // Add static validation rules (fallback for common issues)
   const staticValidationRules = generateValidationPrompt(targetLanguage || 'typescript');
@@ -41,7 +37,7 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
     learnedRules = await learningService.getSmartPromptAddition({
       language: targetLanguage || 'typescript',
       framework: options?.framework,
-      platform: options?.platform || 'fly.io',
+      platform: options?.platform || 'webcontainer', // Default to WebContainer, but can deploy to fly.io optionally
       prompt: options?.requirements || ''
     });
   } catch (error) {
