@@ -424,7 +424,8 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
             const machineLogsResult = await this.runCommand(
               'flyctl',
               ['logs', '--app', appName, '--instance', machineId],
-              process.cwd()
+              process.cwd(),
+              { checkBuildErrors: false }
             );
             if (machineLogsResult.code === 0 && machineLogsResult.stdout) {
               logs = `Machine ${machineId} logs:\n${machineLogsResult.stdout}\n\n${logs}`;
@@ -899,7 +900,8 @@ Return the complete fixed codebase.`;
       const result = await this.runCommand(
         'flyctl',
         ['logs', '--app', appName, '--no-tail'],
-        process.cwd()
+        process.cwd(),
+        { checkBuildErrors: false }
       );
 
       if (result.code === 0) {
@@ -912,8 +914,13 @@ Return the complete fixed codebase.`;
     }
   }
 
-  private runCommand(command: string, args: string[], workDir: string): Promise<{ code: number | null, stdout: string, stderr: string }> {
-    return new Promise((resolve) => {
+  private runCommand(
+    command: string, 
+    args: string[], 
+    workDir: string, 
+    options?: { checkBuildErrors?: boolean }
+  ): Promise<{ code: number | null, stdout: string, stderr: string }> {
+    return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd: workDir,
             env: { ...process.env, FLY_API_TOKEN: this.flyApiToken },
@@ -923,6 +930,18 @@ Return the complete fixed codebase.`;
 
         let stdout = '';
         let stderr = '';
+        let buildErrorDetected = false;
+
+        // Critical build errors that should stop deployment immediately
+        const criticalBuildErrors = [
+          'error TS',           // TypeScript compilation errors
+          'error Command failed with exit code', // Yarn/npm command failures
+          '#9 ERROR',           // Docker build step errors
+          'RollupError:',       // Vite/Rollup bundling errors
+          'Module not found',   // Missing module errors
+          'Cannot find module', // Import resolution errors
+          'SyntaxError:',       // JavaScript syntax errors
+        ];
 
         // Filter function to only log important messages
         const shouldLogOutput = (output: string): boolean => {
@@ -962,12 +981,35 @@ Return the complete fixed codebase.`;
             return false; // Skip everything else
         };
 
+        const checkForBuildErrors = (output: string) => {
+          if (!options?.checkBuildErrors || buildErrorDetected) return;
+          
+          for (const errorPattern of criticalBuildErrors) {
+            if (output.includes(errorPattern)) {
+              buildErrorDetected = true;
+              console.error(`🚨 Critical build error detected: ${errorPattern}`);
+              console.error('⚠️ Stopping deployment to prevent broken app...');
+              
+              // Kill the process to prevent deployment
+              child.kill('SIGTERM');
+              
+              // Reject with detailed error
+              const error: any = new Error(`Build failed: ${errorPattern} detected in output`);
+              error.buildError = true;
+              error.deploymentLogs = stdout + '\n' + stderr;
+              reject(error);
+              break;
+            }
+          }
+        };
+
         child.stdout.on('data', (data) => {
             const output = data.toString();
             if (shouldLogOutput(output)) {
                 console.log(`${command} stdout: ${output}`);
             }
             stdout += output;
+            checkForBuildErrors(output);
         });
 
         child.stderr.on('data', (data) => {
@@ -976,17 +1018,25 @@ Return the complete fixed codebase.`;
                 console.error(`${command} stderr: ${output}`);
             }
             stderr += output;
+            checkForBuildErrors(output);
         });
 
         child.on('close', (code) => {
-            resolve({ code, stdout, stderr });
+            if (!buildErrorDetected) {
+              resolve({ code, stdout, stderr });
+            }
+            // If buildErrorDetected, we already rejected in checkForBuildErrors
+        });
+
+        child.on('error', (err) => {
+            reject(err);
         });
     });
   }
 
   private async deployWithFlyctl(workDir: string, appName: string): Promise<void> {
     // Check if app already exists
-    const listResult = await this.runCommand('flyctl', ['apps', 'list', '--json'], workDir);
+    const listResult = await this.runCommand('flyctl', ['apps', 'list', '--json'], workDir, { checkBuildErrors: false });
     
     let appExists = false;
     if (listResult.code === 0 && listResult.stdout) {
@@ -1001,7 +1051,7 @@ Return the complete fixed codebase.`;
     // Only create app if it doesn't exist
     if (!appExists) {
       console.log(`Creating new Fly.io app: ${appName}`);
-      const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir);
+      const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir, { checkBuildErrors: false });
 
       if (createResult.code !== 0) {
         // Check if error is because app already exists (race condition or parsing failure)
@@ -1016,12 +1066,13 @@ Return the complete fixed codebase.`;
     }
 
     // Deploy (this will update existing app or deploy new one)
-    const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir);
+    // Enable build error checking to stop deployment if build fails
+    const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir, { checkBuildErrors: true });
 
     const fullOutput = deployResult.stderr + '\n' + deployResult.stdout;
     
     // Check for deployment failures - Fly.io may return code 0 even on build failures!
-    // We need to check output for error indicators
+    // We need to check output for error indicators BEFORE deployment completes
     const errorIndicators = [
       'error during build:',
       'RollupError:',
@@ -1038,7 +1089,11 @@ Return the complete fixed codebase.`;
       'TypeError:',
       'ReferenceError:',
       'compilation failed',
-      'build process failed'
+      'build process failed',
+      'error TS',           // TypeScript errors like "error TS2305"
+      'error Command failed with exit code', // Yarn/npm command failures
+      '#9 ERROR',           // Docker build step errors
+      'executor failed'     // Docker executor failures
     ];
     
     const hasError = errorIndicators.some(indicator => 
