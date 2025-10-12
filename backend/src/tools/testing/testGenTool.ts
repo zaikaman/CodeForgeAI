@@ -844,13 +844,19 @@ import { z } from 'zod'
 
 export const testGenTool = createTool({
   name: 'testGenTool',
-  description: 'Generate Jest/Vitest tests from TypeScript/JavaScript code',
+  description: 'Generate Jest/Vitest tests from TypeScript/JavaScript code. Call this tool once for each test file you want to create. The code should be complete and ready to write to the specified file path.',
   schema: z.object({
-    code: z.string(),
-    config: z.object({}).optional(),
-    filePath: z.string().optional()
+    code: z.string().describe('The complete test code to write to the file'),
+    filePath: z.string().describe('The file path where the test should be created (e.g., "test/unit/component.test.tsx", "vitest.config.ts")'),
+    description: z.string().optional().describe('A brief description of what this test file contains')
   }),
   fn: async (args) => {
-    return generateTests(args.code, args.config || {}, args.filePath || 'temp.ts')
+    // Return structured data that can be used to create files
+    return {
+      filePath: args.filePath,
+      content: args.code,
+      description: args.description || `Test file: ${args.filePath}`,
+      type: 'test'
+    }
   }
 })

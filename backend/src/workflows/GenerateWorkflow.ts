@@ -189,11 +189,17 @@ export class GenerateWorkflow {
                     requirements
                 });
                 
-                tests = testResult.tests || '';
+                // Add test files to the main files array
+                if (testResult.testFiles && testResult.testFiles.length > 0) {
+                    codeResult.files = [...codeResult.files, ...testResult.testFiles];
+                    tests = testResult.summary || `Generated ${testResult.testFiles.length} test files`;
+                } else {
+                    tests = testResult.tests || '';
+                }
                 
                 agentThoughts.push({
                     agent: 'TestCrafter',
-                    thought: `Generated comprehensive test suite with ${testResult.metadata?.testCount || 0} test cases`
+                    thought: `Generated comprehensive test suite: ${testResult.metadata?.fileCount || 0} test files with ${testResult.metadata?.testCount || 0} test cases`
                 });
             }
 
@@ -830,87 +836,102 @@ Generate a complete, functional codebase with multiple files. Return JSON:
 }`;
     }
 
-    private extractCodeFromResponse(response: string): string {
-        // Extract code blocks from agent response
-        const codeBlockRegex = /```(?:typescript|javascript|ts|js|python|py)?\n?([\s\S]*?)```/g;
-        const matches = response.match(codeBlockRegex);
-        
-        if (matches && matches.length > 0) {
-            // Take the first code block and clean it up
-            return matches[0]
-                .replace(/```(?:typescript|javascript|ts|js|python|py)?\n?/, '')
-                .replace(/```$/, '')
-                .trim();
-        }
-        
-        // If no code blocks found, return the entire response
-        return response.trim();
-    }
-
     private async generateTests(request: any): Promise<any> {
         try {
-            if (!request.generatedCode) {
-                console.warn('No generated code provided for test generation');
-                return { tests: '', metadata: { testCount: 0 } };
+            if (!request.generatedCode && (!request.currentFiles || request.currentFiles.length === 0)) {
+                console.warn('No generated code or existing files provided for test generation');
+                return { testFiles: [], summary: '', metadata: { testCount: 0 } };
             }
 
             // Use TestCrafterAgent to generate tests
-            console.log('Calling TestCrafterAgent to generate tests for the generated code');
+            console.log('Calling TestCrafterAgent to generate tests for the code');
             
             const { runner } = await TestCrafterAgent();
+            
+            // Build context from generated code or current files
+            let codeContext = '';
+            if (request.generatedCode) {
+                codeContext = `Generated code:\n\`\`\`${request.targetLanguage}\n${request.generatedCode}\n\`\`\``;
+            } else if (request.currentFiles && request.currentFiles.length > 0) {
+                codeContext = 'Existing codebase:\n\n' + 
+                    request.currentFiles.map((f: any) => 
+                        `File: ${f.path}\n\`\`\`${request.targetLanguage || 'typescript'}\n${f.content}\n\`\`\``
+                    ).join('\n\n');
+            }
+            
             const testPrompt = `Generate a comprehensive test suite for the following code:
 
-Language: ${request.targetLanguage}
+Language: ${request.targetLanguage || 'typescript'}
 Original requirement: ${request.prompt}
 
-Generated code:
-\`\`\`${request.targetLanguage}
-${request.generatedCode}
-\`\`\`
+${codeContext}
 
 Requirements:
 ${request.requirements?.requirements ? request.requirements.requirements.map((r: string) => `- ${r}`).join('\n') : ''}
 
 Please create:
-1. Unit tests for all functions/methods
-2. Integration tests for component interactions
-3. Edge case tests
-4. Error handling tests
-5. Appropriate test data and mocks
+1. Test configuration files (vitest.config.ts or jest.config.js)
+2. Test setup files (setupTests.ts)
+3. Unit tests for all components/functions
+4. Integration tests for component interactions
+5. Edge case and error handling tests
+6. E2E tests for key user flows (if applicable)
+7. Appropriate test data, mocks, and fixtures
 
-Use the appropriate test framework for ${request.targetLanguage} (e.g., Jest/Vitest for TypeScript/JavaScript, pytest for Python).
+Use the appropriate test framework:
+- TypeScript/JavaScript: Vitest + @testing-library/react + Playwright
+- Python: pytest
+- Other languages: appropriate testing framework
 
-Return complete, runnable test code.`;
+Return a structured response with all test files and a summary.`;
 
-            const response = await runner.ask(testPrompt) as string;
-            console.log('Response from TestCrafterAgent:', response);
+            const response = await runner.ask(testPrompt) as any;
+            console.log('Response from TestCrafterAgent:', JSON.stringify(response, null, 2));
             
-            // Extract test code from response
-            const tests = this.extractCodeFromResponse(response);
-            
-            // Count test cases
-            let testCount = 0;
-            if (request.targetLanguage === 'python') {
-                testCount = (tests.match(/def test_/g) || []).length;
-            } else {
-                testCount = (tests.match(/test\(/g) || []).length + (tests.match(/it\(/g) || []).length;
+            // Validate response structure
+            if (!response || !response.files || !Array.isArray(response.files)) {
+                console.error('Invalid response structure from TestCrafterAgent:', response);
+                throw new Error('TestCrafterAgent returned invalid response structure. Expected: { files: [...], summary: "..." }');
             }
             
+            // Validate that files array is not empty
+            if (response.files.length === 0) {
+                console.error('TestCrafterAgent returned empty files array');
+                throw new Error('TestCrafterAgent returned no test files');
+            }
+            
+            // Count test cases across all files
+            let testCount = 0;
+            response.files.forEach((file: any) => {
+                if (request.targetLanguage === 'python') {
+                    testCount += (file.content.match(/def test_/g) || []).length;
+                } else {
+                    testCount += (file.content.match(/\b(test|it)\s*\(/g) || []).length;
+                }
+            });
+            
             return {
-                tests,
+                testFiles: response.files,
+                summary: response.summary || `Generated ${response.files.length} test files with ${testCount} test cases`,
                 metadata: {
                     testCount,
+                    fileCount: response.files.length,
                     generatedBy: 'TestCrafterAgent (gpt-5-nano)'
                 }
             };
         } catch (error) {
             console.error('Test generation error:', error);
             // Fallback to basic test generation
-            const tests = this.generateTestsFromCode(request.generatedCode, request.targetLanguage);
+            const tests = this.generateTestsFromCode(request.generatedCode || '', request.targetLanguage || 'typescript');
             return { 
-                tests,
+                testFiles: [{
+                    path: 'test/generated.test.ts',
+                    content: tests
+                }],
+                summary: 'Generated basic test template (fallback)',
                 metadata: {
                     testCount: tests.split('test(').length - 1,
+                    fileCount: 1,
                     generatedBy: 'Template Fallback (Error)'
                 }
             };
