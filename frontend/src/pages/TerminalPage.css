@@ -769,7 +769,122 @@
   justify-content: center;
 }
 
+/* Agent Progress Messages */
+.agent-progress-container {
+  padding: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+  background: rgba(0, 255, 0, 0.02);
+  border: 1px solid rgba(0, 255, 0, 0.2);
+  border-radius: var(--border-radius);
+  animation: slideIn 0.3s ease-out;
+}
+
+.agent-progress-message {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-left: 2px solid var(--color-primary);
+  animation: fadeInSlide 0.4s ease-out;
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+.agent-progress-message:last-child {
+  margin-bottom: 0;
+}
+
+.agent-progress-message.started {
+  border-left-color: var(--color-warning);
+  background: rgba(255, 165, 0, 0.05);
+}
+
+.agent-progress-message.completed {
+  border-left-color: var(--color-success);
+  background: rgba(0, 255, 0, 0.05);
+}
+
+.agent-progress-message.error {
+  border-left-color: var(--color-danger);
+  background: rgba(255, 0, 0, 0.05);
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  font-size: 0.85rem;
+}
+
+.progress-icon {
+  font-size: 1rem;
+}
+
+.progress-agent {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.progress-status {
+  font-size: 0.9rem;
+}
+
+.progress-status.started {
+  color: var(--color-warning);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.progress-status.completed {
+  color: var(--color-success);
+}
+
+.progress-status.error {
+  color: var(--color-danger);
+}
+
+.progress-timestamp {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.progress-content {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.progress-text {
+  flex: 1;
+  color: var(--color-text);
+}
+
 /* Animations */
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;

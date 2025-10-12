@@ -12,7 +12,7 @@ const deployRequestSchema = z.object({
   files: z.array(z.object({
     path: z.string(),
     content: z.string(),
-  })).min(1, 'At least one file is required'),
+  })).optional(), // Optional - can load from snapshot instead
   platform: z.enum(['fly.io']).default('fly.io'),
 });
 
@@ -27,7 +27,8 @@ router.post('/deploy', optionalAuth, async (req, res) => {
     
     // Validate request body first
     const validatedRequest = deployRequestSchema.parse(req.body);
-    const { projectId, files, platform } = validatedRequest;
+    const { projectId, platform } = validatedRequest;
+    let files = validatedRequest.files;
 
     // Try to get generation to extract userId if not authenticated
     let generation: any = null;
@@ -93,6 +94,29 @@ router.post('/deploy', optionalAuth, async (req, res) => {
       return;
     }
 
+    // Load files from snapshot if not provided
+    if (!files && generation.snapshot_id) {
+      console.log(`[POST /deploy] Loading files from snapshot ${generation.snapshot_id}`);
+      const { codebaseStorage } = await import('../../services/CodebaseStorageService');
+      const manifest = await codebaseStorage.getManifest(generation.snapshot_id, userId);
+      const filePaths = manifest.files.map((f: any) => f.path);
+      files = await codebaseStorage.readFiles(generation.snapshot_id, userId, filePaths);
+      console.log(`[POST /deploy] Loaded ${files.length} files from snapshot`);
+    } else if (!files && generation.files) {
+      // Fallback to files in database
+      console.log(`[POST /deploy] Using files from database (${generation.files.length} files)`);
+      files = generation.files;
+    }
+
+    // Verify we have files to deploy
+    if (!files || files.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'No files found to deploy. Project must have files.',
+      });
+      return;
+    }
+
     // Check if FLY_API_TOKEN is configured
     if (!process.env.FLY_API_TOKEN) {
       console.error('[POST /deploy] FLY_API_TOKEN not configured');
@@ -115,7 +139,7 @@ router.post('/deploy', optionalAuth, async (req, res) => {
 
     // Start deployment in background
     // Return immediately to user, they can poll for status
-    deployInBackground(projectId, files, platform).catch((error) => {
+    deployInBackground(projectId, files!, platform).catch((error) => {
       console.error(`[POST /deploy] Background deployment error:`, error);
     });
 

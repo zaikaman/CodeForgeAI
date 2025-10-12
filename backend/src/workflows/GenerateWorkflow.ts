@@ -10,17 +10,59 @@ import { SecuritySentinelAgent } from '../agents/specialized/SecuritySentinelAge
 import { PerformanceProfilerAgent } from '../agents/specialized/PerformanceProfilerAgent';
 import { createQualityAssuranceAgent } from '../agents/specialized/QualityAssuranceAgent';
 import { formatCodeFiles, shouldFormatFile } from '../utils/prettier-formatter';
+import { supabase } from '../storage/SupabaseClient';
 
 export class GenerateWorkflow {
     private readonly VALIDATION_ENABLED = true; // Enable fast validation (< 2s overhead)
     private readonly qaAgent = createQualityAssuranceAgent();
     private githubContext: any = null;
+    private jobId: string | null = null; // Track current job ID for progress updates
 
-    constructor(options?: { githubContext?: any }) {
+    constructor(options?: { githubContext?: any; jobId?: string }) {
         // Initialize with QA agent for validation
         this.githubContext = options?.githubContext || null;
+        this.jobId = options?.jobId || null;
         if (this.githubContext) {
             console.log('[GenerateWorkflow] GitHub context available:', this.githubContext.username);
+        }
+        if (this.jobId) {
+            console.log('[GenerateWorkflow] Tracking progress for job:', this.jobId);
+        }
+    }
+
+    /**
+     * Emit progress update to database for realtime frontend updates
+     */
+    private async emitProgress(agent: string, status: 'started' | 'completed' | 'error', message: string): Promise<void> {
+        if (!this.jobId) return;
+
+        try {
+            const progressMessage = {
+                timestamp: new Date().toISOString(),
+                agent,
+                status,
+                message,
+            };
+
+            // Fetch current progress messages
+            const { data: job } = await supabase
+                .from('chat_jobs')
+                .select('progress_messages')
+                .eq('id', this.jobId)
+                .single();
+
+            const currentMessages = job?.progress_messages || [];
+            const updatedMessages = [...currentMessages, progressMessage];
+
+            // Update with new progress message
+            await supabase
+                .from('chat_jobs')
+                .update({ progress_messages: updatedMessages })
+                .eq('id', this.jobId);
+
+            console.log(`[Progress] ${agent} - ${status}: ${message}`);
+        } catch (error) {
+            console.error('[Progress] Failed to emit progress:', error);
         }
     }
 
@@ -83,8 +125,12 @@ export class GenerateWorkflow {
 
             if (needsSpecInterpreter) {
                 console.log('\n[STEP 1] Interpreting prompt for code generation...');
+                await this.emitProgress('SpecInterpreter', 'started', 'Analyzing your requirements and understanding the project scope...');
+                
                 requirements = await this.interpretPrompt(request.prompt);
                 console.log('[STEP 1] Requirements:', JSON.stringify(requirements, null, 2).substring(0, 500));
+                
+                await this.emitProgress('SpecInterpreter', 'completed', `Requirements analyzed: ${requirements.summary || 'Successfully parsed project requirements'}`);
                 
                 agentThoughts.push({
                     agent: 'SpecInterpreter',
@@ -136,12 +182,16 @@ export class GenerateWorkflow {
             } else {
                 // Generate NEW code using CodeGeneratorAgent
                 console.log('\n[STEP 2] Generating code...');
+                await this.emitProgress('CodeGenerator', 'started', `Generating ${request.targetLanguage} code based on your requirements...`);
+                
                 codeResult = await this.generateCode({
                     ...request,
                     requirements
                 });
                 console.log('[STEP 2] Code result files count:', codeResult?.files?.length || 0);
                 console.log('[STEP 2] Code result metadata:', JSON.stringify(codeResult?.metadata || {}));
+                
+                await this.emitProgress('CodeGenerator', 'completed', `Generated ${codeResult?.files?.length || 0} files successfully`);
                 
                 agentThoughts.push({
                     agent: 'CodeGenerator',
@@ -152,6 +202,8 @@ export class GenerateWorkflow {
             // Step 3: Validate and fix code if validation is enabled (skip for analysis-only requests)
             const skipValidation = isAnalysisOnly || isDocOnlyWithExistingCode || isDocForNewProject || isTestOnlyRequest;
             if (this.VALIDATION_ENABLED && !skipValidation) {
+                await this.emitProgress('QualityAssurance', 'started', 'Validating code quality and fixing any issues...');
+                
                 const validationResult = await this.validateAndFixCode(
                     codeResult.files,
                     request,
@@ -161,8 +213,10 @@ export class GenerateWorkflow {
                 if (validationResult.fixed) {
                     codeResult.files = validationResult.files;
                     codeResult.validation = validationResult.validation;
+                    await this.emitProgress('QualityAssurance', 'completed', `Auto-fixed ${validationResult.validation.attempts || 0} issues`);
                 } else {
                     codeResult.validation = validationResult.validation;
+                    await this.emitProgress('QualityAssurance', 'completed', 'Code validation passed');
                 }
             } else if (skipValidation) {
                 // Skip validation for doc-only requests
@@ -180,6 +234,8 @@ export class GenerateWorkflow {
             // Step 4: Generate tests if TestCrafter agent is selected
             const shouldGenerateTests = request.agents && request.agents.includes('TestCrafter');
             if (shouldGenerateTests) {
+                await this.emitProgress('TestCrafter', 'started', 'Generating comprehensive test suite with unit, integration, and E2E tests...');
+                
                 const testResult = await this.generateTests({
                     ...request,
                     generatedCode,
@@ -194,6 +250,8 @@ export class GenerateWorkflow {
                     tests = testResult.tests || '';
                 }
                 
+                await this.emitProgress('TestCrafter', 'completed', `Generated ${testResult.metadata?.testCount || 0} test cases across ${testResult.metadata?.fileCount || 0} files`);
+                
                 agentThoughts.push({
                     agent: 'TestCrafter',
                     thought: `Generated comprehensive test suite: ${testResult.metadata?.fileCount || 0} test files with ${testResult.metadata?.testCount || 0} test cases`
@@ -203,6 +261,8 @@ export class GenerateWorkflow {
             // Step 5: Refactor code if RefactorGuru agent is selected
             const shouldRefactor = request.agents && request.agents.includes('RefactorGuru');
             if (shouldRefactor) {
+                await this.emitProgress('RefactorGuru', 'started', 'Analyzing code for refactoring opportunities and applying SOLID principles...');
+                
                 const refactorResult = await this.refactorCode({
                     files: codeResult.files,
                     requirements
@@ -210,10 +270,13 @@ export class GenerateWorkflow {
                 
                 if (refactorResult.improved) {
                     codeResult.files = refactorResult.files;
+                    await this.emitProgress('RefactorGuru', 'completed', refactorResult.summary || 'Applied code refactoring improvements');
                     agentThoughts.push({
                         agent: 'RefactorGuru',
                         thought: refactorResult.summary || 'Applied code refactoring improvements'
                     });
+                } else {
+                    await this.emitProgress('RefactorGuru', 'completed', 'Code already follows best practices, no refactoring needed');
                 }
             }
 
@@ -221,10 +284,14 @@ export class GenerateWorkflow {
             let securityReport = null;
             const shouldAnalyzeSecurity = request.agents && request.agents.includes('SecuritySentinel');
             if (shouldAnalyzeSecurity) {
+                await this.emitProgress('SecuritySentinel', 'started', 'Scanning codebase for security vulnerabilities and OWASP Top 10 issues...');
+                
                 securityReport = await this.analyzeSecurity({
                     files: codeResult.files,
                     language: request.targetLanguage
                 });
+                
+                await this.emitProgress('SecuritySentinel', 'completed', securityReport.summary || 'Security analysis completed');
                 
                 agentThoughts.push({
                     agent: 'SecuritySentinel',
@@ -236,10 +303,14 @@ export class GenerateWorkflow {
             let performanceReport = null;
             const shouldOptimizePerformance = request.agents && request.agents.includes('PerformanceProfiler');
             if (shouldOptimizePerformance) {
+                await this.emitProgress('PerformanceProfiler', 'started', 'Analyzing code performance and identifying bottlenecks...');
+                
                 performanceReport = await this.optimizePerformance({
                     files: codeResult.files,
                     language: request.targetLanguage
                 });
+                
+                await this.emitProgress('PerformanceProfiler', 'completed', performanceReport.summary || 'Performance analysis completed');
                 
                 agentThoughts.push({
                     agent: 'PerformanceProfiler',
@@ -251,6 +322,8 @@ export class GenerateWorkflow {
             let documentation = '';
             const shouldGenerateDocs = request.agents && request.agents.includes('DocWeaver');
             if (shouldGenerateDocs) {
+                await this.emitProgress('DocWeaver', 'started', 'Generating comprehensive documentation, README, and API docs...');
+                
                 const docsResult = await this.generateDocumentation({
                     files: codeResult.files,
                     requirements,
@@ -280,6 +353,8 @@ export class GenerateWorkflow {
                         codeResult.files = [readmeFile];
                     }
                 }
+                
+                await this.emitProgress('DocWeaver', 'completed', `Generated documentation with ${docsResult.metadata?.sectionCount || 0} sections`);
                 
                 agentThoughts.push({
                     agent: 'DocWeaver',

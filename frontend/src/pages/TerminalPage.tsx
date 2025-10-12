@@ -46,6 +46,13 @@ export const TerminalPage: React.FC = () => {
   // Chat State
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progressMessages, setProgressMessages] = useState<Array<{
+    timestamp: string;
+    agent: string;
+    status: 'started' | 'completed' | 'error';
+    message: string;
+  }>>([]);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   
   // Deployment State
   const [deploymentData, setDeploymentData] = useState<{
@@ -101,6 +108,37 @@ export const TerminalPage: React.FC = () => {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, autoScroll]);
+
+  // Poll for progress messages while job is processing
+  useEffect(() => {
+    if (!currentJobId || !isProcessing) {
+      setProgressMessages([]);
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: jobData } = await supabase
+          .from('chat_jobs')
+          .select('progress_messages, status')
+          .eq('id', currentJobId)
+          .single();
+
+        if (jobData?.progress_messages) {
+          setProgressMessages(jobData.progress_messages);
+        }
+
+        // Stop polling if job completed or errored
+        if (jobData?.status === 'completed' || jobData?.status === 'error') {
+          setCurrentJobId(null);
+        }
+      } catch (error) {
+        console.error('Failed to poll progress messages:', error);
+      }
+    }, 500); // Poll every 500ms for smooth updates
+
+    return () => clearInterval(pollInterval);
+  }, [currentJobId, isProcessing]);
 
   // Handle scroll to detect if user manually scrolled
   const handleChatScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -275,15 +313,16 @@ export const TerminalPage: React.FC = () => {
       };
       setMessages(prev => [...prev, userAgentMessage]);
 
-      const thinkingMessageId = `msg_${Date.now()}_thinking`;
-      const thinkingMessage: AgentMessage = {
-        id: thinkingMessageId,
-        agent: 'System',
-        role: 'thought',
-        content: 'Analyzing request and routing to appropriate agents...',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, thinkingMessage]);
+      // Don't show static thinking message anymore - will be replaced by progress messages
+      // const thinkingMessageId = `msg_${Date.now()}_thinking`;
+      // const thinkingMessage: AgentMessage = {
+      //   id: thinkingMessageId,
+      //   agent: 'System',
+      //   role: 'thought',
+      //   content: 'Analyzing request and routing to appropriate agents...',
+      //   timestamp: new Date(),
+      // };
+      // setMessages(prev => [...prev, thinkingMessage]);
       
       // Create new session if needed BEFORE saving user message
       if (!sessionId) {
@@ -348,6 +387,9 @@ export const TerminalPage: React.FC = () => {
 
       const jobId = chatResponse.data.jobId;
       console.log(`🔄 Chat job ${jobId} started, polling...`);
+      
+      // Set current job ID to start progress polling
+      setCurrentJobId(jobId);
 
       const pollInterval = 1000;
       const maxAttempts = 120;
@@ -390,7 +432,9 @@ export const TerminalPage: React.FC = () => {
         throw new Error('Request timed out. Please try again.');
       }
 
-      setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
+      // Clear progress messages and job ID
+      setCurrentJobId(null);
+      setProgressMessages([]);
 
       const agentResponseMessage: AgentMessage = {
         id: `msg_${Date.now()}_agent`,
@@ -429,7 +473,9 @@ export const TerminalPage: React.FC = () => {
     } catch (error: any) {
       console.error('Chat error:', error);
       
-      setMessages(prev => prev.filter(msg => msg.role !== 'thought'));
+      // Clear progress tracking on error
+      setCurrentJobId(null);
+      setProgressMessages([]);
       
       const errorMessage: AgentMessage = {
         id: `msg_${Date.now()}_error`,
@@ -733,7 +779,52 @@ export const TerminalPage: React.FC = () => {
                 ))
               )}
 
-              {isProcessing && (
+              {/* Show realtime progress messages from agents */}
+              {isProcessing && progressMessages.length > 0 && (
+                <div className="agent-progress-container">
+                  {progressMessages.map((progress, idx) => (
+                    <div 
+                      key={`${progress.timestamp}_${idx}`}
+                      className={`agent-progress-message ${progress.status}`}
+                    >
+                      <div className="progress-header">
+                        <span className="progress-icon phosphor-glow">
+                          {getAgentIcon(progress.agent)}
+                        </span>
+                        <span className="progress-agent phosphor-glow">
+                          [{progress.agent.toUpperCase()}]
+                        </span>
+                        <span className={`progress-status ${progress.status}`}>
+                          {progress.status === 'started' ? '⏳' : progress.status === 'completed' ? '✓' : '✗'}
+                        </span>
+                        <span className="progress-timestamp text-muted">
+                          {new Date(progress.timestamp).toLocaleTimeString('en-US', {
+                            hour12: false,
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <div className="progress-content">
+                        <span className="message-prefix">&gt;&gt;</span>
+                        <span className="progress-text">
+                          {progress.message}
+                          {progress.status === 'started' && (
+                            <span className="typing-dots">
+                              <span>.</span>
+                              <span>.</span>
+                              <span>.</span>
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {isProcessing && progressMessages.length === 0 && (
                 <div className="chat-streaming">
                   <span className="streaming-icon phosphor-glow">◉</span>
                   <span className="streaming-text">PROCESSING</span>

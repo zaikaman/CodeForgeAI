@@ -120,6 +120,21 @@ router.get('/history/:id', optionalAuth, async (req, res) => {
 
     console.log(`[GET /history/${id}] Successfully fetched generation`);
 
+    // Load files from snapshot if needed
+    let files = generation.files;
+    if (!files && generation.snapshot_id) {
+      try {
+        console.log(`[GET /history/${id}] Loading files from snapshot ${generation.snapshot_id}`);
+        const { codebaseStorage } = await import('../../services/CodebaseStorageService');
+        const manifest = await codebaseStorage.getManifest(generation.snapshot_id, userId);
+        const filePaths = manifest.files.map((f: any) => f.path);
+        files = await codebaseStorage.readFiles(generation.snapshot_id, userId, filePaths);
+        console.log(`[GET /history/${id}] Loaded ${files.length} files from snapshot`);
+      } catch (storageError: any) {
+        console.error(`[GET /history/${id}] Failed to load files from snapshot:`, storageError);
+      }
+    }
+
     // Transform to frontend format
     const historyEntry = {
       id: generation.id,
@@ -132,9 +147,10 @@ router.get('/history/:id', optionalAuth, async (req, res) => {
         agents: [],
         imageUrls: generation.image_urls || [],
       },
-      response: generation.files ? {
-        files: generation.files,
+      response: files ? {
+        files: files,
         preview: generation.preview_url,
+        snapshotId: generation.snapshot_id, // Include snapshot reference
       } : null,
       status: generation.status,
       error: generation.error,

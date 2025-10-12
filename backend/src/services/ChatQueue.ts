@@ -13,6 +13,9 @@ interface ChatJob {
   generationId: string;
   userId: string;
   message: string;
+  // NEW: Snapshot ID for efficient file access
+  snapshotId?: string;
+  // OLD: Direct file array (backward compatibility)
   currentFiles: Array<{ path: string; content: string }>;
   language: string;
   imageUrls?: string[];
@@ -43,6 +46,7 @@ class ChatQueueManager {
     generationId: string;
     userId: string;
     message: string;
+    snapshotId?: string; // NEW
     currentFiles: Array<{ path: string; content: string }>;
     language: string;
     imageUrls?: string[];
@@ -200,6 +204,40 @@ class ChatQueueManager {
   }
 
   /**
+   * Emit progress update for realtime frontend tracking
+   */
+  private async emitProgress(jobId: string, agent: string, status: 'started' | 'completed' | 'error', message: string): Promise<void> {
+    try {
+      const progressMessage = {
+        timestamp: new Date().toISOString(),
+        agent,
+        status,
+        message,
+      };
+
+      // Fetch current progress messages
+      const { data: job } = await supabase
+        .from('chat_jobs')
+        .select('progress_messages')
+        .eq('id', jobId)
+        .single();
+
+      const currentMessages = job?.progress_messages || [];
+      const updatedMessages = [...currentMessages, progressMessage];
+
+      // Update with new progress message
+      await supabase
+        .from('chat_jobs')
+        .update({ progress_messages: updatedMessages })
+        .eq('id', jobId);
+
+      console.log(`[ChatQueue Progress] ${agent} - ${status}: ${message}`);
+    } catch (error) {
+      console.error('[ChatQueue Progress] Failed to emit:', error);
+    }
+  }
+
+  /**
    * Process a single chat job
    */
   private async processJob(job: ChatJob): Promise<void> {
@@ -218,13 +256,17 @@ class ChatQueueManager {
         })
         .eq('id', job.id);
 
+      // Emit initial progress
+      await this.emitProgress(job.id, 'ChatAgent', 'started', 'Analyzing your request and determining the best approach...');
+
       // Build context with conversation history
       const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
         job.generationId,
         job.message,
         job.currentFiles,
         job.language,
-        job.imageUrls
+        job.imageUrls,
+        job.snapshotId // NEW: Pass snapshotId for efficient mode
       );
 
       console.log(`[ChatQueue] Chat context built: ${totalTokens} estimated tokens`);
@@ -236,8 +278,20 @@ class ChatQueueManager {
         console.log(`[ChatQueue] No GitHub context provided`);
       }
 
-      // Use ChatAgent with improved error handling and GitHub context
-      const { runner } = await ChatAgent(job.githubContext);
+      // Prepare file system context if snapshot available
+      let fileSystemContext = undefined;
+      if (job.snapshotId) {
+        fileSystemContext = {
+          snapshotId: job.snapshotId,
+          userId: job.userId,
+        };
+        console.log(`[ChatQueue] File system context available: ${job.snapshotId}`);
+      } else if (job.currentFiles && job.currentFiles.length > 0) {
+        console.log(`[ChatQueue] Using legacy mode with ${job.currentFiles.length} files inline (less efficient)`);
+      }
+
+      // Use ChatAgent with file system + GitHub context
+      const { runner } = await ChatAgent(job.githubContext, fileSystemContext);
       
       // Build the message with images if provided
       let chatMessage: any;
@@ -282,6 +336,23 @@ class ChatQueueManager {
       
       // Check if specialist agent is needed
       if (response.needsSpecialist) {
+        // Load files from snapshot if needed for specialist agents
+        let filesToPass = job.currentFiles;
+        if (job.snapshotId && (!job.currentFiles || job.currentFiles.length === 0)) {
+          console.log(`[ChatQueue] Loading files from snapshot for specialist agent...`);
+          await this.emitProgress(job.id, 'System', 'started', 'Loading project files for specialist agent...');
+          
+          const { codebaseStorage } = await import('../services/CodebaseStorageService');
+          const manifest = await codebaseStorage.getManifest(job.snapshotId, job.userId);
+          
+          // Load all files (specialists need full context)
+          const filePaths = manifest.files.map((f: any) => f.path);
+          filesToPass = await codebaseStorage.readFiles(job.snapshotId, job.userId, filePaths);
+          
+          console.log(`[ChatQueue] Loaded ${filesToPass.length} files from snapshot for specialist`);
+          await this.emitProgress(job.id, 'System', 'completed', `Loaded ${filesToPass.length} project files`);
+        }
+        
         // Normalize agent names to handle variations
         const agentNameMap: Record<string, string> = {
           'DocsWeaver': 'DocWeaver',  // Fix common typo
@@ -300,6 +371,7 @@ class ChatQueueManager {
         }
         
         console.log(`[ChatQueue] Routing to specialist: ${specialistAgent}`);
+        await this.emitProgress(job.id, 'ChatAgent', 'completed', `Routing your request to ${specialistAgent}...`);
         
         // Determine which workflow to use based on the agent
         const reviewAgents = ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler'];
@@ -309,6 +381,8 @@ class ChatQueueManager {
         
         if (isReviewWorkflow) {
           // Route to ReviewWorkflow for code analysis
+          await this.emitProgress(job.id, specialistAgent, 'started', `Starting code review process...`);
+          
           const { ReviewWorkflow } = await import('../workflows/ReviewWorkflow');
           const workflow = new ReviewWorkflow();
           
@@ -321,7 +395,7 @@ class ChatQueueManager {
           };
           
           workflowResult = await workflow.run({
-            code: job.currentFiles,
+            code: filesToPass,
             language: job.language,
             options: reviewOptions,
           });
@@ -329,7 +403,8 @@ class ChatQueueManager {
           // Route to GenerateWorkflow for code generation/modification
           const { GenerateWorkflow } = await import('../workflows/GenerateWorkflow');
           const workflow = new GenerateWorkflow({
-            githubContext: job.githubContext
+            githubContext: job.githubContext,
+            jobId: job.id // Pass job ID for progress tracking
           });
           
           workflowResult = await workflow.run({
@@ -339,7 +414,7 @@ class ChatQueueManager {
             complexity: 'moderate',
             agents: [specialistAgent],
             imageUrls: job.imageUrls,
-            currentFiles: job.currentFiles || [], // Pass existing files for doc-only requests
+            currentFiles: filesToPass || [], // Pass loaded files (from snapshot or inline)
           });
         }
         

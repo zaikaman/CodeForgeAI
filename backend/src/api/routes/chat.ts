@@ -12,10 +12,13 @@ const router = Router();
 const chatRequestSchema = z.object({
   generationId: z.string().min(1, 'Generation ID is required'),
   message: z.string().min(1, 'Message is required'),
+  // NEW WAY: Use snapshotId (efficient)
+  snapshotId: z.string().uuid().optional(),
+  // OLD WAY: Send currentFiles directly (backward compatibility)
   currentFiles: z.array(z.object({
     path: z.string(),
     content: z.string()
-  })),
+  })).optional(),
   language: z.string().default('typescript'),
   imageUrls: z.array(z.string()).optional(),
   githubContext: z.object({
@@ -23,7 +26,12 @@ const chatRequestSchema = z.object({
     username: z.string(),
     email: z.string().optional(),
   }).optional(),
-});
+}).refine(
+  (data) => data.snapshotId || (data.currentFiles && data.currentFiles.length > 0),
+  {
+    message: 'Either snapshotId or currentFiles must be provided',
+  }
+);
 
 // POST /chat - Start a chat request as background job (returns immediately)
 router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
@@ -41,11 +49,17 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
-    const { generationId, message, currentFiles, language, imageUrls, githubContext } = validatedRequest;
+    const { generationId, message, snapshotId, currentFiles, language, imageUrls, githubContext } = validatedRequest;
 
     console.log(`[POST /chat] Processing message for generation ${generationId}`);
     console.log(`[POST /chat] Message: ${message.substring(0, 100)}...`);
-    console.log(`[POST /chat] Current files: ${currentFiles.length}`);
+    
+    if (snapshotId) {
+      console.log(`[POST /chat] Using snapshot: ${snapshotId} (efficient mode)`);
+    } else if (currentFiles) {
+      console.log(`[POST /chat] Using currentFiles: ${currentFiles.length} files (legacy mode)`);
+    }
+    
     if (githubContext) {
       console.log(`[POST /chat] GitHub context provided for user: ${githubContext.username}`);
     }
@@ -140,7 +154,8 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       generationId,
       userId,
       message,
-      currentFiles,
+      snapshotId, // NEW: Pass snapshot ID if available
+      currentFiles: currentFiles || [], // OLD: Fallback to empty array
       language,
       imageUrls,
       githubContext,

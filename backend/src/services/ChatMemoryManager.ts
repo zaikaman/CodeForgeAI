@@ -139,13 +139,15 @@ export class ChatMemoryManager {
 
   /**
    * Build context for ChatAgent with recent message history
+   * If snapshotId provided, doesn't include full file contents (uses file system tools instead)
    */
   static async buildContext(
     generationId: string,
     currentMessage: string,
     currentFiles: Array<{ path: string; content: string }>,
     language: string,
-    _imageUrls?: string[]
+    _imageUrls?: string[],
+    snapshotId?: string
   ): Promise<{ contextMessage: string; totalTokens: number }> {
     // Get recent messages (last 10 for performance - reduced from 20)
     console.log(`[ChatMemoryManager] Loading messages for generation ${generationId}...`);
@@ -177,16 +179,33 @@ export class ChatMemoryManager {
     }
 
     // Build current files context
-    const filesContext = currentFiles
-      .map(f => `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``)
-      .join('\n\n');
-
-    const filesTokens = this.estimateTokens(filesContext);
+    let filesContext = '';
+    let filesTokens = 0;
+    
+    if (snapshotId) {
+      // NEW WAY: With snapshot, just mention it exists - LLM will use tools to read files
+      filesContext = `Codebase snapshot available (${currentFiles.length} files).
+Use file system tools to explore and read files as needed:
+- list_codebase_files() to see all files
+- search_codebase_files(pattern) to find specific files
+- read_codebase_file(path) to read a file`;
+      
+      filesTokens = this.estimateTokens(filesContext);
+      console.log(`[ChatMemoryManager] Using snapshot mode - ${filesTokens} tokens (vs ~${this.estimateTokens(currentFiles.map(f => f.content).join(''))} if sent inline)`);
+    } else {
+      // OLD WAY: No snapshot, send files inline (less efficient)
+      filesContext = currentFiles
+        .map(f => `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``)
+        .join('\n\n');
+      
+      filesTokens = this.estimateTokens(filesContext);
+      console.log(`[ChatMemoryManager] Using inline files mode - ${filesTokens} tokens`);
+    }
 
     // Build final context message
     const contextMessage = `${conversationHistory}USER REQUEST: ${currentMessage}
 
-CURRENT CODEBASE (${currentFiles.length} files):
+${snapshotId ? 'CODEBASE:' : `CURRENT CODEBASE (${currentFiles.length} files):`}
 ${filesContext}`;
 
     const totalTokens = historyTokens + filesTokens + this.estimateTokens(currentMessage) + 100; // +100 for overhead

@@ -666,6 +666,24 @@ class ApiClient {
     const response = await this.client.request<ApiResponse<T>>(config)
     return response.data
   }
+
+  // Generic POST method for custom endpoints
+  async post<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const response = await this.client.post<ApiResponse<T>>(url, data)
+    return response.data
+  }
+
+  // Generic GET method for custom endpoints
+  async get<T = any>(url: string): Promise<ApiResponse<T>> {
+    const response = await this.client.get<ApiResponse<T>>(url)
+    return response.data
+  }
+
+  // Generic DELETE method for custom endpoints
+  async delete<T = any>(url: string): Promise<ApiResponse<T>> {
+    const response = await this.client.delete<ApiResponse<T>>(url)
+    return response.data
+  }
 }
 
 // Singleton instance

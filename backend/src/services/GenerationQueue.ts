@@ -87,18 +87,42 @@ class GenerationQueue {
         imageUrls,
       });
 
-      // Update with results
+      // Push generated files to Supabase Storage
+      let snapshotId: string | undefined;
+      try {
+        const { codebaseStorage } = await import('./CodebaseStorageService');
+        
+        // Get userId from generation record
+        const { data: generation } = await supabase
+          .from('generations')
+          .select('user_id')
+          .eq('id', id)
+          .single();
+        
+        if (generation?.user_id && result.files && result.files.length > 0) {
+          console.log(`[GenerationQueue] Pushing ${result.files.length} files to storage for generation ${id}`);
+          const snapshot = await codebaseStorage.createSnapshot(generation.user_id, result.files, id);
+          snapshotId = snapshot.id;
+          console.log(`[GenerationQueue] Created snapshot ${snapshotId} with ${result.files.length} files`);
+        }
+      } catch (storageError: any) {
+        console.error(`[GenerationQueue] Failed to push files to storage:`, storageError);
+        // Continue anyway - fallback to storing in database
+      }
+
+      // Update with results (store snapshotId instead of full files if available)
       await supabase
         .from('generations')
         .update({
           status: 'completed',
-          files: result.files,
+          files: snapshotId ? null : result.files, // Only store files in DB if snapshot failed
+          snapshot_id: snapshotId || null, // Store snapshot reference
           agent_thoughts: result.agentThoughts,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
 
-      console.log(`[GenerationQueue] Job ${id} completed successfully`);
+      console.log(`[GenerationQueue] Job ${id} completed successfully${snapshotId ? ` with snapshot ${snapshotId}` : ' (files in DB)'}`);
 
       // NOTE: Auto-deployment to fly.io is now DISABLED by default
       // Preview is handled by WebContainer in the frontend

@@ -9,6 +9,8 @@ import { smartCompress, getCompressionStats } from '../../utils/PromptCompressio
 
 const rawSystemPrompt = `You are a helpful coding assistant with GitHub integration. Users will chat with you or ask you to make changes to their codebase or interact with GitHub repositories.
 
+{{FILE_SYSTEM_TOOLS}}
+
 {{GITHUB_TOOLS}}
 
 {{GITHUB_SETUP_INSTRUCTIONS}}
@@ -179,16 +181,23 @@ Use exact agent names (case-sensitive) from the list above
 - Maintain code quality and consistency
 - If the user's request is unclear, make your best interpretation
 
-⚠️ CRITICAL: Complete Codebase Requirement for Deployment Fixes
+⚠️ EFFICIENT FILE READING:
 ================================================================
-When the prompt mentions "CURRENT CODEBASE (N files)", you MUST:
-1. Count how many files are in the input (look for "CURRENT CODEBASE (N files)")
-2. Return AT LEAST that many files in your response
-3. Include EVERY file from the input, even if you didn't modify it
-4. If you create NEW files, the total will be MORE than N
-5. NEVER omit, skip, or delete files from your response
+If you have file system tools available, USE THEM instead of relying on inline codebase:
+1. Start with list_codebase_files() to see project structure
+2. Use search_codebase_files(pattern) to find relevant files
+3. Read only the files you need with read_codebase_file(path)
+4. DON'T read all files - be selective to save tokens!
 
-If you only return modified files, the deployment will FAIL because the codebase will be incomplete!
+If the prompt includes "CURRENT CODEBASE (N files)" (legacy mode without file system tools):
+1. Count how many files are in the input
+2. For DEPLOYMENT fixes: Return ALL files (modified + unmodified)
+3. For REGULAR changes: Return only modified files
+4. NEVER omit files in deployment fix mode
+
+**Token Efficiency Example:**
+- Old way: Receive 50 files inline (100K tokens)
+- New way: list_codebase_files() + read 2 relevant files (5K tokens) = 95% savings!
 
 When fixing deployment errors:
 - Carefully analyze error messages and logs
@@ -294,19 +303,42 @@ if (process.env.NODE_ENV !== 'production') {
   console.log(`[ChatAgent] Prompt compressed: ${stats.originalSize} → ${stats.compressedSize} bytes (saved ${stats.savedPercent}%)`);
 }
 
-export const ChatAgent = async (githubContext?: { token: string; username: string; email?: string }) => {
-  console.log('[ChatAgent] Initializing with context:', githubContext ? `User: ${githubContext.username}` : 'No GitHub context');
+export const ChatAgent = async (
+  githubContext?: { token: string; username: string; email?: string },
+  fileSystemContext?: { snapshotId: string; userId: string }
+) => {
+  console.log('[ChatAgent] Initializing...');
+  console.log('[ChatAgent] GitHub context:', githubContext ? `User: ${githubContext.username}` : 'None');
+  console.log('[ChatAgent] File system context:', fileSystemContext ? `Snapshot: ${fileSystemContext.snapshotId}` : 'None');
   
   let finalPrompt = systemPrompt;
   let builder = AgentBuilder.create('ChatAgent')
     .withModel('gpt-5-nano')
     .withOutputSchema(chatResponseSchema as any);
   
+  // Add file system tools if snapshot context provided
+  if (fileSystemContext) {
+    console.log('[ChatAgent] Loading file system tools...');
+    const { FILE_SYSTEM_TOOLS_DESCRIPTION, createFileSystemTools } = await import('../../utils/fileSystemTools');
+    const fileSystemToolsObj = createFileSystemTools(fileSystemContext);
+    
+    finalPrompt = finalPrompt.replace('{{FILE_SYSTEM_TOOLS}}', FILE_SYSTEM_TOOLS_DESCRIPTION);
+    
+    console.log('[ChatAgent] File system enabled for snapshot:', fileSystemContext.snapshotId);
+    console.log('[ChatAgent] Attached', fileSystemToolsObj.tools.length, 'file system tools');
+    console.log('[ChatAgent] Tools:', fileSystemToolsObj.tools.map(t => t.name).join(', '));
+    
+    builder = builder.withTools(...fileSystemToolsObj.tools);
+  } else {
+    // Remove placeholder if no file system context
+    finalPrompt = finalPrompt.replace('{{FILE_SYSTEM_TOOLS}}', '');
+  }
+  
   // Add GitHub tools if context provided
   if (githubContext) {
     console.log('[ChatAgent] Loading GitHub tools...');
     const { GITHUB_TOOLS_DESCRIPTION, createGitHubTools } = await import('../../utils/githubTools');
-    finalPrompt = systemPrompt
+    finalPrompt = finalPrompt
       .replace('{{GITHUB_TOOLS}}', GITHUB_TOOLS_DESCRIPTION)
       .replace('{{GITHUB_SETUP_INSTRUCTIONS}}', ''); // Remove setup instructions when tools available
     

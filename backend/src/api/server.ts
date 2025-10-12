@@ -23,6 +23,7 @@ import downloadRouter from './routes/download';
 import deployRouter from './routes/deploy';
 import fixPreviewErrorsRouter from '../routes/fix-preview-errors';
 import cacheRouter from './cache';
+import codebaseRouter from './routes/codebase';
 
 const app = express();
 
@@ -91,6 +92,7 @@ app.use('/api', downloadRouter);
 app.use('/api', deployRouter);
 app.use('/api/fix-preview-errors', fixPreviewErrorsRouter);
 app.use('/api/cache', cacheRouter);
+app.use('/api', codebaseRouter);
 
 // Socket.io connection
 io.on('connection', (socket) => {
