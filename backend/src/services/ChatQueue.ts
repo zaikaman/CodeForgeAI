@@ -6,6 +6,7 @@
 import { ChatAgent } from '../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from './ChatMemoryManager';
 import { supabase } from '../storage/SupabaseClient';
+import { safeAgentCall } from '../utils/agentHelpers';
 
 interface ChatJob {
   id: string;
@@ -165,7 +166,7 @@ class ChatQueueManager {
 
       console.log(`[ChatQueue] Chat context built: ${totalTokens} estimated tokens`);
 
-      // Use ChatAgent
+      // Use ChatAgent with improved error handling
       const { runner } = await ChatAgent();
       
       // Build the message with images if provided
@@ -202,73 +203,12 @@ class ChatQueueManager {
         chatMessage = contextMessage;
       }
 
-      let response = await runner.ask(chatMessage) as any;
-      
-      console.log(`[ChatQueue] Raw response type:`, typeof response);
-      console.log(`[ChatQueue] Response has files:`, response?.files ? 'yes' : 'no');
-      
-      // Handle case where response might be a string (invalid JSON)
-      if (typeof response === 'string') {
-        try {
-          console.log(`[ChatQueue] Response is string, attempting to parse...`);
-          response = JSON.parse(response);
-        } catch (parseError) {
-          console.error(`[ChatQueue] Failed to parse string response:`, parseError);
-          throw new Error('Agent returned invalid JSON response');
-        }
-      }
-      
-      // Validate response structure
-      if (!response || typeof response !== 'object') {
-        console.error(`[ChatQueue] Invalid response structure:`, response);
-        throw new Error('Agent returned invalid response structure');
-      }
-      
-      if (!response.files || !Array.isArray(response.files)) {
-        console.error(`[ChatQueue] Response missing files array:`, response);
-        throw new Error('Agent response missing files array');
-      }
-      
-      // Validate and sanitize response files
-      for (let i = 0; i < response.files.length; i++) {
-        const file = response.files[i];
-        
-        if (!file.path || typeof file.path !== 'string') {
-          console.error(`[ChatQueue] File ${i} missing valid path:`, file);
-          throw new Error(`File ${i} missing valid path`);
-        }
-        
-        if (typeof file.content !== 'string') {
-          console.warn(`[ChatQueue] File ${file.path} has non-string content, converting...`);
-          
-          if (typeof file.content === 'object') {
-            response.files[i].content = JSON.stringify(file.content, null, 2);
-          } else {
-            response.files[i].content = String(file.content);
-          }
-        } else {
-          // Handle double-stringified content
-          if (file.content.startsWith('"') && file.content.endsWith('"')) {
-            try {
-              const unescaped = JSON.parse(file.content);
-              if (typeof unescaped === 'string') {
-                response.files[i].content = unescaped;
-                console.log(`[ChatQueue] Unescaped double-stringified content for ${file.path}`);
-              }
-            } catch (err) {
-              console.warn(`[ChatQueue] Could not unescape content for ${file.path}, keeping as-is`);
-            }
-          }
-          
-          // Clean up escape sequences that might cause JSON issues
-          // Replace literal \n with actual newlines if they exist
-          if (response.files[i].content.includes('\\n')) {
-            const originalLength = response.files[i].content.length;
-            response.files[i].content = response.files[i].content.replace(/\\n/g, '\n');
-            console.log(`[ChatQueue] Cleaned escape sequences in ${file.path} (${originalLength} -> ${response.files[i].content.length} chars)`);
-          }
-        }
-      }
+      // Use safe agent call with automatic retry and validation
+      const response = await safeAgentCall(runner, chatMessage, {
+        maxRetries: 3,
+        retryDelay: 1000,
+        context: 'ChatQueue'
+      });
       
       // Merge modified/new files with existing files
       let updatedFiles: Array<{ path: string; content: string }> = [...job.currentFiles];

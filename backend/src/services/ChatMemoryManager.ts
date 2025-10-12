@@ -61,6 +61,8 @@ export class ChatMemoryManager {
    */
   static async getRecentMessages(generationId: string, limit: number = this.MAX_MESSAGES): Promise<ChatMessage[]> {
     try {
+      console.log(`[ChatMemoryManager.getRecentMessages] Querying messages for generation_id: ${generationId}, limit: ${limit}`);
+      
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
@@ -69,8 +71,19 @@ export class ChatMemoryManager {
         .limit(limit);
 
       if (error) {
-        console.error('Failed to fetch chat messages:', error);
+        console.error('[ChatMemoryManager.getRecentMessages] Database error:', error);
         return [];
+      }
+
+      console.log(`[ChatMemoryManager.getRecentMessages] Query returned ${data?.length || 0} messages`);
+      
+      if (data && data.length > 0) {
+        console.log(`[ChatMemoryManager.getRecentMessages] First message:`, {
+          id: data[0].id,
+          role: data[0].role,
+          content: data[0].content.substring(0, 50) + '...',
+          created_at: data[0].created_at,
+        });
       }
 
       // Reverse to get chronological order (oldest first)
@@ -87,7 +100,7 @@ export class ChatMemoryManager {
           createdAt: msg.created_at,
         }));
     } catch (error) {
-      console.error('Error fetching chat messages:', error);
+      console.error('[ChatMemoryManager.getRecentMessages] Exception:', error);
       return [];
     }
   }
@@ -135,7 +148,9 @@ export class ChatMemoryManager {
     _imageUrls?: string[]
   ): Promise<{ contextMessage: string; totalTokens: number }> {
     // Get recent messages (last 10 for performance - reduced from 20)
+    console.log(`[ChatMemoryManager] Loading messages for generation ${generationId}...`);
     const recentMessages = await this.getRecentMessages(generationId, 10);
+    console.log(`[ChatMemoryManager] Loaded ${recentMessages.length} messages from database`);
 
     // Build conversation history (more concise format)
     let conversationHistory = '';
@@ -156,6 +171,9 @@ export class ChatMemoryManager {
       }
       
       conversationHistory += '=== END HISTORY ===\n\n';
+      console.log(`[ChatMemoryManager] Built conversation history: ${historyTokens} tokens`);
+    } else {
+      console.log(`[ChatMemoryManager] No previous messages found for generation ${generationId}`);
     }
 
     // Build current files context

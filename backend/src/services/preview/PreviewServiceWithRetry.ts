@@ -6,6 +6,7 @@ import { ChatAgent } from '../../agents/specialized/ChatAgent';
 import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
 import { LearningIntegrationService } from '../learning/LearningIntegrationService';
 import { TypeScriptErrorParser } from '../errors/TypeScriptErrorParser';
+import { safeAgentCall } from '../../utils/agentHelpers';
 
 const PACKAGE_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 const TYPESCRIPT_ALLOWED_VERSIONS = new Set([
@@ -522,35 +523,12 @@ Return the complete fixed codebase.`;
       console.log(`   Prompt length: ${fixPrompt.length} characters`);
       console.log(`   Files to fix: ${currentFiles.length}`);
 
-      // Add timeout to prevent hanging
-      const timeoutMs = 240000; // 4 minutes
-      const responsePromise = runner.ask(fixPrompt);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('ChatAgent timeout after 2 minutes')), timeoutMs)
-      );
-
-      const response = await Promise.race([responsePromise, timeoutPromise]) as any;
-
-      console.log('→ ChatAgent response received');
-      console.log(`   Response type: ${typeof response}`);
-      console.log(`   Response keys: ${response ? Object.keys(response).join(', ') : 'null'}`);
-
-      if (!response) {
-        console.error('✗ ChatAgent returned null/undefined response');
-        return null;
-      }
-
-      if (!response.files) {
-        console.error('✗ ChatAgent response missing "files" property');
-        console.error(`   Full response: ${JSON.stringify(response, null, 2)}`);
-        return null;
-      }
-
-      if (!Array.isArray(response.files)) {
-        console.error('✗ ChatAgent response.files is not an array');
-        console.error(`   Type: ${typeof response.files}`);
-        return null;
-      }
+      // Use safe agent call with automatic retry, validation, and timeout
+      const response = await safeAgentCall(runner, fixPrompt, {
+        maxRetries: 2, // Fewer retries for deployment fixes
+        retryDelay: 2000,
+        context: 'PreviewServiceFixCode'
+      });
 
       if (response.files.length === 0) {
         console.warn('⚠ ChatAgent returned empty files array');

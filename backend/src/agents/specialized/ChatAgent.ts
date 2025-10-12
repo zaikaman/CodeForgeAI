@@ -60,7 +60,7 @@ COMMON DEPLOYMENT ERRORS AND FIXES:
 3. "Unterminated string literal":
    → Check for nested backticks in template strings
    → Use proper escaping or String.raw for XML/HTML generation
-   → Avoid: \`...\${arr.map(x => \`...\`)}\`
+   → Avoid nesting template literals inside template literals
 
 4. "module.exports in ES module":
    → Use "export default" instead of "module.exports"
@@ -77,61 +77,67 @@ COMMON DEPLOYMENT ERRORS AND FIXES:
 CRITICAL: JSON Response Format Rules
 ====================================
 
-Your ENTIRE response must be a SINGLE VALID JSON object. NO additional text before or after.
+⚠️ ABSOLUTE REQUIREMENT: Your response MUST be VALID, PARSEABLE JSON ⚠️
 
-**MANDATORY RESPONSE FORMAT:**
+**YOU MUST RESPOND WITH:**
+- A single JSON object starting with { and ending with }
+- NO text before the opening {
+- NO text after the closing }
+- NO explanations, comments, or markdown
+- NO code fences like \`\`\`json
+
+**EXACT STRUCTURE REQUIRED:**
 {
   "files": [
     {
-      "path": "string - file path",
-      "content": "string - file content"
+      "path": "relative/path/to/file.ext",
+      "content": "actual file content here"
     }
   ],
-  "summary": "string - brief description of changes"
+  "summary": "Brief description of changes"
 }
 
-**HOW TO WRITE CODE IN JSON:**
-1. ✓ **Use ACTUAL newlines (multiline strings are valid in JSON)**
-2. ✓ Write code naturally with real line breaks
-3. ✓ For quotes inside code: use escaped quotes \\" in JSON
-4. ✓ Keep file content as a single string value
+**JSON ENCODING RULES FOR FILE CONTENT:**
+1. Use \\n for line breaks (not actual newlines in JSON)
+2. Use \\" for double quotes inside strings
+3. Use \\\\ for backslashes
+4. Content MUST be a string (never null, undefined, or an object)
+5. Empty files should have "content": ""
 
-CORRECT Examples:
+**VALID EXAMPLE:**
 {
   "files": [
     {
       "path": "package.json",
-      "content": "{\\n  \\"name\\": \\"my-app\\",\\n  \\"version\\": \\"1.0.0\\"\\n}"
+      "content": "{\\n  \\"name\\": \\"app\\",\\n  \\"version\\": \\"1.0.0\\"\\n}"
     },
     {
-      "path": "src/index.ts",
-      "content": "import express from 'express';\\n\\nconst app = express();\\nconst port = 3000;\\n\\napp.listen(port);"
+      "path": "src/main.ts",
+      "content": "import express from 'express';\\n\\nconst app = express();\\nconsole.log('Server ready');"
     }
   ],
-  "summary": "Updated package.json and created index.ts"
+  "summary": "Created package.json and main.ts"
 }
 
-WRONG Examples (DO NOT DO THESE):
-❌ Content as object: "content": { "name": "my-app" }
-❌ Double-escaped: "content": "line1\\\\\\\\nline2"
-❌ Text before JSON: Here is the fix: { ... }
-❌ Text after JSON: { ... } Hope this helps!
-❌ Missing quotes: { files: [...], summary: "..." }
-❌ Undefined/null content: "content": null
+**INVALID EXAMPLES (NEVER DO THESE):**
+❌ "content": { "key": "value" } - Content must be STRING not object
+❌ Here is the fix: { "files": ... } - NO text before JSON
+❌ { "files": ... } Let me know if this helps! - NO text after JSON
+❌ \`\`\`json\\n{ "files": ... }\\n\`\`\` - NO markdown code fences
+❌ "content": null - Use "" for empty content
+❌ Missing closing brace } - Must be complete valid JSON
 
-**CRITICAL VALIDATION RULES:**
-1. Response must start with { and end with }
-2. All property names must be in double quotes
-3. All string values must be in double quotes
-4. Each file must have both "path" and "content" properties
-5. Content must be a STRING (not object, not null, not undefined)
-6. If content is empty, use empty string: "content": ""
-7. Use \\n for newlines in code strings
-8. Use \\" for quotes inside strings
-9. Arrays must use square brackets [ ]
-10. No trailing commas in objects or arrays
+**VALIDATION CHECKLIST:**
+✓ Starts with { (not with text or backticks)
+✓ Ends with } (not with text or backticks)
+✓ All keys are in "double quotes"
+✓ All string values are in "double quotes"
+✓ Each file has both "path" and "content" as strings
+✓ No trailing commas
+✓ No undefined or null values
+✓ Valid JSON that JSON.parse() can read
 
-Remember: The JSON must be PARSEABLE by JSON.parse() without errors!`;
+If your response doesn't match this EXACT format, the system will crash!`;
 
 const chatResponseSchema = z.object({
   files: z.array(z.object({

@@ -40,11 +40,22 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
       platform: options?.platform || 'webcontainer', // Default to WebContainer, but can deploy to fly.io optionally
       prompt: options?.requirements || ''
     });
+    
+    // Sanitize learned rules to remove potential template variables that could conflict with ADK
+    // Replace {variable} patterns with VARIABLE_NAME to avoid ADK template processing
+    const originalLength = learnedRules.length;
+    learnedRules = learnedRules.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, 'VARIABLE_$1');
+    
+    if (learnedRules.length !== originalLength) {
+      console.log('[CodeGeneratorAgent] Sanitized learned rules to prevent template conflicts');
+    }
+    
   } catch (error) {
     console.warn('[CodeGeneratorAgent] Failed to fetch learned rules:', error);
   }
   
   // Combine: base prompt + static rules + learned rules + checklist
+  // Note: learnedRules already sanitized above to prevent template variable conflicts
   systemPrompt = systemPrompt + 
                  '\n\n' + staticValidationRules + 
                  (learnedRules ? '\n\n' + learnedRules : '') + 

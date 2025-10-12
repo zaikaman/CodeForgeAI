@@ -36,7 +36,33 @@ export const AgentChat: React.FC<AgentChatProps> = ({
 
   // Filter out invalid messages (no content, invalid timestamp, etc)
   const validMessages = React.useMemo(() => {
+    console.log(`[AgentChat] Processing ${messages.length} messages...`);
+    
+    // Debug: Log all message structures
+    messages.forEach((msg, idx) => {
+      console.log(`[AgentChat] Message ${idx}:`, {
+        id: msg.id,
+        hasId: !!msg.id,
+        agent: msg.agent,
+        role: msg.role,
+        hasContent: !!(msg.content && msg.content.trim()),
+        contentLength: msg.content?.length || 0,
+        timestamp: msg.timestamp,
+        timestampType: typeof msg.timestamp,
+      });
+    });
+    
     const filtered = messages.filter(msg => {
+      // Check if message has ID
+      if (!msg.id) {
+        console.warn('[AgentChat] Filtering out message with no ID:', {
+          agent: msg.agent,
+          role: msg.role,
+          content: msg.content?.substring(0, 50),
+        });
+        return false;
+      }
+      
       // Must have content
       if (!msg.content || msg.content.trim() === '') {
         console.warn('[AgentChat] Filtering out message with no content:', msg.id);

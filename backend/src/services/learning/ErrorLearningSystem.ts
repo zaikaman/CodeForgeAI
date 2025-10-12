@@ -546,7 +546,7 @@ export class ErrorLearningSystem {
             'Always use process.env.PORT for port configuration',
             'Provide a fallback default port (e.g., 8080)',
             'Only create one server instance',
-            'Use PORT=0.0.0.0:${PORT} in fly.toml'
+            'Use PORT=0.0.0.0:PORT_ENV_VAR in fly.toml (replace PORT_ENV_VAR with actual port variable)'
           ],
           fixStrategies: [
             'Change port to: const port = process.env.PORT || 8080',

@@ -283,30 +283,52 @@ export const GenerateSessionPage: React.FC = () => {
         if (response.success && response.data?.messages) {
           console.log(`📦 Received ${response.data.messages.length} messages from history`);
           
+          // Debug: Log first message structure
+          if (response.data.messages.length > 0) {
+            console.log('📝 Sample message structure:', JSON.stringify(response.data.messages[0], null, 2));
+          }
+          
           // Filter out invalid messages before converting
           const validDbMessages = response.data.messages.filter(msg => {
-            const isValid = msg.content && msg.content.trim() !== '' && msg.createdAt;
+            const hasId = !!msg.id;
+            const hasContent = msg.content && msg.content.trim() !== '';
+            const hasCreatedAt = !!msg.createdAt;
+            const isValid = hasId && hasContent && hasCreatedAt;
+            
             if (!isValid) {
               console.warn('[ChatHistory] Filtering out invalid message:', {
                 id: msg.id,
-                hasContent: !!msg.content,
-                hasCreatedAt: !!msg.createdAt
+                hasId,
+                hasContent,
+                hasCreatedAt,
+                role: msg.role,
               });
             }
             return isValid;
           });
           
-          console.log(`✅ ${validDbMessages.length} valid messages after filtering`);
+          console.log(`✅ ${validDbMessages.length} valid messages after filtering (filtered ${response.data.messages.length - validDbMessages.length})`);
           
           // Convert stored messages to AgentMessage format
-          const historyMessages: AgentMessage[] = validDbMessages.map((msg) => ({
-            id: msg.id,
-            agent: msg.role === 'user' ? 'User' : 'ChatAgent',
-            role: msg.role === 'assistant' ? 'agent' : msg.role as 'user' | 'system',
-            content: msg.content,
-            timestamp: new Date(msg.createdAt),
-            imageUrls: msg.imageUrls,
-          }));
+          const historyMessages: AgentMessage[] = validDbMessages.map((msg) => {
+            const agentMessage: AgentMessage = {
+              id: msg.id || `msg_${Date.now()}_${Math.random()}`, // Fallback ID if missing
+              agent: msg.role === 'user' ? 'User' : 'ChatAgent',
+              role: msg.role === 'assistant' ? 'agent' : msg.role as 'user' | 'system',
+              content: msg.content,
+              timestamp: new Date(msg.createdAt),
+              imageUrls: msg.imageUrls,
+            };
+            
+            console.log('🔄 Converted message:', {
+              id: agentMessage.id,
+              role: agentMessage.role,
+              agent: agentMessage.agent,
+              contentLength: agentMessage.content.length,
+            });
+            
+            return agentMessage;
+          });
 
           // Add history messages to the generation
           console.log(`📥 Adding ${historyMessages.length} messages to generation...`);

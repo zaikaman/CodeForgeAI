@@ -10,6 +10,7 @@ import { RefactorGuruAgent } from '../agents/specialized/RefactorGuruAgent';
 import { SecuritySentinelAgent } from '../agents/specialized/SecuritySentinelAgent';
 import { PerformanceProfilerAgent } from '../agents/specialized/PerformanceProfilerAgent';
 import { createQualityAssuranceAgent } from '../agents/specialized/QualityAssuranceAgent';
+import { formatCodeFiles, shouldFormatFile } from '../utils/prettier-formatter';
 
 export class GenerateWorkflow {
     private readonly VALIDATION_ENABLED = true; // Enable fast validation (< 2s overhead)
@@ -449,6 +450,12 @@ Return the result as JSON with the following structure:
                 throw new Error('CodeGeneratorAgent returned no files');
             }
             
+            // Auto-fix: Normalize file content (handle double-escaped JSON, objects, etc.)
+            response.files = response.files.map((file: any) => {
+                file.content = this.normalizeFileContent(file.path, file.content);
+                return file;
+            });
+            
             // Filter out empty files and validate
             const validFiles = response.files.filter((file: any) => {
                 if (!file.path || !file.content) {
@@ -512,11 +519,47 @@ Return the result as JSON with the following structure:
             
             console.log(`✅ Successfully validated ${validFiles.length} files (filtered out ${response.files.length - validFiles.length} invalid files)`);
 
+            // Step 2.4: Validate JSON files
+            console.log('\n[JSON VALIDATION] Validating JSON files...');
+            validFiles.forEach((file: any) => {
+                if (file.path.endsWith('.json')) {
+                    try {
+                        JSON.parse(file.content);
+                        console.log(`✅ Valid JSON: ${file.path}`);
+                    } catch (error) {
+                        console.error(`❌ Invalid JSON in ${file.path}:`, error);
+                        throw new Error(`Generated file ${file.path} contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+                    }
+                }
+            });
+
+            // Step 2.5: Auto-format code files with Prettier
+            console.log('\n[PRETTIER] Formatting generated code...');
+            const filesToFormat = validFiles.filter((file: any) => shouldFormatFile(file.path));
+            const filesToSkip = validFiles.filter((file: any) => !shouldFormatFile(file.path));
+            
+            console.log(`[PRETTIER] Files to format: ${filesToFormat.length}`);
+            console.log(`[PRETTIER] Files to skip: ${filesToSkip.length}`);
+            
+            let formattedFiles = [];
+            try {
+                formattedFiles = await formatCodeFiles(filesToFormat);
+                console.log('[PRETTIER] ✅ Code formatting completed successfully');
+            } catch (error) {
+                console.error('[PRETTIER] ⚠️ Formatting failed, using original code:', error);
+                formattedFiles = filesToFormat; // Fallback to original
+            }
+            
+            // Combine formatted and skipped files
+            const finalFiles = [...formattedFiles, ...filesToSkip];
+
             return {
-                files: validFiles,  // Use filtered files, not original
+                files: finalFiles,  // Use formatted files
                 confidence: 0.8,
                 metadata: {
-                    generatedBy: 'AI Agent (gpt-5-nano)'
+                    generatedBy: 'AI Agent (gpt-5-nano)',
+                    formatted: true,
+                    formattedCount: formattedFiles.length
                 }
             };
         } catch (error) {
@@ -1042,5 +1085,75 @@ export default {
     language: \`${request.targetLanguage}\`,
     timestamp: new Date().toISOString()
 };`;
+    }
+
+    /**
+     * Normalizes file content to handle various LLM response formats
+     * - Converts objects to JSON strings
+     * - Fixes double-escaped JSON
+     * - Handles single quotes in JSON files
+     * - Unescapes HTML/XML files
+     */
+    private normalizeFileContent(filePath: string, content: any): string {
+        // Case 1: Content is an object (LLM returned JSON object instead of string)
+        if (typeof content === 'object' && content !== null) {
+            console.warn(`⚠️ File ${filePath}: content is object, converting to string`);
+            return JSON.stringify(content, null, 2);
+        }
+
+        // Case 2: Content is not a string (number, boolean, etc.)
+        if (typeof content !== 'string') {
+            console.warn(`⚠️ File ${filePath}: content is ${typeof content}, converting to string`);
+            return String(content);
+        }
+
+        // Case 3: HTML/XML files that may have escaped quotes
+        if (filePath.endsWith('.html') || filePath.endsWith('.xml') || filePath.endsWith('.svg')) {
+            // Check if content has escaped quotes that shouldn't be escaped
+            if (content.includes('\\"')) {
+                console.log(`✅ Unescaping quotes in ${filePath}`);
+                // Unescape double quotes
+                return content.replace(/\\"/g, '"');
+            }
+        }
+
+        // Case 4: JSON files with single quotes (need to convert to double quotes)
+        if (filePath.endsWith('.json')) {
+            try {
+                // Try to parse as-is first
+                JSON.parse(content);
+                // Already valid JSON
+                return content;
+            } catch (e) {
+                // Try replacing single quotes with double quotes
+                try {
+                    const fixedContent = content.replace(/'/g, '"');
+                    JSON.parse(fixedContent);
+                    console.log(`✅ Fixed JSON file ${filePath}: converted single quotes to double quotes`);
+                    return fixedContent;
+                } catch (e2) {
+                    console.warn(`⚠️ Could not auto-fix JSON file ${filePath}:`, e2);
+                    return content; // Return original if can't fix
+                }
+            }
+        }
+
+        // Case 5: Check if content looks like it's double-escaped
+        // E.g., content = '{"key": "value"}' when it should be the actual JSON structure
+        if (content.startsWith('{') && content.includes('\\"')) {
+            try {
+                // Try to parse it - if successful, it means it was a JSON string
+                const parsed = JSON.parse(content);
+                if (typeof parsed === 'object') {
+                    console.warn(`⚠️ File ${filePath}: detected double-escaped JSON, fixing...`);
+                    return JSON.stringify(parsed, null, 2);
+                }
+            } catch (e) {
+                // Not double-escaped, just has escaped quotes in the content
+            }
+        }
+
+        // Return as-is if no normalization needed
+        return content;
     }
 }
