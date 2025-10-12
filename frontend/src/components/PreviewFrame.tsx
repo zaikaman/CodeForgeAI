@@ -85,13 +85,6 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
         const existingUrl = webcontainerState.getServerUrl();
         const currentHash = webcontainerState.getCurrentFilesHash();
         
-        console.log('[PreviewFrame] Files hash comparison:', {
-          currentHash: currentHash?.substring(0, 50) + '...',
-          newHash: filesHash.substring(0, 50) + '...',
-          isSame: currentHash === filesHash,
-          filesCount: files.length
-        });
-        
         if (
           webcontainerState.isMounted() &&
           webcontainerState.isInstalled() &&
@@ -99,7 +92,7 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
           currentHash === filesHash &&
           existingUrl
         ) {
-          console.log('[PreviewFrame] Reusing existing WebContainer setup (files unchanged)');
+          // Reuse existing setup silently (files unchanged)
           setPreviewUrl(existingUrl);
           setStatus('ready');
           onReady?.();
@@ -107,8 +100,15 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
         }
 
         // Files have changed or need to initialize
-        if (webcontainerState.isMounted() && currentHash !== filesHash) {
+        if (currentHash !== filesHash) {
           console.log('[PreviewFrame] ⚡ Files changed! Updating WebContainer...');
+        }
+
+        // Files have changed or need to initialize
+        if (currentHash !== filesHash) {
+          console.log('[PreviewFrame] ⚡ Files changed! Updating WebContainer...');
+        } else {
+          console.log('[PreviewFrame] Initializing WebContainer for the first time...');
         }
 
         // Need to initialize or update
@@ -116,7 +116,6 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
         setErrorMessage('');
 
         // Mount files (will update if hash is different)
-        console.log('[PreviewFrame] Mounting/updating files...');
         await mountFiles(container, files);
 
         if (!mounted) return;

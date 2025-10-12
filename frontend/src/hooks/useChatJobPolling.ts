@@ -45,6 +45,8 @@ export const useChatJobPolling = ({
   const [jobStatus, setJobStatus] = useState<ChatJobStatus | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const attemptsRef = useRef(0);
+  const hasCompletedRef = useRef(false); // Track if onComplete has been called
+  const hasErroredRef = useRef(false); // Track if onError has been called
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -54,6 +56,7 @@ export const useChatJobPolling = ({
     setIsPolling(false);
     attemptsRef.current = 0;
     setAttempts(0);
+    // Don't reset completion flags here - they should persist for the jobId
   }, []);
 
   const pollJob = useCallback(async () => {
@@ -107,25 +110,31 @@ export const useChatJobPolling = ({
 
       // Check if job completed
       if (status === 'completed') {
-        console.log('[useChatJobPolling] Job completed successfully');
-        stopPolling();
-        
-        const result = {
-          files: chatJobData.result?.files,
-          summary: chatJobData.result?.summary || 'Request processed successfully',
-          agent: chatJobData.result?.agent || 'ChatAgent',
-          suggestions: chatJobData.result?.suggestions || [],
-        };
-        
-        onComplete?.(result);
+        if (!hasCompletedRef.current) {
+          console.log('[useChatJobPolling] Job completed successfully');
+          hasCompletedRef.current = true; // Mark as completed to prevent duplicate calls
+          stopPolling();
+          
+          const result = {
+            files: chatJobData.result?.files,
+            summary: chatJobData.result?.summary || 'Request processed successfully',
+            agent: chatJobData.result?.agent || 'ChatAgent',
+            suggestions: chatJobData.result?.suggestions || [],
+          };
+          
+          onComplete?.(result);
+        }
         return;
       }
 
       // Check if job failed
       if (status === 'error') {
-        console.error('[useChatJobPolling] Job failed:', chatJobData.error);
-        stopPolling();
-        onError?.(chatJobData.error || 'Chat job failed');
+        if (!hasErroredRef.current) {
+          console.error('[useChatJobPolling] Job failed:', chatJobData.error);
+          hasErroredRef.current = true; // Mark as errored to prevent duplicate calls
+          stopPolling();
+          onError?.(chatJobData.error || 'Chat job failed');
+        }
         return;
       }
 
@@ -158,10 +167,18 @@ export const useChatJobPolling = ({
       return;
     }
 
+    // Prevent starting a new poll if already polling the same job
+    if (isPolling && pollingRef.current) {
+      console.log(`[useChatJobPolling] Already polling job: ${jobId}`);
+      return;
+    }
+
     console.log(`[useChatJobPolling] Starting polling for job: ${jobId}`);
     setIsPolling(true);
     attemptsRef.current = 0;
     setAttempts(0);
+    hasCompletedRef.current = false; // Reset completion flag for new job
+    hasErroredRef.current = false; // Reset error flag for new job
 
     // Poll immediately
     pollJob();
@@ -173,7 +190,7 @@ export const useChatJobPolling = ({
     return () => {
       stopPolling();
     };
-  }, [jobId, enabled, pollInterval, pollJob, stopPolling]);
+  }, [jobId, enabled, pollInterval]);
 
   return {
     isPolling,

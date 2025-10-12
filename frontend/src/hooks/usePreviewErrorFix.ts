@@ -24,6 +24,7 @@ interface ErrorFixState {
   fixAttempts: number;
   lastFixTime: Date | null;
   errorCount: number;
+  lastErrorSignature: string | null; // Prevent re-fixing same errors
 }
 
 export function usePreviewErrorFix(options: UsePreviewErrorFixOptions) {
@@ -44,6 +45,7 @@ export function usePreviewErrorFix(options: UsePreviewErrorFixOptions) {
     fixAttempts: 0,
     lastFixTime: null,
     errorCount: 0,
+    lastErrorSignature: null,
   });
 
   const [pendingErrors, setPendingErrors] = useState<PreviewError[]>([]);
@@ -55,6 +57,29 @@ export function usePreviewErrorFix(options: UsePreviewErrorFixOptions) {
    */
   const handlePreviewErrors = useCallback((errors: PreviewError[]) => {
     console.log('[usePreviewErrorFix] New errors detected:', errors.length);
+    
+    // Create error signature to detect duplicate errors
+    const errorSignature = errors
+      .map(e => `${e.type}:${e.message}:${e.file}:${e.line}`)
+      .sort()
+      .join('|');
+    
+    // Check if these are the same errors we just tried to fix
+    if (state.lastErrorSignature === errorSignature) {
+      console.warn('[usePreviewErrorFix] Same errors detected after fix - stopping auto-fix to prevent loop');
+      setState(prev => ({ ...prev, errorCount: errors.length }));
+      setPendingErrors(errors);
+      return;
+    }
+    
+    // Check cooldown period (minimum 10 seconds between auto-fixes)
+    const now = Date.now();
+    if (state.lastFixTime && (now - state.lastFixTime.getTime()) < 10000) {
+      console.warn('[usePreviewErrorFix] Too soon after last fix - waiting for cooldown');
+      setState(prev => ({ ...prev, errorCount: errors.length }));
+      setPendingErrors(errors);
+      return;
+    }
     
     setState(prev => ({ ...prev, errorCount: errors.length }));
     setPendingErrors(errors);
@@ -68,15 +93,15 @@ export function usePreviewErrorFix(options: UsePreviewErrorFixOptions) {
     if (autoFix && !state.isFixing && errors.length > 0) {
       // Debounce to avoid fixing too frequently
       debounceTimerRef.current = setTimeout(() => {
-        attemptFix(errors);
+        attemptFix(errors, errorSignature);
       }, debounceMs);
     }
-  }, [autoFix, state.isFixing, debounceMs]);
+  }, [autoFix, state.isFixing, state.lastFixTime, state.lastErrorSignature, debounceMs]);
 
   /**
    * Manually trigger fix attempt
    */
-  const attemptFix = useCallback(async (errors?: PreviewError[]) => {
+  const attemptFix = useCallback(async (errors?: PreviewError[], errorSignature?: string) => {
     const errorsToFix = errors || pendingErrors;
 
     if (errorsToFix.length === 0) {
@@ -96,6 +121,7 @@ export function usePreviewErrorFix(options: UsePreviewErrorFixOptions) {
       isFixing: true,
       fixAttempts: prev.fixAttempts + 1,
       lastFixTime: new Date(),
+      lastErrorSignature: errorSignature || prev.lastErrorSignature,
     }));
 
     onFixStart?.();

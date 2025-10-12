@@ -77,7 +77,7 @@ export const TerminalPage: React.FC = () => {
     return currentGeneration?.id === id ? currentGeneration : getGenerationById(id);
   }, [id, currentGeneration, history, getGenerationById]);
 
-  // Load chat sessions - reload when ID changes or messages change
+  // Load chat sessions - reload when ID changes (NOT on every message)
   useEffect(() => {
     if (!user) return;
 
@@ -101,7 +101,7 @@ export const TerminalPage: React.FC = () => {
     };
 
     loadChatSessions();
-  }, [user, id, messages.length]); // Reload when ID or message count changes
+  }, [user, id]); // Only reload when user or session ID changes
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -122,6 +122,9 @@ export const TerminalPage: React.FC = () => {
     },
     onComplete: (result) => {
       console.log('✅ Chat job completed:', result);
+      
+      // Prevent duplicate completions
+      setIsProcessing(false);
       
       // Clear progress messages and job ID
       setCurrentJobId(null);
@@ -160,8 +163,6 @@ export const TerminalPage: React.FC = () => {
           }
         }
       }
-
-      setIsProcessing(false);
     },
     onError: (error) => {
       console.error('❌ Chat job failed:', error);
