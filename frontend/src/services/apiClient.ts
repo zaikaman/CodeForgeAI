@@ -46,10 +46,11 @@ export interface GenerateResponse {
 export interface ChatRequest {
   generationId: string
   message: string
-  currentFiles: Array<{
+  snapshotId?: string // NEW: Use snapshot ID for efficient file handling
+  currentFiles?: Array<{
     path: string
     content: string
-  }>
+  }> // OLD: Direct file content (for backward compatibility)
   language: string
   imageUrls?: string[]
   githubContext?: {
@@ -101,7 +102,12 @@ class ApiClient {
 
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 290000, // 290 seconds (almost 5 minutes) for long-running LLM operations
+      // 30 seconds - backend returns jobId immediately for long tasks
+      // For long-running operations (generate fullstack app, chat modifications):
+      //   1. Backend returns jobId instantly (within 30s)
+      //   2. Frontend polls status using jobId (no timeout limit)
+      //   3. Agent thoughts stream via WebSocket or saved to DB
+      timeout: 30000, 
       headers: {
         'Content-Type': 'application/json',
       },
@@ -320,8 +326,12 @@ class ApiClient {
   }
 
   // Generate code - starts generation and returns immediately with ID
+  // For large projects, this returns a job ID and processes in background
   async generate(request: GenerateRequest): Promise<ApiResponse<GenerateResponse>> {
-    const response = await this.client.post('/api/generate', request)
+    // Extend timeout for initial generation request (can take time to queue)
+    const response = await this.client.post('/api/generate', request, {
+      timeout: 60000 // 60 seconds for queuing large projects
+    })
     return response.data
   }
 
@@ -369,12 +379,15 @@ class ApiClient {
   }
 
   // Poll generation until complete - wrapper that handles polling automatically
+  // For long-running tasks (fullstack apps), set timeout to null for unlimited polling
+  // DEPRECATED: Use useGenerationPolling hook instead to poll directly from Supabase
+  // This avoids backend timeout limits
   async generateAndWait(
     request: GenerateRequest,
     options?: {
       onStatusChange?: (status: string) => void
       pollInterval?: number
-      timeout?: number
+      timeout?: number | null // null = no timeout (unlimited)
     }
   ): Promise<ApiResponse<GenerateResponse>> {
     // Start generation
@@ -386,7 +399,7 @@ class ApiClient {
 
     const generationId = startResponse.data.id
     const pollInterval = options?.pollInterval || 2000 // 2 seconds
-    const timeout = options?.timeout || 300000 // 5 minutes
+    const timeout = options?.timeout === null ? null : (options?.timeout || 600000) // Default 10 minutes, or unlimited if null
 
     const startTime = Date.now()
 
@@ -394,8 +407,8 @@ class ApiClient {
     return new Promise((resolve, reject) => {
       const poll = async () => {
         try {
-          // Check timeout
-          if (Date.now() - startTime > timeout) {
+          // Check timeout (only if timeout is set)
+          if (timeout !== null && Date.now() - startTime > timeout) {
             reject(new Error('Generation timeout - process took too long'))
             return
           }
@@ -578,16 +591,100 @@ class ApiClient {
   }
 
   // Chat with AI to modify generation
-  // Start a chat request (returns job ID immediately)
+  // Start a chat request (returns job ID immediately for async processing)
   async chat(request: ChatRequest): Promise<ApiResponse<ChatResponse>> {
-    const response = await this.client.post('/api/chat', request)
+    // Extend timeout for chat requests (queuing + initial processing)
+    const response = await this.client.post('/api/chat', request, {
+      timeout: 60000 // 60 seconds for queuing
+    })
     return response.data
   }
 
   // Get chat job status (for polling)
+  // DEPRECATED: Use useChatJobPolling hook instead to poll directly from Supabase
+  // This avoids backend timeout limits
   async getChatStatus(jobId: string): Promise<ApiResponse<ChatResponse>> {
     const response = await this.client.get(`/api/chat/${jobId}`)
     return response.data
+  }
+
+  // Poll chat job until complete - helper for long-running chat tasks
+  // DEPRECATED: Use useChatJobPolling hook instead to poll directly from Supabase
+  // This avoids backend timeout limits
+  async chatAndWait(
+    request: ChatRequest,
+    options?: {
+      onStatusChange?: (status: string) => void
+      onProgress?: (message: string) => void
+      pollInterval?: number
+      timeout?: number | null // null = no timeout (unlimited)
+    }
+  ): Promise<ApiResponse<ChatResponse>> {
+    // Start chat job
+    const startResponse = await this.chat(request)
+    
+    if (!startResponse.success || !startResponse.data?.jobId) {
+      throw new Error(startResponse.error || 'Failed to start chat')
+    }
+
+    const jobId = startResponse.data.jobId
+    const pollInterval = options?.pollInterval || 2000 // 2 seconds
+    const timeout = options?.timeout === null ? null : (options?.timeout || 600000) // Default 10 minutes, or unlimited if null
+
+    const startTime = Date.now()
+
+    // Poll until complete or failed
+    return new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          // Check timeout (only if timeout is set)
+          if (timeout !== null && Date.now() - startTime > timeout) {
+            reject(new Error('Chat timeout - process took too long'))
+            return
+          }
+
+          // Get current status
+          const statusResponse = await this.getChatStatus(jobId)
+
+          if (!statusResponse.success || !statusResponse.data) {
+            reject(new Error('Failed to get chat status'))
+            return
+          }
+
+          const { status, message } = statusResponse.data
+
+          // Notify status change
+          if (options?.onStatusChange && status) {
+            options.onStatusChange(status)
+          }
+
+          // Notify progress message
+          if (options?.onProgress && message) {
+            options.onProgress(message)
+          }
+
+          // Check if complete
+          if (status === 'completed') {
+            resolve(statusResponse)
+            return
+          }
+
+          // Check if failed
+          if (status === 'error') {
+            reject(new Error(statusResponse.data.error || 'Chat failed'))
+            return
+          }
+
+          // Continue polling
+          setTimeout(poll, pollInterval)
+        } catch (error: any) {
+          reject(error)
+        }
+      }
+
+      // Start polling
+      poll()
+    })
   }
 
   // Get chat history for a generation

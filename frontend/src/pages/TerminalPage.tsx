@@ -9,6 +9,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { useGenerationStore } from '../stores/generationStore';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useChatJobPolling } from '../hooks/useChatJobPolling';
 import apiClient from '../services/apiClient';
 import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
 import '../styles/theme.css';
@@ -109,36 +110,78 @@ export const TerminalPage: React.FC = () => {
     }
   }, [messages, autoScroll]);
 
-  // Poll for progress messages while job is processing
-  useEffect(() => {
-    if (!currentJobId || !isProcessing) {
+  // Use custom hook to poll chat job directly from Supabase
+  // This avoids backend timeout limits
+  useChatJobPolling({
+    jobId: currentJobId,
+    enabled: isProcessing && !!currentJobId,
+    pollInterval: 500, // Poll every 500ms for smooth progress updates
+    maxAttempts: 240, // 2 minutes max (500ms * 240 = 120s)
+    onProgressUpdate: (messages) => {
+      setProgressMessages(messages);
+    },
+    onComplete: (result) => {
+      console.log('✅ Chat job completed:', result);
+      
+      // Clear progress messages and job ID
+      setCurrentJobId(null);
       setProgressMessages([]);
-      return;
-    }
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data: jobData } = await supabase
-          .from('chat_jobs')
-          .select('progress_messages, status')
-          .eq('id', currentJobId)
-          .single();
+      // Add agent response message
+      const agentResponseMessage: AgentMessage = {
+        id: `msg_${Date.now()}_agent`,
+        agent: result.agent,
+        role: 'agent',
+        content: result.summary,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, agentResponseMessage]);
 
-        if (jobData?.progress_messages) {
-          setProgressMessages(jobData.progress_messages);
-        }
-
-        // Stop polling if job completed or errored
-        if (jobData?.status === 'completed' || jobData?.status === 'error') {
-          setCurrentJobId(null);
-        }
-      } catch (error) {
-        console.error('Failed to poll progress messages:', error);
+      // Add suggestions if any
+      if (result.suggestions && result.suggestions.length > 0) {
+        const suggestionsMessage: AgentMessage = {
+          id: `msg_${Date.now()}_suggestions`,
+          agent: 'System',
+          role: 'system',
+          content: `💡 Suggestions:\n${result.suggestions.map((s: string) => `  • ${s}`).join('\n')}`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, suggestionsMessage]);
       }
-    }, 500); // Poll every 500ms for smooth updates
 
-    return () => clearInterval(pollInterval);
-  }, [currentJobId, isProcessing]);
+      // Update files if present
+      if (result.files && id) {
+        updateGenerationFiles(id, result.files);
+        
+        if (selectedFile) {
+          const updatedFile = result.files.find((f: any) => f.path === selectedFile.path);
+          if (updatedFile) {
+            setSelectedFile(updatedFile);
+          }
+        }
+      }
+
+      setIsProcessing(false);
+    },
+    onError: (error) => {
+      console.error('❌ Chat job failed:', error);
+      
+      // Clear progress tracking on error
+      setCurrentJobId(null);
+      setProgressMessages([]);
+      
+      const errorMessage: AgentMessage = {
+        id: `msg_${Date.now()}_error`,
+        agent: 'System',
+        role: 'system',
+        content: `❌ Error: ${error || 'Failed to process your request. Please try again.'}`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      
+      setIsProcessing(false);
+    },
+  });
 
   // Handle scroll to detect if user manually scrolled
   const handleChatScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -372,121 +415,52 @@ export const TerminalPage: React.FC = () => {
         console.log('⚠️ No GitHub token found. Please add your GitHub Personal Access Token in Settings.');
       }
 
-      const chatResponse = await apiClient.chat({
+      // Prepare chat request with proper file handling
+      const files = generation?.response?.files || [];
+      const chatRequest: any = {
         generationId: sessionId,
         message: userMessage,
-        currentFiles: generation?.response?.files || [],
         language: generation?.response?.targetLanguage || 'typescript',
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         githubContext,
-      });
+      };
+
+      // Include currentFiles only if we have files (avoid sending empty array)
+      if (files.length > 0) {
+        chatRequest.currentFiles = files;
+      }
+
+      const chatResponse = await apiClient.chat(chatRequest);
 
       if (!chatResponse.success || !chatResponse.data?.jobId) {
         throw new Error(chatResponse.error || 'Chat request failed');
       }
 
       const jobId = chatResponse.data.jobId;
-      console.log(`🔄 Chat job ${jobId} started, polling...`);
+      console.log(`🔄 Chat job ${jobId} started, will be polled via useChatJobPolling hook`);
       
-      // Set current job ID to start progress polling
+      // Set current job ID to trigger the useChatJobPolling hook
+      // The hook will handle all polling, progress updates, and completion
       setCurrentJobId(jobId);
-
-      const pollInterval = 1000;
-      const maxAttempts = 120;
-      let attempts = 0;
-      let result: any = null;
-
-      while (attempts < maxAttempts) {
-        attempts++;
-        
-        const { data: chatJobData, error: dbError } = await supabase
-          .from('chat_jobs')
-          .select('*')
-          .eq('id', jobId)
-          .single();
-        
-        if (dbError || !chatJobData) {
-          console.error('Failed to fetch chat job:', dbError);
-          throw new Error('Failed to check chat status');
-        }
-
-        const status = chatJobData.status;
-        console.log(`📊 Job status: ${status} (${attempts}/${maxAttempts})`);
-
-        if (status === 'completed') {
-          result = {
-            files: chatJobData.result?.files,
-            summary: chatJobData.result?.summary || 'Request processed successfully',
-            agent: chatJobData.result?.agent || 'ChatAgent',
-            suggestions: chatJobData.result?.suggestions || [],
-          };
-          break;
-        } else if (status === 'error') {
-          throw new Error(chatJobData.error || 'Chat job failed');
-        }
-
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-      }
-
-      if (!result) {
-        throw new Error('Request timed out. Please try again.');
-      }
-
-      // Clear progress messages and job ID
-      setCurrentJobId(null);
-      setProgressMessages([]);
-
-      const agentResponseMessage: AgentMessage = {
-        id: `msg_${Date.now()}_agent`,
-        agent: result.agent,
-        role: 'agent',
-        content: result.summary,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, agentResponseMessage]);
       
-      // Don't save agent response here - backend already saved it via ChatMemoryManager
-      console.log('✅ Agent response saved by backend via ChatMemoryManager');
-
-      if (result.suggestions && result.suggestions.length > 0) {
-        const suggestionsMessage: AgentMessage = {
-          id: `msg_${Date.now()}_suggestions`,
-          agent: 'System',
-          role: 'system',
-          content: `💡 Suggestions:\n${result.suggestions.map((s: string) => `  • ${s}`).join('\n')}`,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, suggestionsMessage]);
-      }
-
-      if (result.files && sessionId) {
-        updateGenerationFiles(sessionId, result.files);
-        
-        if (selectedFile) {
-          const updatedFile = result.files.find((f: any) => f.path === selectedFile.path);
-          if (updatedFile) {
-            setSelectedFile(updatedFile);
-          }
-        }
-      }
+      // Note: All result handling (messages, files, suggestions) is now done
+      // in the useChatJobPolling hook's onComplete callback
 
     } catch (error: any) {
-      console.error('Chat error:', error);
+      console.error('Chat request error:', error);
       
-      // Clear progress tracking on error
-      setCurrentJobId(null);
-      setProgressMessages([]);
-      
+      // Only show error if it's a request error (not a polling error)
+      // Polling errors are handled by useChatJobPolling hook
       const errorMessage: AgentMessage = {
         id: `msg_${Date.now()}_error`,
         agent: 'System',
         role: 'system',
-        content: `❌ Error: ${error.message || 'Failed to process your request. Please try again.'}`,
+        content: `❌ Error: ${error.message || 'Failed to submit request. Please try again.'}`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
       setIsProcessing(false);
+    } finally {
       setUploadingImages(false);
     }
   };
@@ -695,6 +669,17 @@ export const TerminalPage: React.FC = () => {
           <button className="btn-settings" onClick={() => setShowSettings(!showSettings)}>
             <span className="icon">⚙</span>
             <span className="text">SETTINGS</span>
+          </button>
+          <button 
+            className="btn-logout" 
+            onClick={async () => {
+              await supabase.auth.signOut();
+              navigate('/');
+            }}
+            title="Logout"
+          >
+            <span className="icon">🚪</span>
+            <span className="text">LOGOUT</span>
           </button>
         </div>
       </div>

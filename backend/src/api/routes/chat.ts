@@ -26,12 +26,7 @@ const chatRequestSchema = z.object({
     username: z.string(),
     email: z.string().optional(),
   }).optional(),
-}).refine(
-  (data) => data.snapshotId || (data.currentFiles && data.currentFiles.length > 0),
-  {
-    message: 'Either snapshotId or currentFiles must be provided',
-  }
-);
+});
 
 // POST /chat - Start a chat request as background job (returns immediately)
 router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
@@ -56,8 +51,10 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     
     if (snapshotId) {
       console.log(`[POST /chat] Using snapshot: ${snapshotId} (efficient mode)`);
-    } else if (currentFiles) {
+    } else if (currentFiles && currentFiles.length > 0) {
       console.log(`[POST /chat] Using currentFiles: ${currentFiles.length} files (legacy mode)`);
+    } else {
+      console.log(`[POST /chat] No files provided, will fetch from generation if needed`);
     }
     
     if (githubContext) {
@@ -72,7 +69,7 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     // Ensure generation exists in DB before storing chat messages
     const { data: existingGeneration } = await supabase
       .from('generations')
-      .select('id, user_id')
+      .select('id, user_id, files')
       .eq('id', generationId)
       .single();
 
@@ -147,6 +144,15 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       // Continue anyway, chatQueue has its own storage
     }
 
+    // Determine which files to use
+    let filesToUse = currentFiles || [];
+    
+    // If no files provided and generation exists, use generation's files
+    if (filesToUse.length === 0 && existingGeneration?.files) {
+      console.log(`[POST /chat] Using files from generation (${existingGeneration.files.length} files)`);
+      filesToUse = existingGeneration.files;
+    }
+
     // Enqueue the chat job for background processing
     // ChatAgent will decide if code generation is needed
     await chatQueue.enqueue({
@@ -155,7 +161,7 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       userId,
       message,
       snapshotId, // NEW: Pass snapshot ID if available
-      currentFiles: currentFiles || [], // OLD: Fallback to empty array
+      currentFiles: filesToUse, // Use determined files
       language,
       imageUrls,
       githubContext,

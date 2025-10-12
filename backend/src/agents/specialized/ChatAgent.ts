@@ -322,7 +322,7 @@ export const ChatAgent = async (
     const { FILE_SYSTEM_TOOLS_DESCRIPTION, createFileSystemTools } = await import('../../utils/fileSystemTools');
     const fileSystemToolsObj = createFileSystemTools(fileSystemContext);
     
-    finalPrompt = finalPrompt.replace('{{FILE_SYSTEM_TOOLS}}', FILE_SYSTEM_TOOLS_DESCRIPTION);
+    finalPrompt = finalPrompt.replace(/\{\{FILE_SYSTEM_TOOLS\}\}/g, FILE_SYSTEM_TOOLS_DESCRIPTION);
     
     console.log('[ChatAgent] File system enabled for snapshot:', fileSystemContext.snapshotId);
     console.log('[ChatAgent] Attached', fileSystemToolsObj.tools.length, 'file system tools');
@@ -331,7 +331,8 @@ export const ChatAgent = async (
     builder = builder.withTools(...fileSystemToolsObj.tools);
   } else {
     // Remove placeholder if no file system context
-    finalPrompt = finalPrompt.replace('{{FILE_SYSTEM_TOOLS}}', '');
+    console.log('[ChatAgent] No file system context - removing FILE_SYSTEM_TOOLS placeholder');
+    finalPrompt = finalPrompt.replace(/\{\{FILE_SYSTEM_TOOLS\}\}/g, '');
   }
   
   // Add GitHub tools if context provided
@@ -339,8 +340,8 @@ export const ChatAgent = async (
     console.log('[ChatAgent] Loading GitHub tools...');
     const { GITHUB_TOOLS_DESCRIPTION, createGitHubTools } = await import('../../utils/githubTools');
     finalPrompt = finalPrompt
-      .replace('{{GITHUB_TOOLS}}', GITHUB_TOOLS_DESCRIPTION)
-      .replace('{{GITHUB_SETUP_INSTRUCTIONS}}', ''); // Remove setup instructions when tools available
+      .replace(/\{\{GITHUB_TOOLS\}\}/g, GITHUB_TOOLS_DESCRIPTION)
+      .replace(/\{\{GITHUB_SETUP_INSTRUCTIONS\}\}/g, ''); // Remove setup instructions when tools available
     
     // Create and attach GitHub tools
     const githubToolsObj = createGitHubTools(githubContext);
@@ -378,10 +379,21 @@ After setup, you can ask me to:
 
 Be friendly and helpful in explaining this setup process.`;
     
-    finalPrompt = systemPrompt
-      .replace('{{GITHUB_TOOLS}}', '')
-      .replace('{{GITHUB_SETUP_INSTRUCTIONS}}', setupInstructions);
+    console.log('[ChatAgent] Removing GitHub placeholders and adding setup instructions');
+    finalPrompt = finalPrompt
+      .replace(/\{\{GITHUB_TOOLS\}\}/g, '')
+      .replace(/\{\{GITHUB_SETUP_INSTRUCTIONS\}\}/g, setupInstructions);
   }
+  
+  // Final safety check: ensure all placeholders are removed
+  const remainingPlaceholders = finalPrompt.match(/\{\{[A-Z_]+\}\}/g);
+  if (remainingPlaceholders) {
+    console.warn('[ChatAgent] WARNING: Unreplaced placeholders found:', remainingPlaceholders);
+    // Replace any remaining placeholders with empty string
+    finalPrompt = finalPrompt.replace(/\{\{[A-Z_]+\}\}/g, '');
+  }
+  
+  console.log('[ChatAgent] Final prompt length:', finalPrompt.length, 'characters');
   
   // Set instruction AFTER tools are attached
   builder = builder.withInstruction(finalPrompt);
