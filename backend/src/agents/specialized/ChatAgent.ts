@@ -7,7 +7,56 @@ import { AgentBuilder } from '@iqai/adk';
 import { chatResponseSchema } from '../../schemas/chat-schema';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 
-const rawSystemPrompt = `You are a helpful coding assistant. Users will chat with you or ask you to make changes to their codebase.
+const rawSystemPrompt = `You are a helpful coding assistant with GitHub integration. Users will chat with you or ask you to make changes to their codebase or interact with GitHub repositories.
+
+{{GITHUB_TOOLS}}
+
+{{GITHUB_SETUP_INSTRUCTIONS}}
+
+**USING GITHUB TOOLS:**
+When user asks about GitHub operations, YOU MUST handle them DIRECTLY using tools. DO NOT route to CodeGenerator!
+
+**Repository Management (HANDLE DIRECTLY):**
+- "show/list my repos" → Call github_list_repositories
+- "show repo [name]" → Call github_get_repo_info
+- "create a repo [name]" → Call github_create_repository
+- "push code to repo" → Call github_push_files
+- "push this codebase to repo" → Call github_create_repository + github_push_files
+
+**GitHub Operations Flow:**
+1. User: "create repo and push this code"
+   → YOU: Call github_create_repository(name: "...", description: "...")
+   → YOU: Call github_push_files(files: [...currentFiles...], message: "Initial commit")
+   → Return summary: "✅ Created repo [name] and pushed [X] files"
+
+2. User: "create README via PR"
+   → YOU: Generate README content
+   → YOU: Call github_create_branch(branchName: "docs/add-readme")
+   → YOU: Call github_create_or_update_file(path: "README.md", content: "...")
+   → YOU: Call github_create_pull_request(title: "Add README", ...)
+   → Return summary: "✅ Created PR #[num] with README"
+
+**Issue operations:**
+- "list issues" → Call github_list_issues
+- "create an issue" → Call github_create_issue
+
+**File operations:**
+- "get/read file" → Call github_get_file_content
+- "search code" → Call github_search_code
+
+**Branch/Commit operations:**
+- "list commits" → Call github_list_commits
+- "create branch" → Call github_create_branch
+
+**Pull requests:**
+- "create PR" → Call github_create_pull_request
+
+🚨 CRITICAL RULES:
+1. DO NOT route GitHub operations to CodeGenerator
+2. HANDLE GitHub operations YOURSELF using tools
+3. For "create repo and push code" → Use github_create_repository + github_push_files in sequence
+4. DO NOT say "I'll route this" for GitHub tasks - just DO IT!
+5. ONLY route to CodeGenerator for NEW app generation (not for pushing existing code)
 
 **YOUR RESPONSE TYPES:**
 
@@ -90,29 +139,37 @@ CODE ANALYSIS AGENTS (use ReviewWorkflow):
   Example: "optimize performance", "find bottlenecks", "make it faster"
 
 ⚠️ CRITICAL ROUTING RULES:
-1. **ALWAYS route** for these keywords:
+
+**HANDLE DIRECTLY (DO NOT ROUTE):**
+1. **GitHub Operations** - YOU have the tools!
+   - "create repo", "push code", "create PR", "list repos" → Use github_* tools
+   - "push this codebase" → github_create_repository + github_push_files
+   - "create README PR" → github_create_branch + github_create_or_update_file + github_create_pull_request
+
+2. **Simple Code Changes:**
+   - Variable renames, string changes
+   - Minor formatting tweaks
+   - Quick one-line fixes
+   - Code refactoring (improve structure, naming, remove duplication)
+
+**ROUTE TO SPECIALISTS:**
+1. **Analysis Tasks (Route to ReviewWorkflow agents):**
    - "find bugs", "debug", "check for errors" → BugHunter
    - "security", "vulnerabilities", "secure" → SecuritySentinel
    - "optimize", "performance", "faster" → PerformanceProfiler
-   - "create [app/project]", "build", "generate" → CodeGenerator
-   - "write docs", "documentation", "README" → DocWeaver
-   - "write tests", "unit tests", "test cases" → TestCrafter
 
-2. **NEVER try to do these yourself**:
-   - Do NOT analyze code for bugs (route to BugHunter)
-   - Do NOT check security (route to SecuritySentinel)
-   - Do NOT optimize performance (route to PerformanceProfiler)
-   - Do NOT generate complete apps (route to CodeGenerator)
+2. **Generation Tasks (Route to GenerateWorkflow agents):**
+   - "create [NEW app/project]", "build [NEW app]" → CodeGenerator
+   - "write docs", "generate documentation" → DocWeaver
+   - "write tests", "unit tests" → TestCrafter
 
-3. **Handle directly (by YOU, ChatAgent)**:
-   - Simple text changes (variable names, strings, etc.)
-   - Minor formatting tweaks
-   - Quick one-line fixes that user explicitly specifies
-   - **Code refactoring**: "refactor this", "improve quality", "modernize code"
-     → Apply clean code principles, better naming, remove duplication
-     → Return modified files with improved structure
+**KEY DISTINCTION:**
+- "push THIS codebase to repo" → YOU handle (github tools)
+- "create a NEW calculator app" → Route to CodeGenerator
+- "push code to existing repo" → YOU handle (github tools)
+- "generate NEW code from scratch" → Route to CodeGenerator
 
-4. Use exact agent names (case-sensitive) from the list above
+Use exact agent names (case-sensitive) from the list above
 
 **RULES FOR CODE CHANGES:**
 - For DEPLOYMENT FIX requests: Return ALL files (modified and unmodified) to ensure a complete working codebase
@@ -237,10 +294,65 @@ if (process.env.NODE_ENV !== 'production') {
   console.log(`[ChatAgent] Prompt compressed: ${stats.originalSize} → ${stats.compressedSize} bytes (saved ${stats.savedPercent}%)`);
 }
 
-export const ChatAgent = async () => {
-  return AgentBuilder.create('ChatAgent')
+export const ChatAgent = async (githubContext?: { token: string; username: string; email?: string }) => {
+  console.log('[ChatAgent] Initializing with context:', githubContext ? `User: ${githubContext.username}` : 'No GitHub context');
+  
+  let finalPrompt = systemPrompt;
+  let builder = AgentBuilder.create('ChatAgent')
     .withModel('gpt-5-nano')
-    .withInstruction(systemPrompt)
-    .withOutputSchema(chatResponseSchema as any)
-    .build();
+    .withOutputSchema(chatResponseSchema as any);
+  
+  // Add GitHub tools if context provided
+  if (githubContext) {
+    console.log('[ChatAgent] Loading GitHub tools...');
+    const { GITHUB_TOOLS_DESCRIPTION, createGitHubTools } = await import('../../utils/githubTools');
+    finalPrompt = systemPrompt
+      .replace('{{GITHUB_TOOLS}}', GITHUB_TOOLS_DESCRIPTION)
+      .replace('{{GITHUB_SETUP_INSTRUCTIONS}}', ''); // Remove setup instructions when tools available
+    
+    // Create and attach GitHub tools
+    const githubToolsObj = createGitHubTools(githubContext);
+    
+    console.log('[ChatAgent] GitHub integration enabled for user:', githubContext.username);
+    console.log('[ChatAgent] Attached', githubToolsObj.tools.length, 'GitHub tools');
+    console.log('[ChatAgent] Tools:', githubToolsObj.tools.map(t => t.name).join(', '));
+    
+    // Attach tools BEFORE setting instruction
+    builder = builder.withTools(...githubToolsObj.tools);
+  } else {
+    console.log('[ChatAgent] No GitHub context - tools disabled');
+    // Show setup instructions when GitHub tools are NOT available
+    const setupInstructions = `
+**⚠️ GITHUB INTEGRATION NOT CONFIGURED:**
+When users ask about GitHub operations (repo info, issues, PRs, commits, etc.), inform them:
+
+"To use GitHub features, you need to configure your GitHub Personal Access Token:
+
+1. Open **Settings** (⚙️ icon in the sidebar)
+2. Go to the **GITHUB** tab (🐙 icon)
+3. Generate a token at: https://github.com/settings/tokens/new?scopes=repo,user:email
+4. Select scopes: **repo** and **user:email**
+5. Copy and paste the token (starts with 'ghp_')
+6. Click 'Save Token'
+
+After setup, you can ask me to:
+- Get repository information
+- Create/list/update issues
+- Create/merge pull requests
+- Create branches and commits
+- Search code and files
+- Trigger GitHub Actions workflows
+- And much more!"
+
+Be friendly and helpful in explaining this setup process.`;
+    
+    finalPrompt = systemPrompt
+      .replace('{{GITHUB_TOOLS}}', '')
+      .replace('{{GITHUB_SETUP_INSTRUCTIONS}}', setupInstructions);
+  }
+  
+  // Set instruction AFTER tools are attached
+  builder = builder.withInstruction(finalPrompt);
+  
+  return builder.build();
 };

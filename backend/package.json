@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:connection": "tsx test-connection.ts",
-    "lint": "eslint src --ext .ts --fix"
+    "lint": "eslint src --ext .ts --fix",
+    "github-mcp-demo": "tsx src/github-mcp-demo.ts"
   },
   "dependencies": {
     "@iqai/adk": "file:./vendor/@iqai/adk",

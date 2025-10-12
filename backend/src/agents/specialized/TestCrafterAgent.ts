@@ -1,7 +1,9 @@
 import { AgentBuilder } from '@iqai/adk';
 import { testGenerationSchema } from '../../schemas/test-schema';
+import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import type { GitHubToolsContext } from '../../utils/githubTools';
 
-const systemPrompt = `You are a Test Crafter Agent. You write comprehensive unit, integration, and end-to-end tests.
+const baseSystemPrompt = `You are a Test Crafter Agent. You write comprehensive unit, integration, and end-to-end tests.
 
 CRITICAL INSTRUCTIONS:
 1. You MUST return a structured response with an array of test files
@@ -40,12 +42,28 @@ Your response MUST include:
 
 Example output format (do not use code blocks in actual response):
 files array with objects containing path, content, and description fields
-summary string with test suite information`;
+summary string with test suite information
 
-export const TestCrafterAgent = async () => {
-  return AgentBuilder.create('TestCrafterAgent')
+{{GITHUB_TOOLS}}`;
+
+interface TestCrafterOptions {
+  githubContext?: GitHubToolsContext | null;
+}
+
+export const TestCrafterAgent = async (options?: TestCrafterOptions) => {
+  // Enhance system prompt with GitHub tools info
+  const systemPrompt = enhancePromptWithGitHub(baseSystemPrompt, options?.githubContext || null);
+  
+  let builder = AgentBuilder.create('TestCrafterAgent')
     .withModel('gpt-5-nano')
     .withInstruction(systemPrompt)
-    .withOutputSchema(testGenerationSchema)
-    .build();
+    .withOutputSchema(testGenerationSchema);
+  
+  // Add GitHub tools if context is available
+  builder = withGitHubIntegration(builder, {
+    githubContext: options?.githubContext || null,
+    agentName: 'TestCrafterAgent'
+  });
+  
+  return builder.build();
 };

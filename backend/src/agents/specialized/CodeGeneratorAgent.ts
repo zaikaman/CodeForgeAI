@@ -12,12 +12,15 @@ import { generateValidationPrompt, getAIChecklistPrompt } from '../../services/v
 import { getLearningIntegration } from '../../services/learning/LearningIntegrationService';
 import { getPromptCache } from '../../utils/PromptCache';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
+import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import type { GitHubToolsContext } from '../../utils/githubTools';
 
 interface CodeGeneratorOptions {
   language?: string;
   framework?: string;
   platform?: string;
   requirements?: string;
+  githubContext?: GitHubToolsContext | null;
 }
 
 export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
@@ -33,6 +36,9 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
     `language:${targetLanguage}`,
     () => getLanguagePrompt(targetLanguage)
   );
+  
+  // Enhance with GitHub tools description if available
+  systemPrompt = enhancePromptWithGitHub(systemPrompt, options?.githubContext || null);
   
   // Add static validation rules (cached)
   const staticValidationRules = promptCache.getOrLoad(
@@ -86,9 +92,16 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
   console.log(`  - Checklist: ✓`);
   console.log(`  - Compressed: ${stats.originalSize} → ${stats.compressedSize} bytes (saved ${stats.savedPercent}%)`);
   
-  return AgentBuilder.create('CodeGeneratorAgent')
+  let builder = AgentBuilder.create('CodeGeneratorAgent')
     .withModel('gpt-5-nano')
     .withInstruction(compressedPrompt)
-    .withOutputSchema(generationSchema)
-    .build();
+    .withOutputSchema(generationSchema);
+  
+  // Add GitHub tools if context is available
+  builder = withGitHubIntegration(builder, {
+    githubContext: options?.githubContext || null,
+    agentName: 'CodeGeneratorAgent'
+  });
+  
+  return builder.build();
 };

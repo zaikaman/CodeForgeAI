@@ -1,7 +1,9 @@
 import { AgentBuilder } from '@iqai/adk';
 import { patternMatcherTool } from '../../tools';
+import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import type { GitHubToolsContext } from '../../utils/githubTools';
 
-const systemPrompt = `You are a Refactor Guru Agent. You suggest refactorings to improve code quality, readability, and maintainability. You must use the patternMatcherTool to identify areas for improvement.
+const baseSystemPrompt = `You are a Refactor Guru Agent. You suggest refactorings to improve code quality, readability, and maintainability. You must use the patternMatcherTool to identify areas for improvement.
 
 Focus on:
 - Identifying code smells and anti-patterns
@@ -13,12 +15,28 @@ Focus on:
 - Optimizing performance through refactoring
 - Modernizing legacy code patterns
 
-Provide specific, actionable refactoring recommendations with before/after examples.`;
+Provide specific, actionable refactoring recommendations with before/after examples.
 
-export const RefactorGuruAgent = async () => {
-  return AgentBuilder.create('RefactorGuruAgent')
+{{GITHUB_TOOLS}}`;
+
+interface RefactorGuruOptions {
+  githubContext?: GitHubToolsContext | null;
+}
+
+export const RefactorGuruAgent = async (options?: RefactorGuruOptions) => {
+  // Enhance system prompt with GitHub tools info
+  const systemPrompt = enhancePromptWithGitHub(baseSystemPrompt, options?.githubContext || null);
+  
+  let builder = AgentBuilder.create('RefactorGuruAgent')
     .withModel('gpt-5-nano')
     .withInstruction(systemPrompt)
-    .withTools(patternMatcherTool)
-    .build();
+    .withTools(patternMatcherTool);
+  
+  // Add GitHub tools if context is available
+  builder = withGitHubIntegration(builder, {
+    githubContext: options?.githubContext || null,
+    agentName: 'RefactorGuruAgent'
+  });
+  
+  return builder.build();
 };

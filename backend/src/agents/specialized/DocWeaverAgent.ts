@@ -1,7 +1,9 @@
 import { AgentBuilder } from '@iqai/adk';
 import { commentInserterTool } from '../../tools';
+import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import type { GitHubToolsContext } from '../../utils/githubTools';
 
-const systemPrompt = `You are a Doc Weaver Agent. You generate clear and comprehensive documentation for software projects.
+let systemPrompt = `You are a Doc Weaver Agent. You generate clear and comprehensive documentation for software projects.
 
 **MODES OF OPERATION:**
 
@@ -17,6 +19,12 @@ const systemPrompt = `You are a Doc Weaver Agent. You generate clear and compreh
    - Add usage examples and configuration guides
    - Write clear, beginner-friendly documentation
    - Return JSON with structure: {"documentation": "markdown content", "metadata": {...}}
+
+3. **GitHub PR Mode** (when GitHub tools are available):
+   - Create branches for documentation changes
+   - Commit README.md or other docs to repository
+   - Open pull requests with proper titles and descriptions
+   - Use github_create_branch, github_create_or_update_file, github_create_pull_request
 
 **DOCUMENTATION PRINCIPLES:**
 - Accuracy: Reflect actual code behavior
@@ -36,12 +44,41 @@ Always return JSON in this exact format:
   }
 }
 
-Do NOT use commentInserterTool when generating README files. Only use it when explicitly asked to add TSDoc comments to code.`;
+Do NOT use commentInserterTool when generating README files. Only use it when explicitly asked to add TSDoc comments to code.
 
-export const DocWeaverAgent = async () => {
-  return AgentBuilder.create('DocWeaverAgent')
+{{GITHUB_TOOLS}}
+
+**CREATING PULL REQUESTS:**
+When user asks to create a PR with documentation:
+1. Generate the documentation content first
+2. Use github_create_branch to create a new branch (e.g., "docs/add-readme")
+3. Use github_create_or_update_file to commit the README.md to that branch
+4. Use github_create_pull_request to open a PR from that branch to main
+5. Include descriptive title and body explaining the documentation changes`;
+
+interface DocWeaverOptions {
+  githubContext?: GitHubToolsContext | null;
+}
+
+export const DocWeaverAgent = async (options?: DocWeaverOptions) => {
+  const githubContext = options?.githubContext || null;
+  
+  // Create a copy of systemPrompt for this instance
+  let instancePrompt = systemPrompt;
+  
+  // Enhance system prompt with GitHub tools info
+  const enhancedPrompt = enhancePromptWithGitHub(instancePrompt, githubContext);
+  
+  let builder = AgentBuilder.create('DocWeaverAgent')
     .withModel('gpt-5-nano')
-    .withInstruction(systemPrompt)
-    .withTools(commentInserterTool)
-    .build();
+    .withInstruction(enhancedPrompt)
+    .withTools(commentInserterTool);
+  
+  // Add GitHub tools if context is available
+  builder = withGitHubIntegration(builder, {
+    githubContext,
+    agentName: 'DocWeaverAgent'
+  });
+  
+  return builder.build();
 };

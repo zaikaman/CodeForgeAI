@@ -16,6 +16,11 @@ interface ChatJob {
   currentFiles: Array<{ path: string; content: string }>;
   language: string;
   imageUrls?: string[];
+  githubContext?: {
+    token: string;
+    username: string;
+    email?: string;
+  };
   status: 'pending' | 'processing' | 'completed' | 'error';
   result?: {
     files: Array<{ path: string; content: string }>;
@@ -41,6 +46,11 @@ class ChatQueueManager {
     currentFiles: Array<{ path: string; content: string }>;
     language: string;
     imageUrls?: string[];
+    githubContext?: {
+      token: string;
+      username: string;
+      email?: string;
+    };
   }): Promise<void> {
     console.log(`[ChatQueue] Creating chat job ${params.id} in database...`);
     
@@ -71,6 +81,7 @@ class ChatQueueManager {
           currentFiles: params.currentFiles,
           language: params.language,
           imageUrls: params.imageUrls,
+          githubContext: params.githubContext,
           status: 'pending',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -122,6 +133,7 @@ class ChatQueueManager {
       currentFiles: params.currentFiles,
       language: params.language,
       imageUrls: params.imageUrls,
+      githubContext: params.githubContext,
       status: 'pending',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -217,8 +229,15 @@ class ChatQueueManager {
 
       console.log(`[ChatQueue] Chat context built: ${totalTokens} estimated tokens`);
 
-      // Use ChatAgent with improved error handling
-      const { runner } = await ChatAgent();
+      // Log GitHub context status
+      if (job.githubContext) {
+        console.log(`[ChatQueue] GitHub context available for user: ${job.githubContext.username}`);
+      } else {
+        console.log(`[ChatQueue] No GitHub context provided`);
+      }
+
+      // Use ChatAgent with improved error handling and GitHub context
+      const { runner } = await ChatAgent(job.githubContext);
       
       // Build the message with images if provided
       let chatMessage: any;
@@ -309,7 +328,9 @@ class ChatQueueManager {
         } else {
           // Route to GenerateWorkflow for code generation/modification
           const { GenerateWorkflow } = await import('../workflows/GenerateWorkflow');
-          const workflow = new GenerateWorkflow();
+          const workflow = new GenerateWorkflow({
+            githubContext: job.githubContext
+          });
           
           workflowResult = await workflow.run({
             prompt: job.message,

@@ -59,6 +59,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Load generation history from Supabase after authentication
       if (session?.user) {
         console.log('[AuthProvider] User authenticated, loading history from backend...');
+        console.log('[AuthProvider] Session info:', {
+          provider: session.user.app_metadata?.provider,
+          hasProviderToken: !!session.provider_token,
+          providerTokenLength: session.provider_token?.length || 0,
+          userMetadata: session.user.user_metadata,
+        });
         loadHistoryFromBackend().catch((error) => {
           console.error('[AuthProvider] Failed to load history:', error);
         });

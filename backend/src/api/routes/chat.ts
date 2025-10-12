@@ -18,6 +18,11 @@ const chatRequestSchema = z.object({
   })),
   language: z.string().default('typescript'),
   imageUrls: z.array(z.string()).optional(),
+  githubContext: z.object({
+    token: z.string(),
+    username: z.string(),
+    email: z.string().optional(),
+  }).optional(),
 });
 
 // POST /chat - Start a chat request as background job (returns immediately)
@@ -36,11 +41,14 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
-    const { generationId, message, currentFiles, language, imageUrls } = validatedRequest;
+    const { generationId, message, currentFiles, language, imageUrls, githubContext } = validatedRequest;
 
     console.log(`[POST /chat] Processing message for generation ${generationId}`);
     console.log(`[POST /chat] Message: ${message.substring(0, 100)}...`);
     console.log(`[POST /chat] Current files: ${currentFiles.length}`);
+    if (githubContext) {
+      console.log(`[POST /chat] GitHub context provided for user: ${githubContext.username}`);
+    }
 
     // Create unique job ID
     const jobId = randomUUID();
@@ -135,6 +143,7 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       currentFiles,
       language,
       imageUrls,
+      githubContext,
     });
 
     console.log(`[POST /chat] Job ${jobId} enqueued, ChatAgent will handle routing`);

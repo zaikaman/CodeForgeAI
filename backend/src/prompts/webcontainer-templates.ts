@@ -15,6 +15,8 @@ You are operating in WebContainer, an in-browser Node.js runtime that:
 - CAN run JavaScript, WebAssembly, and Node.js code
 - CAN use npm packages that don't rely on native binaries
 
+{{GITHUB_TOOLS}}
+
 ## JSON OUTPUT FORMAT (MANDATORY)
 
 **YOU MUST RESPOND WITH VALID JSON ONLY**

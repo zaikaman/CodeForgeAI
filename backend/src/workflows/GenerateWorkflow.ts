@@ -14,23 +14,25 @@ import { formatCodeFiles, shouldFormatFile } from '../utils/prettier-formatter';
 export class GenerateWorkflow {
     private readonly VALIDATION_ENABLED = true; // Enable fast validation (< 2s overhead)
     private readonly qaAgent = createQualityAssuranceAgent();
+    private githubContext: any = null;
 
-    constructor() {
+    constructor(options?: { githubContext?: any }) {
         // Initialize with QA agent for validation
+        this.githubContext = options?.githubContext || null;
+        if (this.githubContext) {
+            console.log('[GenerateWorkflow] GitHub context available:', this.githubContext.username);
+        }
     }
 
     /**
      * Executes the generation workflow with validation and auto-fixing.
-     * 1. Interprets the spec/prompt using SpecInterpreterAgent.
-     * 2. Generates code using CodeGeneratorAgent.
+     * OPTIMIZED FLOW:
+     * 1. If code generation needed: Interprets spec using SpecInterpreterAgent, then generates code.
+     * 2. If analysis only (DocWeaver/TestCrafter/etc with existing code): Skips SpecInterpreter, uses files directly.
      * 3. Validates the generated code using CodeValidatorAgent (if enabled).
      * 4. If issues found, uses CodeFixerAgent to fix them (with retry logic).
-     * 5. Optionally generates tests using TestCrafterAgent (if agent selected).
-     * 6. Optionally refactors code using RefactorGuruAgent (if agent selected).
-     * 7. Optionally analyzes security using SecuritySentinelAgent (if agent selected).
-     * 8. Optionally optimizes performance using PerformanceProfilerAgent (if agent selected).
-     * 9. Optionally generates documentation using DocWeaverAgent (if agent selected).
-     * 10. Returns structured response with all results.
+     * 5. Executes selected specialized agents (TestCrafter, DocWeaver, RefactorGuru, SecuritySentinel, PerformanceProfiler).
+     * 6. Returns structured response with all results.
      * @param request The generation request containing the prompt, agents array, and options.
      * @returns An object containing the generated code, tests, documentation, security report, performance report, validation results, and metadata.
      */
@@ -43,32 +45,6 @@ export class GenerateWorkflow {
         let tests = '';
         
         try {
-            // Step 1: Interpret requirements (includes ConversationalAgent check)
-            console.log('\n[STEP 1] Interpreting prompt...');
-            const requirements = await this.interpretPrompt(request.prompt);
-            console.log('[STEP 1] Requirements:', JSON.stringify(requirements, null, 2).substring(0, 500));
-            
-            // If it's conversational only (greeting/casual chat), return early
-            if (requirements.conversationalOnly) {
-                console.log('[WORKFLOW] Conversational response only, no code generation needed');
-                return {
-                    files: [],
-                    summary: requirements.conversationResponse || requirements.summary,
-                    agentThoughts: [{
-                        agent: 'ConversationalAgent',
-                        thought: requirements.conversationResponse
-                    }],
-                    tests: '',
-                    conversationalOnly: true,
-                    intent: requirements.intent
-                };
-            }
-            
-            agentThoughts.push({
-                agent: 'SpecInterpreter',
-                thought: `Analyzed requirements: ${requirements.summary || 'Requirements parsed successfully'}`
-            });
-
             // Check if this is a documentation-only request with existing code
             const isDocOnlyWithExistingCode = 
                 request.agents && 
@@ -92,11 +68,46 @@ export class GenerateWorkflow {
                 request.currentFiles && 
                 request.currentFiles.length > 0;
 
+            // Check if ANY analysis-only agents (no code generation needed)
+            const analysisOnlyAgents = ['DocWeaver', 'TestCrafter', 'RefactorGuru', 'SecuritySentinel', 'PerformanceProfiler'];
+            const isAnalysisOnly = 
+                request.agents && 
+                request.agents.length > 0 &&
+                request.agents.every((agent: string) => analysisOnlyAgents.includes(agent)) &&
+                request.currentFiles && 
+                request.currentFiles.length > 0;
+
+            // Step 1: Interpret requirements ONLY if we need to generate NEW code
+            const needsSpecInterpreter = !isDocOnlyWithExistingCode && !isDocForNewProject && !isTestOnlyRequest && !isAnalysisOnly;
+            let requirements: any;
+
+            if (needsSpecInterpreter) {
+                console.log('\n[STEP 1] Interpreting prompt for code generation...');
+                requirements = await this.interpretPrompt(request.prompt);
+                console.log('[STEP 1] Requirements:', JSON.stringify(requirements, null, 2).substring(0, 500));
+                
+                agentThoughts.push({
+                    agent: 'SpecInterpreter',
+                    thought: `Analyzed requirements: ${requirements.summary || 'Requirements parsed successfully'}`
+                });
+            } else {
+                console.log('\n[STEP 1] Analysis-only request, skipping SpecInterpreter...');
+                requirements = {
+                    summary: request.prompt,
+                    requirements: [request.prompt],
+                    nonFunctionalRequirements: [],
+                    complexity: 'simple',
+                    domain: 'Analysis',
+                    technicalConstraints: []
+                };
+            }
+
             let codeResult: any;
 
-            if (isDocOnlyWithExistingCode) {
-                // Skip code generation, use existing files
-                console.log('\n[STEP 2] Documentation-only request, using existing files...');
+            // Step 2: Handle code generation or use existing files
+            if (isAnalysisOnly || isDocOnlyWithExistingCode || isTestOnlyRequest) {
+                // Use existing files for analysis tasks
+                console.log('\n[STEP 2] Analysis-only request, using existing files...');
                 codeResult = {
                     files: request.currentFiles,
                     metadata: {
@@ -106,7 +117,7 @@ export class GenerateWorkflow {
                 };
                 agentThoughts.push({
                     agent: 'System',
-                    thought: 'Using existing codebase for documentation generation'
+                    thought: 'Using existing codebase for analysis'
                 });
             } else if (isDocForNewProject) {
                 // Generate project plan/structure documentation without code
@@ -122,22 +133,8 @@ export class GenerateWorkflow {
                     agent: 'System',
                     thought: 'Generating project documentation and planning guide'
                 });
-            } else if (isTestOnlyRequest) {
-                // Skip code generation, use existing files for test generation
-                console.log('\n[STEP 2] Test-only request, using existing codebase...');
-                codeResult = {
-                    files: request.currentFiles,
-                    metadata: {
-                        generatedBy: 'existing',
-                        testsOnly: true
-                    }
-                };
-                agentThoughts.push({
-                    agent: 'System',
-                    thought: 'Using existing codebase for test generation'
-                });
             } else {
-                // Step 2: Generate code using CodeGeneratorAgent
+                // Generate NEW code using CodeGeneratorAgent
                 console.log('\n[STEP 2] Generating code...');
                 codeResult = await this.generateCode({
                     ...request,
@@ -152,8 +149,8 @@ export class GenerateWorkflow {
                 });
             }
 
-            // Step 3: Validate and fix code if validation is enabled (skip for doc-only and test-only)
-            const skipValidation = isDocOnlyWithExistingCode || isDocForNewProject || isTestOnlyRequest;
+            // Step 3: Validate and fix code if validation is enabled (skip for analysis-only requests)
+            const skipValidation = isAnalysisOnly || isDocOnlyWithExistingCode || isDocForNewProject || isTestOnlyRequest;
             if (this.VALIDATION_ENABLED && !skipValidation) {
                 const validationResult = await this.validateAndFixCode(
                     codeResult.files,
@@ -411,64 +408,8 @@ export class GenerateWorkflow {
 
     private async interpretPrompt(prompt: string): Promise<any> {
         try {
-            // STEP 0: First check with ConversationalAgent to detect intent
-            console.log('\n[STEP 0] Analyzing conversation intent...');
-            const { ConversationalAgent } = await import('../agents/specialized/ConversationalAgent');
-            const conversationAgent = await ConversationalAgent();
-            const { runner: convRunner } = conversationAgent;
-            
-            const intentResponse = await convRunner.ask(prompt);
-            console.log('Response from ConversationalAgent:', intentResponse);
-            
-            // Parse conversation response
-            let conversationResult;
-            try {
-                // Check if response is already an object
-                if (typeof intentResponse === 'object' && intentResponse !== null) {
-                    conversationResult = intentResponse;
-                } else if (typeof intentResponse === 'string') {
-                    // Try to parse as JSON string
-                    const jsonMatch = intentResponse.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        conversationResult = JSON.parse(jsonMatch[0]);
-                    } else {
-                        throw new Error('No JSON found in ConversationalAgent response');
-                    }
-                } else {
-                    throw new Error('Unexpected response type from ConversationalAgent');
-                }
-            } catch (parseError) {
-                console.error('Failed to parse ConversationalAgent response:', parseError);
-                conversationResult = {
-                    intent: 'unclear',
-                    response: 'I understand you want help, but could you provide more details?',
-                    needsSpecializedAgent: false
-                };
-            }
-            
-            console.log('[STEP 0] Intent detected:', conversationResult.intent);
-            console.log('[STEP 0] Needs specialized agent:', conversationResult.needsSpecializedAgent);
-            
-            // If it's just a greeting or casual chat, return conversational response
-            if (!conversationResult.needsSpecializedAgent) {
-                console.log('[STEP 0] No specialized agent needed. Returning conversation response.');
-                return {
-                    summary: conversationResult.response,
-                    requirements: [],
-                    nonFunctionalRequirements: [],
-                    complexity: 'simple',
-                    domain: 'Conversation',
-                    technicalConstraints: [],
-                    conversationalOnly: true,
-                    conversationResponse: conversationResult.response,
-                    intent: conversationResult.intent
-                };
-            }
-            
-            console.log('[STEP 0] Specialized agent needed:', conversationResult.suggestedAgent);
-            
             // Use SpecInterpreterAgent to analyze requirements
-            console.log('Calling SpecInterpreterAgent to analyze prompt:', prompt);
+            console.log('\n[STEP 1] Analyzing requirements with SpecInterpreterAgent...');
             
             const { SpecInterpreterAgent } = await import('../agents/specialized/SpecInterpreterAgent');
             const { runner } = await SpecInterpreterAgent();
@@ -575,10 +516,11 @@ Return the result as JSON with the following structure:
             try {
                 console.log(`\n[STEP 2] CodeGeneratorAgent - Attempt ${attempt}/${MAX_RETRIES}`);
                 
-                // Pass language and requirements to CodeGeneratorAgent for language-specific prompts
+                // Pass language, requirements, and GitHub context to CodeGeneratorAgent
                 const { runner } = await CodeGeneratorAgent({
                     language: request.targetLanguage,
-                    requirements: request.prompt
+                    requirements: request.prompt,
+                    githubContext: this.githubContext
                 });
                 
                 // Build the message with images if provided
@@ -846,7 +788,9 @@ Generate a complete, functional codebase with multiple files. Return JSON:
             // Use TestCrafterAgent to generate tests
             console.log('Calling TestCrafterAgent to generate tests for the code');
             
-            const { runner } = await TestCrafterAgent();
+            const { runner } = await TestCrafterAgent({
+                githubContext: this.githubContext
+            });
             
             // Build context from generated code or current files
             let codeContext = '';
@@ -1025,7 +969,9 @@ if __name__ == '__main__':
         try {
             console.log('Calling RefactorGuruAgent to suggest code improvements');
             
-            const { runner } = await RefactorGuruAgent();
+            const { runner } = await RefactorGuruAgent({
+                githubContext: this.githubContext
+            });
             
             // Combine all files for analysis
             const codeToAnalyze = request.files
@@ -1077,7 +1023,9 @@ Return the result as JSON with the following structure:
         try {
             console.log('Calling SecuritySentinelAgent to analyze security');
             
-            const { runner } = await SecuritySentinelAgent();
+            const { runner } = await SecuritySentinelAgent({
+                githubContext: this.githubContext
+            });
             
             // Combine all files for analysis
             const codeToAnalyze = request.files
@@ -1143,7 +1091,9 @@ Return the result as JSON with the following structure:
         try {
             console.log('Calling PerformanceProfilerAgent to analyze performance');
             
-            const { runner } = await PerformanceProfilerAgent();
+            const { runner } = await PerformanceProfilerAgent({
+                githubContext: this.githubContext
+            });
             
             // Combine all files for analysis
             const codeToAnalyze = request.files
@@ -1209,7 +1159,10 @@ Return the result as JSON with the following structure:
         try {
             console.log('Calling DocWeaverAgent to generate documentation');
             
-            const { runner } = await DocWeaverAgent();
+            // Pass GitHub context to DocWeaverAgent
+            const { runner } = await DocWeaverAgent({
+                githubContext: this.githubContext
+            });
             
             const hasCode = request.files && request.files.length > 0;
             

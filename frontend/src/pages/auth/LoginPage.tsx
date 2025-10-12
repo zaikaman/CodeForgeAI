@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { MatrixBackground } from '../../components/MatrixBackground'
 import '../../styles/theme.css'
 import './LoginPage.css'
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [bootSequence, setBootSequence] = useState(true)
-  const { signIn, signInWithGithub, user } = useAuth()
+  const { signInWithGithub, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -27,21 +25,6 @@ export const LoginPage: React.FC = () => {
     }, 2000)
     return () => clearTimeout(timer)
   }, [])
-
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    try {
-      await signIn({ email, password })
-      navigate('/terminal')
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Access denied.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleGithubLogin = async () => {
     setError('')
@@ -138,56 +121,33 @@ export const LoginPage: React.FC = () => {
                       ⚠ ERROR: {error}
                     </div>
                     <div className="text-muted mt-sm">
-                      &gt; Access denied. Please check your credentials and try again.
+                      &gt; Access denied. Please try again.
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Login Form */}
-              <form onSubmit={handleEmailLogin} className="login-form mt-lg">
-                {/* Email Input */}
-                <div className="form-group mb-md">
-                  <label className="form-label phosphor-glow">
-                    &gt; ENTER USER ID:
-                  </label>
-                  <div className="input-wrapper">
-                    <span className="input-prefix">&gt;&gt;</span>
-                    <input
-                      type="email"
-                      className="input terminal-input"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="user@codeforge.ai"
-                      required
-                      disabled={loading}
-                    />
-                  </div>
+              {/* Authentication Instructions */}
+              <div className="auth-instructions mt-lg mb-lg">
+                <div className="text-muted mb-md">
+                  &gt; AUTHENTICATION METHOD:
                 </div>
-
-                {/* Password Input */}
-                <div className="form-group mb-lg">
-                  <label className="form-label phosphor-glow">
-                    &gt; ENTER ACCESS CODE:
-                  </label>
-                  <div className="input-wrapper">
-                    <span className="input-prefix">&gt;&gt;</span>
-                    <input
-                      type="password"
-                      className="input terminal-input"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      required
-                      disabled={loading}
-                    />
-                  </div>
+                <div className="phosphor-glow mb-md">
+                  Connect your GitHub account to access CodeForge AI
                 </div>
+                <div className="text-muted text-sm">
+                  ⚡ Instant access with your GitHub credentials<br/>
+                  🔐 Secure OAuth 2.0 authentication<br/>
+                  🚀 No additional registration required
+                </div>
+              </div>
 
-                {/* Submit Button */}
+              {/* GitHub OAuth Button */}
+              <div className="login-form mt-lg">
                 <button
-                  type="submit"
-                  className="btn btn-primary full-width mb-md"
+                  type="button"
+                  onClick={handleGithubLogin}
+                  className="btn btn-primary full-width mb-md oauth-btn"
                   disabled={loading}
                 >
                   {loading ? (
@@ -195,35 +155,19 @@ export const LoginPage: React.FC = () => {
                       <span className="pixel-loader"></span> AUTHENTICATING...
                     </>
                   ) : (
-                    '► INITIATE LOGIN SEQUENCE'
+                    <>
+                      <span className="oauth-icon">⚡</span> AUTHENTICATE VIA GITHUB
+                    </>
                   )}
                 </button>
 
-                {/* Divider */}
-                <div className="divider mb-md">
-                  <span className="divider-text text-muted">OR</span>
-                </div>
-
-                {/* OAuth Buttons */}
-                <button
-                  type="button"
-                  onClick={handleGithubLogin}
-                  className="btn full-width mb-md oauth-btn"
-                  disabled={loading}
-                >
-                  <span className="oauth-icon">⚡</span> AUTHENTICATE VIA GITHUB
-                </button>
-
-                {/* Footer Links */}
+                {/* Info Text */}
                 <div className="form-footer mt-lg text-center">
-                  <div className="text-muted mb-sm">
-                    &gt; New user? <Link to="/signup" className="link-primary phosphor-glow">Register here</Link>
-                  </div>
-                  <div className="text-muted">
-                    &gt; <Link to="/forgot-password" className="link-primary phosphor-glow">Forgot access code?</Link>
+                  <div className="text-muted text-sm">
+                    &gt; By authenticating, you agree to our Terms of Service
                   </div>
                 </div>
-              </form>
+              </div>
 
               {/* System Footer */}
               <div className="system-footer mt-xl">

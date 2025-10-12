@@ -24,7 +24,7 @@ interface ChatSession {
 export const TerminalPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const { user } = useAuthContext();
+  const { user, session } = useAuthContext();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -299,12 +299,47 @@ export const TerminalPage: React.FC = () => {
       // Don't save user message here - let backend handle it via ChatMemoryManager
       console.log('✅ User message will be saved by backend via ChatMemoryManager');
 
+      // Debug session info
+      console.log('🔍 Session debug:', {
+        hasSession: !!session,
+        hasProviderToken: !!session?.provider_token,
+        hasGitHubToken: !!session?.user?.user_metadata?.github_token,
+        provider: session?.user?.app_metadata?.provider,
+        userMetadata: session?.user?.user_metadata,
+      });
+
+      // Extract GitHub context from session if available
+      let githubContext;
+      
+      // Try provider_token first (OAuth), then fallback to user_metadata token (PAT)
+      const githubToken = session?.provider_token || session?.user?.user_metadata?.github_token;
+      
+      if (githubToken) {
+        const username = session?.user?.user_metadata?.user_name || 
+                        session?.user?.user_metadata?.preferred_username ||
+                        session?.user?.user_metadata?.name ||
+                        'unknown';
+        const email = session?.user?.email;
+        
+        githubContext = {
+          token: githubToken,
+          username: username,
+          email: email,
+        };
+        
+        const tokenSource = session?.provider_token ? 'OAuth' : 'Personal Access Token';
+        console.log(`🔗 GitHub context detected (${tokenSource}):`, { username, email, hasToken: true });
+      } else {
+        console.log('⚠️ No GitHub token found. Please add your GitHub Personal Access Token in Settings.');
+      }
+
       const chatResponse = await apiClient.chat({
         generationId: sessionId,
         message: userMessage,
         currentFiles: generation?.response?.files || [],
         language: generation?.response?.targetLanguage || 'typescript',
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        githubContext,
       });
 
       if (!chatResponse.success || !chatResponse.data?.jobId) {

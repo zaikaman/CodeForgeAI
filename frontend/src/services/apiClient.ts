@@ -52,6 +52,11 @@ export interface ChatRequest {
   }>
   language: string
   imageUrls?: string[]
+  githubContext?: {
+    token: string
+    username: string
+    email?: string
+  }
 }
 
 export interface ChatResponse {

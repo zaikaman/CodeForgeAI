@@ -84,6 +84,13 @@ export async function signInWithOAuth(provider: 'github' | 'google') {
     provider,
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
+      // Request GitHub repo access scope to get provider_token
+      scopes: provider === 'github' ? 'repo user:email' : undefined,
+      // Force GitHub to show authorization screen again
+      queryParams: provider === 'github' ? {
+        prompt: 'consent',
+        access_type: 'offline',
+      } : undefined,
     },
   });
 

@@ -3,6 +3,9 @@
  * Barrel export for all services
  */
 
+// AI Service
+export * from './AIService'
+
 // Database
 export * from './LocalDatabase'
 

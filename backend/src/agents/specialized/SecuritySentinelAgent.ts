@@ -1,6 +1,8 @@
 import { AgentBuilder } from '@iqai/adk';
+import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import type { GitHubToolsContext } from '../../utils/githubTools';
 
-const systemPrompt = `You are a Security Sentinel Agent. Your purpose is to conduct security analysis and identify vulnerabilities in code, dependencies, and infrastructure.
+const baseSystemPrompt = `You are a Security Sentinel Agent. Your purpose is to conduct security analysis and identify vulnerabilities in code, dependencies, and infrastructure.
 
 Focus on:
 - OWASP Top 10 vulnerabilities
@@ -12,11 +14,27 @@ Focus on:
 - Data exposure risks
 - Access control issues
 
-Provide detailed security recommendations with severity levels.`;
+Provide detailed security recommendations with severity levels.
 
-export const SecuritySentinelAgent = async () => {
-  return AgentBuilder.create('SecuritySentinelAgent')
+{{GITHUB_TOOLS}}`;
+
+interface SecuritySentinelOptions {
+  githubContext?: GitHubToolsContext | null;
+}
+
+export const SecuritySentinelAgent = async (options?: SecuritySentinelOptions) => {
+  // Enhance system prompt with GitHub tools info
+  const systemPrompt = enhancePromptWithGitHub(baseSystemPrompt, options?.githubContext || null);
+  
+  let builder = AgentBuilder.create('SecuritySentinelAgent')
     .withModel('gpt-5-nano')
-    .withInstruction(systemPrompt)
-    .build();
+    .withInstruction(systemPrompt);
+  
+  // Add GitHub tools if context is available
+  builder = withGitHubIntegration(builder, {
+    githubContext: options?.githubContext || null,
+    agentName: 'SecuritySentinelAgent'
+  });
+  
+  return builder.build();
 };
