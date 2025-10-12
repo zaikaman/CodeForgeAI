@@ -145,6 +145,8 @@ class DependencyFixerAgent {
     'jest': '^29.7.0',
     '@types/jest': '^29.5.14',
     'ts-jest': '^29.2.5',
+    'vitest': '3.2.4',
+    '@vitest/ui': '3.2.4',
 
     // Utilities
     'axios': '^1.7.9',

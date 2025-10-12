@@ -46,7 +46,10 @@ export class PreviewErrorCapture {
     }
   }
 
-  private addError(error: PreviewError) {
+  /**
+   * Manually add an error (public API for direct error reporting)
+   */
+  addError(error: PreviewError) {
     // Add to error list
     this.errors.push(error);
 

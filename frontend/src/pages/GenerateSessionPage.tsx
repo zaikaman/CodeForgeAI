@@ -953,6 +953,23 @@ export const GenerateSessionPage: React.FC = () => {
                   generationId={id || ''}
                   language={generation.response.targetLanguage || 'typescript'}
                   onPreviewReady={() => console.log('✅ WebContainer preview ready')}
+                  autoFixErrors={true}
+                  onFilesUpdated={(updatedFiles) => {
+                    console.log('📝 Files updated by auto-fix, updating generation...');
+                    if (id) {
+                      updateGenerationFiles(id, updatedFiles);
+                      
+                      // If the currently selected file was updated, refresh it
+                      if (selectedFile) {
+                        const updatedFile = updatedFiles.find(
+                          (f: any) => f.path === selectedFile.path
+                        );
+                        if (updatedFile) {
+                          setSelectedFile(updatedFile);
+                        }
+                      }
+                    }
+                  }}
                 />
               ) : (
                 <div className="no-preview">

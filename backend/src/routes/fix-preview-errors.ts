@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { chatQueue } from '../services/ChatQueue';
+import { supabase } from '../storage/SupabaseClient';
 import { z } from 'zod';
 
 const router = Router();
@@ -51,6 +52,23 @@ router.post('/', async (req: Request, res: Response) => {
 
     console.log(`[FixPreviewErrors] Received request to fix ${errors.length} error(s) for generation ${generationId}`);
 
+    // Get userId from generation
+    const { data: generationData, error: genError } = await supabase
+      .from('generations')
+      .select('user_id')
+      .eq('id', generationId)
+      .single();
+    
+    if (genError || !generationData) {
+      console.error('[FixPreviewErrors] Failed to get generation:', genError);
+      return res.status(404).json({
+        success: false,
+        error: 'Generation not found',
+      });
+    }
+
+    const userId = generationData.user_id;
+
     // Format errors for LLM
     const errorReport = formatErrorsForLLM(errors);
 
@@ -81,7 +99,7 @@ IMPORTANT: Only return files that you modified. Do not return unchanged files.
       message,
       currentFiles,
       language,
-      userId: 'system', // System-initiated fix
+      userId, // Use actual user ID from generation
     });
 
     console.log(`[FixPreviewErrors] Job queued: ${jobId}`);

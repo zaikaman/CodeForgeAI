@@ -130,7 +130,25 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
         console.log('[PreviewFrame] npm install completed with exit code:', installResult.exitCode);
 
         if (installResult.exitCode !== 0) {
-          throw new Error(`Package installation failed: ${installResult.output}`);
+          const installError = `Package installation failed: ${installResult.output}`;
+          console.error('[PreviewFrame] npm install failed:', installError);
+          
+          // Add to error capture system for auto-fix
+          const errorCapture = getPreviewErrorCapture();
+          errorCapture.addError({
+            type: 'build',
+            message: installError,
+            timestamp: new Date(),
+          });
+          
+          // Notify parent to trigger auto-fix
+          const allErrors = errorCapture.getErrors();
+          onPreviewError?.(allErrors);
+          
+          // Set error state but don't throw - let auto-fix handle it
+          setErrorMessage(installError);
+          setStatus('error');
+          return;
         }
 
         if (!mounted) {
@@ -143,14 +161,32 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
 
         // Start dev server (will reuse if already running)
         console.log('[PreviewFrame] Starting dev server...');
-        await startDevServer(container, (_port, url) => {
-          console.log('[PreviewFrame] Server ready:', url);
-          if (mounted) {
-            setPreviewUrl(url);
-            setStatus('ready');
-            onReady?.();
+        await startDevServer(
+          container, 
+          (_port, url) => {
+            console.log('[PreviewFrame] Server ready:', url);
+            if (mounted) {
+              setPreviewUrl(url);
+              setStatus('ready');
+              onReady?.();
+            }
+          },
+          (buildError) => {
+            console.error('[PreviewFrame] Build error from dev server:', buildError);
+            if (mounted) {
+              const errorCapture = getPreviewErrorCapture();
+              errorCapture.addError({
+                type: 'build',
+                message: buildError,
+                timestamp: new Date(),
+              });
+              
+              // Notify parent
+              const allErrors = errorCapture.getErrors();
+              onPreviewError?.(allErrors);
+            }
           }
-        });
+        );
 
       } catch (error) {
         console.error('[PreviewFrame] Error:', error);

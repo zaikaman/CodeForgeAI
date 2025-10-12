@@ -71,7 +71,8 @@ export async function installPackages(container: WebContainer): Promise<ProcessR
  */
 export async function startDevServer(
   container: WebContainer,
-  onReady?: (port: number, url: string) => void
+  onReady?: (port: number, url: string) => void,
+  onError?: (error: string) => void
 ): Promise<WebContainerProcess> {
   // Check if server is already running
   const existingProcess = webcontainerState.getServerProcess();
@@ -100,6 +101,36 @@ export async function startDevServer(
 
   // Start dev server in background
   const process = await container.spawn('npm', ['run', 'dev']);
+  
+  // Capture output to detect errors
+  process.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        // Look for error patterns in the output
+        const errorPatterns = [
+          /error/i,
+          /failed to compile/i,
+          /cannot find module/i,
+          /module not found/i,
+          /syntax error/i,
+          /unexpected token/i,
+          /\.tsx?:\d+:\d+.*error/i, // TypeScript errors
+        ];
+        
+        const hasError = errorPatterns.some(pattern => pattern.test(data));
+        
+        if (hasError && onError) {
+          // Clean up ANSI codes for cleaner error messages
+          const cleanError = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+          console.error('[WebContainer] Build error detected:', cleanError);
+          onError(cleanError);
+        }
+        
+        // Log all output for debugging
+        console.log('[WebContainer Dev]', data);
+      }
+    })
+  );
   
   webcontainerState.setServerProcess(process);
 
