@@ -19,6 +19,7 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [status, setStatus] = useState<'idle' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isEnlarged, setIsEnlarged] = useState<boolean>(false);
   const isInitializingRef = useRef<boolean>(false);
 
   // Create a stable hash of files to detect changes
@@ -167,7 +168,9 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
   };
 
   return (
-    <div className="preview-frame h-full w-full flex flex-col bg-gray-900">
+    <div className={`preview-frame h-full w-full flex flex-col bg-gray-900 ${
+      isEnlarged ? 'fixed inset-0 z-50' : ''
+    }`}>
       {/* Status Bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-2">
@@ -178,6 +181,27 @@ export function PreviewFrame({ files, onError, onReady }: PreviewFrameProps) {
           }`} />
           <span className="text-sm text-gray-300">{getStatusMessage()}</span>
         </div>
+        <button
+          onClick={() => setIsEnlarged(!isEnlarged)}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+          title={isEnlarged ? "Exit enlarged view" : "Enlarge preview"}
+        >
+          {isEnlarged ? (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>Exit</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+              <span>Enlarge</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Preview Content */}
