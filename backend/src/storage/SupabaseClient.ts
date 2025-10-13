@@ -9,6 +9,12 @@ import { getConfig } from '../utils/config';
 let supabaseInstance: SupabaseClient | null = null;
 
 /**
+ * Default timeout configuration for Supabase requests
+ * Prevents long-hanging requests that block the application
+ */
+const SUPABASE_TIMEOUT_MS = 8000; // 8 seconds (less than undici's 10s default)
+
+/**
  * Initialize and return Supabase client with service role
  * Service role bypasses RLS for backend operations
  */
@@ -24,11 +30,54 @@ export function getSupabaseClient(): SupabaseClient {
           autoRefreshToken: false,
           persistSession: false,
         },
+        global: {
+          headers: {
+            'X-Client-Info': 'codeforge-backend',
+          },
+          fetch: customFetchWithTimeout,
+        },
       }
     );
   }
 
   return supabaseInstance;
+}
+
+/**
+ * Custom fetch implementation with timeout and retry logic
+ * Prevents timeout errors from blocking the application
+ */
+async function customFetchWithTimeout(
+  input: string | URL | Request,
+  init?: RequestInit
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(input, {
+      ...init,
+      signal: controller.signal,
+      // Add connection timeout hints
+      headers: {
+        ...init?.headers,
+        'Connection': 'keep-alive',
+        'Keep-Alive': 'timeout=5, max=100',
+      },
+    });
+
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    
+    // If timeout or network error, throw a more descriptive error
+    if (error.name === 'AbortError') {
+      throw new Error(`Supabase request timeout after ${SUPABASE_TIMEOUT_MS}ms`);
+    }
+    
+    throw error;
+  }
 }
 
 /**

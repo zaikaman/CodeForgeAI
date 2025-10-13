@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import { CodeModificationAgent } from '../../agents/specialized/CodeModificationAgent';
 import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
-import { LearningIntegrationService } from '../learning/LearningIntegrationService';
 import { TypeScriptErrorParser } from '../errors/TypeScriptErrorParser';
 import { safeAgentCall } from '../../utils/agentHelpers';
 
@@ -60,7 +59,6 @@ export interface IPreviewServiceWithRetry {
 
 export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   private flyApiToken: string;
-  private learningService: LearningIntegrationService;
   private readonly MAX_CONSECUTIVE_FAILURES = 10; // Prevent infinite loops (10 attempts max)
   private readonly MAX_SAME_ERROR_RETRIES = 5; // Prevent getting stuck on same error (5 times max)
 
@@ -71,7 +69,6 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
       throw new Error('FLY_API_TOKEN environment variable is not set.');
     }
     this.flyApiToken = process.env.FLY_API_TOKEN;
-    this.learningService = new LearningIntegrationService();
     
     console.log(`[PreviewServiceWithRetry] Initialized in legacy mode (files passed inline)`);
   }
@@ -106,8 +103,8 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     let sameErrorCount = 0;
     let previousErrorSignature = '';
     
-    // Detect language for learning system
-    const language = this.learningService.detectLanguage('', files.map(f => ({ path: f.path, content: f.content })));
+    // Detect language from files
+    const language = detectLanguageFromFiles(files.map(f => ({ path: f.path, content: f.content })));
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       console.log(`\n=== Deployment Attempt ${attempt} ===`);
@@ -1288,12 +1285,12 @@ primary_region = "sjc"
    * @returns errorId for tracking
    */
   private async captureDeploymentError(
-    files: Array<{ path: string; content: string }>,
-    errorMessage: string,
+    _files: Array<{ path: string; content: string }>,
+    _errorMessage: string,
     logs: string,
     attempt: number,
-    generationId: string,
-    language: string
+    _generationId: string,
+    _language: string
   ): Promise<string | undefined> {
     try {
       console.log(`📚 [Learning] Capturing deployment error from attempt ${attempt}...`);
@@ -1301,40 +1298,13 @@ primary_region = "sjc"
       // Generate error ID
       const errorId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Detect framework from files (detectFramework needs prompt, but we don't have it here)
-      // So we'll detect from file patterns
-      const framework = this.learningService.detectFramework('', files.map(f => ({ 
-        path: f.path, 
-        content: f.content 
-      })));
-
-      // Parse TypeScript errors if present
-      let typeScriptErrors;
+      // Parse TypeScript errors if present for logging
       if (TypeScriptErrorParser.hasTypeScriptErrors(logs)) {
         const parsed = TypeScriptErrorParser.parseErrors(logs);
-        typeScriptErrors = parsed.map(err => ({
-          code: err.code,
-          file: err.file,
-          line: err.line,
-          category: err.category,
-          message: err.message.split('\n')[0] // First line only for storage
-        }));
-        console.log(`   📝 Captured ${typeScriptErrors.length} TypeScript error(s) for learning`);
+        console.log(`   📝 Found ${parsed.length} TypeScript error(s)`);
       }
-
-      await this.learningService.captureDeploymentError({
-        errorMessage,
-        buildLogs: logs,
-        files: files.map(f => ({ path: f.path, content: f.content })),
-        language,
-        framework,
-        platform: 'fly.io',
-        userPrompt: `Deployment for generation ${generationId}`,
-        fixAttempts: attempt,
-        typeScriptErrors
-      });
       
-      console.log(`✓ Deployment error captured for learning (ID: ${errorId})`);
+      console.log(`✓ Deployment error captured (ID: ${errorId})`);
       return errorId;
     } catch (error) {
       console.error(`Failed to capture deployment error for learning:`, error);
@@ -1344,16 +1314,10 @@ primary_region = "sjc"
   }
 
   /**
-   * Mark an error as resolved in the learning system
+   * Mark an error as resolved (placeholder - learning system removed)
    */
   private async markErrorResolved(errorId: string, appliedFix: string): Promise<void> {
-    try {
-      console.log(`✅ [Learning] Marking error ${errorId} as resolved`);
-      await this.learningService.markErrorResolved(errorId, appliedFix);
-    } catch (error) {
-      console.error(`Failed to mark error as resolved:`, error);
-      // Don't throw - learning failure shouldn't break deployment flow
-    }
+    console.log(`✅ Error ${errorId} resolved with fix: ${appliedFix.substring(0, 100)}...`);
   }
 
   /**

@@ -336,7 +336,7 @@ class ChatQueueManager {
         needsSpecialist = response.needsSpecialist || false;
         specialistAgent = response.specialistAgent || '';
         
-        // If no specialist needed, handle as conversational response
+        // If no specialist needed, handle as conversational response or simple code generation
         if (!needsSpecialist) {
           // Check if this is a conversational response (no files) or code changes
           const isConversational = !response.files || response.files.length === 0;
@@ -418,7 +418,10 @@ class ChatQueueManager {
         const agentNameMap: Record<string, string> = {
           'DocsWeaver': 'DocWeaver',  // Fix common typo
           'DocWeaverAgent': 'DocWeaver',
-          'CodeGeneratorAgent': 'CodeGenerator',
+          'CodeGeneratorAgent': 'CodeGenerator',  // Legacy support
+          'CodeGenerator': 'CodeGenerator',  // Map to SimpleCoder/ComplexCoder in workflow
+          'SimpleCoderAgent': 'SimpleCoder',
+          'ComplexCoderAgent': 'ComplexCoder',
           'CodeModificationAgent': 'CodeModification',
           'TestCrafterAgent': 'TestCrafter',
           'SecuritySentinelAgent': 'SecuritySentinel',

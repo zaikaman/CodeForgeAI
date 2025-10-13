@@ -1,4 +1,4 @@
-# ADK-TS GPT-5-Nano Support
+# ADK-TS gpt-5-nano Support
 
 **Date Modified**: 2025-10-07  
 **Status**: ✅ Complete  

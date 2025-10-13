@@ -2,7 +2,8 @@
  * Implements the code generation workflow.
  * Uses AI agents with FAST validation (< 2s overhead) and smart auto-fixing.
  */
-import { CodeGeneratorAgent } from '../agents/specialized/CodeGeneratorAgent'
+import { SimpleCoderAgent } from '../agents/specialized/SimpleCoderAgent'
+import { ComplexCoderAgent } from '../agents/specialized/ComplexCoderAgent'
 import { CodeModificationAgent } from '../agents/specialized/CodeModificationAgent'
 import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent'
 import { DocWeaverAgent } from '../agents/specialized/DocWeaverAgent'
@@ -15,11 +16,15 @@ import { formatCodeFiles, shouldFormatFile } from '../utils/prettier-formatter'
 import { supabase } from '../storage/SupabaseClient'
 import { escapeAdkTemplateVariables } from '../utils/adkEscaping'
 
+// Simple languages that use SimpleCoderAgent
+const SIMPLE_LANGUAGES = ['html', 'vanilla', 'css'];
+
 export class GenerateWorkflow {
   private readonly VALIDATION_ENABLED = true // Enable fast validation (< 2s overhead)
   private readonly qaAgent = createQualityAssuranceAgent()
   private githubContext: any = null
   private jobId: string | null = null // Track current job ID for progress updates
+  private usedSimpleCoder: boolean = false // Track if SimpleCoder was used (skip validation)
 
   constructor(options?: { githubContext?: any; jobId?: string }) {
     // Initialize with QA agent for validation
@@ -241,7 +246,7 @@ export class GenerateWorkflow {
           thought: 'Generating project documentation and planning guide',
         })
       } else {
-        // Generate NEW code using CodeGeneratorAgent
+        // Generate NEW code using SimpleCoder or ComplexCoder Agent
         console.log('\n[STEP 2] Generating code...')
         
         // Detect or use provided language for progress message
@@ -277,7 +282,16 @@ export class GenerateWorkflow {
 
       // Step 3: Validate and fix code if validation is enabled (skip for analysis-only requests)
       const skipValidation =
-        isAnalysisOnly || isDocOnlyWithExistingCode || isDocForNewProject || isTestOnlyRequest
+        isAnalysisOnly || 
+        isDocOnlyWithExistingCode || 
+        isDocForNewProject || 
+        isTestOnlyRequest ||
+        this.usedSimpleCoder // ⚡ Skip validation for SimpleCoder (speed optimization)
+      
+      if (skipValidation && this.usedSimpleCoder) {
+        console.log('⚡ SimpleCoder: Skipping validation for maximum speed (HTML/CSS/JS)')
+      }
+      
       if (this.VALIDATION_ENABLED && !skipValidation) {
         await this.emitProgress(
           'QualityAssurance',
@@ -1138,14 +1152,36 @@ Return the result as JSON with the following structure:
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        console.log(`\n[STEP 2] CodeGeneratorAgent - Attempt ${attempt}/${MAX_RETRIES}`)
+        // Detect language to determine which agent to use
+        const { detectLanguage } = await import('../prompts/webcontainer-templates')
+        const detectedLanguage = request.prompt ? detectLanguage(request.prompt) : null
+        const targetLanguage = detectedLanguage || request.targetLanguage || 'typescript'
+        
+        // Route to appropriate agent
+        const isSimple = SIMPLE_LANGUAGES.includes(targetLanguage.toLowerCase())
+        const agentName = isSimple ? 'SimpleCoderAgent' : 'ComplexCoderAgent'
+        
+        // Set flag to skip validation for SimpleCoder
+        if (isSimple) {
+          this.usedSimpleCoder = true
+          console.log('⚡ SimpleCoder mode: Skipping validation for maximum speed')
+        }
+        
+        console.log(`\n[STEP 2] ${agentName} - Attempt ${attempt}/${MAX_RETRIES}`)
+        console.log(`  Language: ${targetLanguage} (${isSimple ? 'simple' : 'complex'})`)
 
-        // Pass language, requirements, and GitHub context to CodeGeneratorAgent
-        const { runner } = await CodeGeneratorAgent({
-          language: request.targetLanguage,
-          requirements: request.prompt,
-          githubContext: this.githubContext,
-        })
+        // Use the appropriate agent
+        const { runner } = isSimple
+          ? await SimpleCoderAgent({
+              language: targetLanguage,
+              requirements: request.prompt,
+              githubContext: this.githubContext,
+            })
+          : await ComplexCoderAgent({
+              language: targetLanguage,
+              requirements: request.prompt,
+              githubContext: this.githubContext,
+            })
 
         // Build the message with images if provided
         let message: any
@@ -1190,8 +1226,8 @@ Return the result as JSON with the following structure:
           message = this.buildCodeGenerationPrompt(request, lastError, attempt)
         }
 
-        console.log('Calling CodeGeneratorAgent with message')
-        console.log('Target language:', request.targetLanguage)
+        console.log(`Calling ${agentName} with message`)
+        console.log('Target language:', targetLanguage)
         console.log(
           'Message preview:',
           typeof message === 'string' ? message.substring(0, 200) : 'multipart message'
@@ -1199,22 +1235,22 @@ Return the result as JSON with the following structure:
 
         const response = (await runner.ask(message)) as any
 
-        console.log('Raw response from CodeGeneratorAgent:', JSON.stringify(response, null, 2))
+        console.log(`Raw response from ${agentName}:`, JSON.stringify(response, null, 2))
         console.log('Response type:', typeof response)
         console.log('Response has files:', response?.files ? 'yes' : 'no')
 
         // Validate response structure
         if (!response || !response.files || !Array.isArray(response.files)) {
-          console.error('Invalid response structure from CodeGeneratorAgent:', response)
+          console.error(`Invalid response structure from ${agentName}:`, response)
           throw new Error(
-            'CodeGeneratorAgent returned invalid response structure. Expected: { files: [...] }'
+            `${agentName} returned invalid response structure. Expected: { files: [...] }`
           )
         }
 
         // Validate that files array is not empty
         if (response.files.length === 0) {
-          console.error('CodeGeneratorAgent returned empty files array')
-          throw new Error('CodeGeneratorAgent returned no files')
+          console.error(`${agentName} returned empty files array`)
+          throw new Error(`${agentName} returned no files`)
         }
 
         // Auto-fix: Normalize file content (handle double-escaped JSON, objects, etc.)
@@ -1279,53 +1315,63 @@ Return the result as JSON with the following structure:
           `✅ Successfully validated ${validFiles.length} files (filtered out ${response.files.length - validFiles.length} invalid files)`
         )
 
-        // Step 2.4: Validate JSON files
-        console.log('\n[JSON VALIDATION] Validating JSON files...')
-        validFiles.forEach((file: any) => {
-          if (file.path.endsWith('.json')) {
-            try {
-              JSON.parse(file.content)
-              console.log(`✅ Valid JSON: ${file.path}`)
-            } catch (error) {
-              console.error(`❌ Invalid JSON in ${file.path}:`, error)
-              throw new Error(
-                `Generated file ${file.path} contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`
-              )
+        // Step 2.4: Validate JSON files (skip for SimpleCoder)
+        if (!this.usedSimpleCoder) {
+          console.log('\n[JSON VALIDATION] Validating JSON files...')
+          validFiles.forEach((file: any) => {
+            if (file.path.endsWith('.json')) {
+              try {
+                JSON.parse(file.content)
+                console.log(`✅ Valid JSON: ${file.path}`)
+              } catch (error) {
+                console.error(`❌ Invalid JSON in ${file.path}:`, error)
+                throw new Error(
+                  `Generated file ${file.path} contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`
+                )
+              }
             }
-          }
-        })
-
-        // Step 2.5: Auto-format code files with Prettier
-        console.log('\n[PRETTIER] Formatting generated code...')
-        const filesToFormat = validFiles.filter((file: any) => shouldFormatFile(file.path))
-        const filesToSkip = validFiles.filter((file: any) => !shouldFormatFile(file.path))
-
-        console.log(`[PRETTIER] Files to format: ${filesToFormat.length}`)
-        console.log(`[PRETTIER] Files to skip: ${filesToSkip.length}`)
-
-        let formattedFiles = []
-        try {
-          formattedFiles = await formatCodeFiles(filesToFormat)
-          console.log('[PRETTIER] ✅ Code formatting completed successfully')
-        } catch (error) {
-          console.error('[PRETTIER] ⚠️ Formatting failed, using original code:', error)
-          formattedFiles = filesToFormat // Fallback to original
+          })
+        } else {
+          console.log('⚡ SimpleCoder: Skipping JSON validation')
         }
 
-        // Combine formatted and skipped files
-        const finalFiles = [...formattedFiles, ...filesToSkip]
+        // Step 2.5: Auto-format code files with Prettier (skip for SimpleCoder)
+        let finalFiles = validFiles
+        
+        if (!this.usedSimpleCoder) {
+          console.log('\n[PRETTIER] Formatting generated code...')
+          const filesToFormat = validFiles.filter((file: any) => shouldFormatFile(file.path))
+          const filesToSkip = validFiles.filter((file: any) => !shouldFormatFile(file.path))
+
+          console.log(`[PRETTIER] Files to format: ${filesToFormat.length}`)
+          console.log(`[PRETTIER] Files to skip: ${filesToSkip.length}`)
+
+          let formattedFiles = []
+          try {
+            formattedFiles = await formatCodeFiles(filesToFormat)
+            console.log('[PRETTIER] ✅ Code formatting completed successfully')
+          } catch (error) {
+            console.error('[PRETTIER] ⚠️ Formatting failed, using original code:', error)
+            formattedFiles = filesToFormat // Fallback to original
+          }
+
+          // Combine formatted and skipped files
+          finalFiles = [...formattedFiles, ...filesToSkip]
+        } else {
+          console.log('⚡ SimpleCoder: Skipping Prettier formatting (keeping raw output)')
+        }
 
         console.log(
           `✅ [Attempt ${attempt}/${MAX_RETRIES}] Successfully generated ${finalFiles.length} files`
         )
 
         return {
-          files: finalFiles, // Use formatted files
+          files: finalFiles,
           confidence: 0.8,
           metadata: {
             generatedBy: 'AI Agent (gpt-5-nano)',
-            formatted: true,
-            formattedCount: formattedFiles.length,
+            formatted: !this.usedSimpleCoder,
+            formattedCount: this.usedSimpleCoder ? 0 : finalFiles.length,
             attempt: attempt,
           },
         }

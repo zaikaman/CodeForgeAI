@@ -3,7 +3,8 @@
  * Centralized export for all specialized agents
  */
 
-export { CodeGeneratorAgent } from './CodeGeneratorAgent';
+export { SimpleCoderAgent } from './SimpleCoderAgent';
+export { ComplexCoderAgent } from './ComplexCoderAgent';
 export { CodeModificationAgent } from './CodeModificationAgent';
 export { ChatAgent } from './ChatAgent';
 export { BugHunterAgent } from './BugHunterAgent';

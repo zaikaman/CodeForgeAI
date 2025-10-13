@@ -4,19 +4,17 @@
  * 
  * This agent is BETTER than ChatAgent for code changes because:
  * 1. Has language-specific prompts and validation rules
- * 2. Integrates with ErrorLearningSystem to learn from past mistakes
- * 3. Uses specialized output schema for code generation
- * 4. Has pre-validation rules to prevent common errors
- * 5. Supports GitHub integration for repository operations
+ * 2. Uses specialized output schema for code generation
+ * 3. Has pre-validation rules to prevent common errors
+ * 4. Supports GitHub integration for repository operations
  * 
- * OPTIMIZED with prompt caching and lazy loading
+ * OPTIMIZED with prompt caching and parallel loading
  */
 
 import { AgentBuilder } from '@iqai/adk';
 import { generationSchema } from '../../schemas/generation-schema';
 import { getLanguagePrompt } from '../../prompts/webcontainer-templates';
 import { generateValidationPrompt, getAIChecklistPrompt } from '../../services/validation/PreValidationRules';
-import { getLearningIntegration } from '../../services/learning/LearningIntegrationService';
 import { getPromptCache } from '../../utils/PromptCache';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
@@ -218,38 +216,14 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
   // CRITICAL: Escape curly braces in checklist
   checklist = checklist.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
   
-  // Get DYNAMIC learned rules from ErrorLearningSystem
-  let learnedRules = '';
-  try {
-    const learningService = getLearningIntegration();
-    const rawLearnedRules = await learningService.getSmartPromptAddition({
-      language: targetLanguage,
-      framework: options?.framework,
-      platform: options?.platform || 'webcontainer',
-      prompt: options?.errorContext || ''
-    });
-    
-    // CRITICAL: Sanitize learned rules IMMEDIATELY to prevent ADK template variable conflicts
-    // ADK treats {variable} as context variables, so we must escape them
-    learnedRules = rawLearnedRules.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
-    
-    if (rawLearnedRules !== learnedRules) {
-      console.log('[CodeModificationAgent] Escaped curly braces in learned rules to prevent ADK template conflicts');
-    }
-    
-  } catch (error) {
-    console.warn('[CodeModificationAgent] Failed to fetch learned rules:', error);
-  }
-  
   // CRITICAL: Escape base prompt as well
   const escapedBasePrompt = CODE_MODIFICATION_BASE_PROMPT.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
   
   // Combine all prompts:
-  // Base modification prompt + Language prompt + Static rules + Learned rules + Checklist
+  // Base modification prompt + Language prompt + Static rules + Checklist
   let combinedPrompt = escapedBasePrompt +
                        '\n\n' + languagePrompt +
                        '\n\n' + staticValidationRules + 
-                       (learnedRules ? '\n\n## LEARNED RULES FROM PAST ERRORS:\n' + learnedRules : '') + 
                        '\n\n' + checklist;
   
   // Add error context if provided
@@ -268,7 +242,6 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
   console.log(`  - Language: ${targetLanguage}`);
   console.log(`  - Framework: ${options?.framework || 'default'}`);
   console.log(`  - Static rules: ✓`);
-  console.log(`  - Learned rules: ${learnedRules ? '✓' : '✗'}`);
   console.log(`  - Error context: ${options?.errorContext ? '✓' : '✗'}`);
   console.log(`  - Checklist: ✓`);
   console.log(`  - Compressed: ${stats.originalSize} → ${stats.compressedSize} bytes (saved ${stats.savedPercent}%)`);

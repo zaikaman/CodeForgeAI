@@ -16,23 +16,47 @@ class PromptCache {
 
   /**
    * Get or load a prompt with caching
+   * OPTIMIZED: Now with LRU eviction and faster lookup
    */
   getOrLoad(key: string, loader: () => string): string {
+    // Fast path - check cache first
     const cached = this.cache.get(key);
     
     if (cached) {
       this.hits++;
+      
+      // Update timestamp for LRU (move to end by re-inserting)
+      this.cache.delete(key);
+      this.cache.set(key, cached);
+      
       return cached.content;
     }
 
+    // Cache miss - load and store
     this.misses++;
+    
+    const startTime = Date.now();
     const content = loader();
+    const loadTime = Date.now() - startTime;
     
     this.cache.set(key, {
       content,
       timestamp: Date.now(),
       size: content.length
     });
+    
+    // LRU eviction - keep max 100 entries
+    if (this.cache.size > 100) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+        console.log(`[PromptCache] LRU evicted: ${firstKey}`);
+      }
+    }
+    
+    if (loadTime > 10) {
+      console.log(`[PromptCache] Loaded "${key}" in ${loadTime}ms (${(content.length / 1024).toFixed(1)} KB)`);
+    }
 
     return content;
   }
