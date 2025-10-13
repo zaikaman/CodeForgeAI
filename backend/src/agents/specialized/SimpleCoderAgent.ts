@@ -1,13 +1,12 @@
 /**
  * SimpleCoderAgent - Fast code generation for HTML/Vanilla JS
- * Optimized for speed - no compression, minimal validation
+ * Optimized for speed - lightweight prompt, minimal overhead
  * ULTRA-FAST: Designed for simple web apps and HTML projects
  */
 
 import { AgentBuilder } from '@iqai/adk';
 import { generationSchema } from '../../schemas/generation-schema';
-import { getLanguagePrompt } from '../../prompts/webcontainer-templates';
-import { getPromptCache } from '../../utils/PromptCache';
+import { SIMPLE_CODER_PROMPT } from '../../prompts/simple-coder-prompt';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
 import type { GitHubToolsContext } from '../../utils/githubTools';
 
@@ -20,18 +19,10 @@ interface SimpleCoderOptions {
 export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
   const startTime = Date.now();
   
-  // Simple languages only: html, vanilla, css
-  const targetLanguage = options?.language || 'html';
+  console.log('[SimpleCoderAgent] Fast mode - using lightweight prompt');
   
-  console.log('[SimpleCoderAgent] Fast mode for:', targetLanguage);
-  
-  const promptCache = getPromptCache();
-  
-  // Load only the base language prompt (no validation, no checklist)
-  const systemPrompt = await promptCache.getOrLoad(
-    `simple:${targetLanguage}`,
-    () => getLanguagePrompt(targetLanguage)
-  );
+  // Use the ultra-lightweight prompt (no cache needed - it's already minimal)
+  const systemPrompt = SIMPLE_CODER_PROMPT;
   
   // Escape curly braces
   const escapedPrompt = systemPrompt.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
@@ -40,7 +31,7 @@ export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
   const finalPrompt = enhancePromptWithGitHub(escapedPrompt, options?.githubContext || null);
   
   const promptTime = Date.now() - startTime;
-  console.log(`[SimpleCoderAgent] Ultra-fast init: ${promptTime}ms (no compression)`);
+  console.log(`[SimpleCoderAgent] Prompt loaded: ${promptTime}ms (${finalPrompt.length} chars)`);
   
   let builder = AgentBuilder.create('SimpleCoderAgent')
     .withModel('gpt-5-nano')
@@ -54,7 +45,7 @@ export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
   });
   
   const totalTime = Date.now() - startTime;
-  console.log(`[SimpleCoderAgent] Total: ${totalTime}ms`);
+  console.log(`[SimpleCoderAgent] Total init: ${totalTime}ms`);
   
   return builder.build();
 };

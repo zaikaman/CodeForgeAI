@@ -145,23 +145,19 @@ export class GenerateWorkflow {
         request.currentFiles.length > 0
 
       // Step 1: Interpret requirements ONLY if we need to generate NEW code (not for modification or analysis)
-      const needsSpecInterpreter =
-        !isDocOnlyWithExistingCode &&
-        !isDocForNewProject &&
-        !isTestOnlyRequest &&
-        !isAnalysisOnly &&
-        !isCodeModification
+      // ⚡ OPTIMIZATION: SpecInterpreter DISABLED for maximum speed (adds ~23s overhead)
+      
       let requirements: any
 
-      if (needsSpecInterpreter) {
-        console.log('\n[STEP 1] Interpreting prompt for code generation...')
+      // Only use SpecInterpreter if images are provided (for UI/UX analysis)
+      if (request.imageUrls && request.imageUrls.length > 0) {
+        console.log('\n[STEP 1] Images detected - using SpecInterpreter for UI/UX analysis...')
         await this.emitProgress(
           'SpecInterpreter',
           'started',
-          'Analyzing your requirements and understanding the project scope...'
+          'Analyzing UI/UX from screenshots...'
         )
 
-        // Pass images to SpecInterpreter so it can analyze UI/UX from screenshots
         requirements = await this.interpretPrompt(request.prompt, request.imageUrls)
         console.log(
           '[STEP 1] Requirements:',
@@ -179,13 +175,14 @@ export class GenerateWorkflow {
           thought: `Analyzed requirements: ${requirements.summary || 'Requirements parsed successfully'}`,
         })
       } else {
-        console.log('\n[STEP 1] Analysis-only request, skipping SpecInterpreter...')
+        // ⚡ Fast mode: Skip SpecInterpreter, use minimal requirements
+        console.log('\n[STEP 1] ⚡ Fast mode: Skipping SpecInterpreter for maximum speed')
         requirements = {
           summary: request.prompt,
-          requirements: [request.prompt],
+          requirements: [],
           nonFunctionalRequirements: [],
           complexity: 'simple',
-          domain: 'Analysis',
+          domain: 'Web Application',
           technicalConstraints: [],
         }
       }
@@ -1660,7 +1657,30 @@ Please fix this error and generate valid output. Ensure your JSON is properly fo
 `
         : ''
 
-    // Build a concise prompt - language-specific details are in the system prompt
+    // For SIMPLE projects (HTML/CSS/JS), use ultra-minimal prompt for speed
+    const isSimple = SIMPLE_LANGUAGES.includes(language.toLowerCase())
+    
+    if (isSimple) {
+      // ULTRA-MINIMAL prompt for simple apps - just the user request
+      return `Generate a complete, production-ready HTML application.
+
+User Request: ${request.prompt}
+
+${request.requirements?.domain ? `Domain: ${request.requirements.domain}` : ''}
+${request.requirements?.complexity ? `Complexity: ${request.requirements.complexity}` : ''}
+${errorFeedback}
+Generate a complete, functional codebase. Return JSON:
+{
+  "files": [
+    {
+      "path": "path/to/file",
+      "content": "... code here ..."
+    }
+  ]
+}`
+    }
+
+    // For COMPLEX projects, include detailed requirements
     return `Generate a complete, production-ready ${language.toUpperCase()} application.
 
 User Request: ${request.prompt}
