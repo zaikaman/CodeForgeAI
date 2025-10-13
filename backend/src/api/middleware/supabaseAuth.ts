@@ -8,73 +8,6 @@ import type { User } from '@supabase/supabase-js'
  */
 
 /**
- * Circuit breaker for Supabase connection
- * Prevents repeated attempts when Supabase is experiencing issues
- */
-interface CircuitBreaker {
-  failures: number
-  lastFailureTime: number
-  isOpen: boolean
-}
-
-const circuitBreaker: CircuitBreaker = {
-  failures: 0,
-  lastFailureTime: 0,
-  isOpen: false,
-}
-
-const CIRCUIT_BREAKER_THRESHOLD = 5 // Open circuit after 5 failures
-const CIRCUIT_BREAKER_TIMEOUT = 30000 // Try again after 30 seconds
-const CIRCUIT_BREAKER_RESET_TIME = 60000 // Reset failure count after 60 seconds of success
-
-/**
- * Check if circuit breaker allows request
- */
-function canMakeRequest(): boolean {
-  const now = Date.now()
-  
-  // If circuit is open and timeout hasn't passed, don't allow request
-  if (circuitBreaker.isOpen && now - circuitBreaker.lastFailureTime < CIRCUIT_BREAKER_TIMEOUT) {
-    return false
-  }
-  
-  // If circuit is open but timeout passed, close it and allow request (half-open state)
-  if (circuitBreaker.isOpen && now - circuitBreaker.lastFailureTime >= CIRCUIT_BREAKER_TIMEOUT) {
-    circuitBreaker.isOpen = false
-    circuitBreaker.failures = 0
-  }
-  
-  return true
-}
-
-/**
- * Record successful request
- */
-function recordSuccess(): void {
-  const now = Date.now()
-  
-  // If we've been successful for a while, reset failure count
-  if (now - circuitBreaker.lastFailureTime > CIRCUIT_BREAKER_RESET_TIME) {
-    circuitBreaker.failures = 0
-  }
-  
-  circuitBreaker.isOpen = false
-}
-
-/**
- * Record failed request
- */
-function recordFailure(): void {
-  circuitBreaker.failures++
-  circuitBreaker.lastFailureTime = Date.now()
-  
-  if (circuitBreaker.failures >= CIRCUIT_BREAKER_THRESHOLD) {
-    circuitBreaker.isOpen = true
-    console.warn(`[CircuitBreaker] 🔴 Circuit opened - Supabase appears to be down. Will retry in ${CIRCUIT_BREAKER_TIMEOUT/1000}s`)
-  }
-}
-
-/**
  * Extended Express Request with user information
  */
 export interface AuthenticatedRequest extends Request {
@@ -173,31 +106,22 @@ export async function optionalAuth(
       return
     }
 
-    // Check circuit breaker - if it's open, skip auth check
-    if (!canMakeRequest()) {
-      console.warn(`[optionalAuth] 🔴 Circuit breaker is open for ${req.method} ${req.path} - skipping auth`)
-      next()
-      return
-    }
-
     // Try to verify token with timeout, but don't fail if network issues
     try {
       const supabase = getSupabaseClient()
       
-      // Create a shorter timeout for optional auth (3 seconds)
+      // Create a timeout promise (5 seconds)
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Supabase auth timeout')), 3000)
+        setTimeout(() => reject(new Error('Supabase auth timeout')), 5000)
       })
       
       // Race between auth check and timeout
-      const result = await Promise.race([
+      const { data, error } = await Promise.race([
         supabase.auth.getUser(token),
         timeoutPromise
       ])
 
-      const { data, error } = result as any
-
-      if (!error && data?.user) {
+      if (!error && data.user) {
         req.supabaseUser = data.user
         req.user = {
           id: data.user.id,
@@ -207,29 +131,19 @@ export async function optionalAuth(
         req.userId = data.user.id
         req.accessToken = token
         console.log(`[optionalAuth] ✓ User authenticated: ${data.user.id} (${data.user.email}) for ${req.method} ${req.path}`)
-        recordSuccess()
       } else {
         console.warn(`[optionalAuth] ✗ Token validation failed for ${req.method} ${req.path}:`, error?.message)
-        recordFailure()
       }
     } catch (authError: any) {
       // Handle network/timeout errors gracefully
-      const errorMessage = authError?.message || ''
-      const errorCode = authError?.cause?.code || ''
-      
-      if (errorMessage.includes('timeout') || 
-          errorCode === 'UND_ERR_CONNECT_TIMEOUT' ||
-          errorCode === 'ETIMEDOUT' ||
-          errorCode === 'ECONNREFUSED') {
-        console.warn(`[optionalAuth] ⏱️ Supabase timeout/connection error for ${req.method} ${req.path} - continuing without auth`)
-        recordFailure()
-      } else if (errorMessage.includes('fetch failed') || errorMessage.includes('network')) {
-        console.warn(`[optionalAuth] 🌐 Supabase network error for ${req.method} ${req.path} - continuing without auth`)
-        recordFailure()
+      if (authError?.message?.includes('timeout') || authError?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+        console.warn(`[optionalAuth] ⏱️ Supabase auth timeout for ${req.method} ${req.path} - continuing without auth`)
+      } else if (authError?.message?.includes('fetch failed')) {
+        console.warn(`[optionalAuth] 🌐 Supabase connection failed for ${req.method} ${req.path} - continuing without auth`)
       } else {
-        console.warn(`[optionalAuth] ⚠️ Auth check failed for ${req.method} ${req.path}:`, errorMessage)
+        console.warn(`[optionalAuth] ⚠️ Auth check failed for ${req.method} ${req.path}:`, authError?.message)
       }
-      // Continue without authentication - this is the key behavior for optionalAuth
+      // Continue without authentication
     }
 
     next()
