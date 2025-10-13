@@ -46,6 +46,15 @@ const ToastContainer: React.FC = () => {
 }
 
 function App() {
+  const { theme } = useUIStore()
+
+  // Apply theme on mount and when it changes
+  React.useEffect(() => {
+    document.body.classList.remove('theme-blue', 'theme-green')
+    document.body.classList.add(`theme-${theme}`)
+    console.log('[App] Theme applied:', theme)
+  }, [theme])
+
   return (
     <Router>
       <AuthProvider>

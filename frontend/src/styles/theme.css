@@ -471,9 +471,7 @@ body {
 */
 
 /* Glitch Effect - ENABLED ONLY FOR AUTH PAGES */
-.glitch.auth-page {
-  /* Removed constant glitch animation */
-}
+/* .glitch.auth-page - Removed constant glitch animation */
 
 /* Button Styles */
 .btn {
@@ -760,10 +758,12 @@ body.theme-blue {
   --text-secondary: var(--blue-primary);
   --text-muted: var(--white-dim);
   --text-info: var(--blue-accent);
+  --text-success: var(--blue-accent); /* Override green with blue */
+  --text-warning: var(--amber-primary);
   
   --border-primary: var(--blue-primary);
   --border-secondary: var(--white-dim);
-  --border-accent: var(--terminal-primary);
+  --border-accent: var(--blue-primary); /* Use blue instead of green */
   
   --glow-small: 0 0 5px var(--blue-primary);
   --glow-medium: 0 0 10px var(--blue-primary), 0 0 20px var(--blue-primary);
@@ -774,4 +774,13 @@ body.theme-blue {
   --scrollbar-thumb: var(--blue-dim);
   --scrollbar-thumb-hover: var(--blue-primary);
   scrollbar-color: var(--scrollbar-thumb) var(--bg-secondary);
+}
+
+/* Blue theme specific class overrides */
+body.theme-blue .text-green {
+  color: var(--blue-accent);
+}
+
+body.theme-blue .text-success {
+  color: var(--blue-accent);
 }

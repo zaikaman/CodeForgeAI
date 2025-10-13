@@ -33,12 +33,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const loadSettings = async () => {
     try {
       setLoading(true);
+      
+      // Load theme from localStorage first (this is the source of truth)
+      const savedTheme = localStorage.getItem('codeforge-theme') as 'blue' | 'green' | null;
+      if (savedTheme && (savedTheme === 'blue' || savedTheme === 'green')) {
+        setTheme(savedTheme);
+      }
+      
+      // Then load backend settings (but don't override localStorage theme)
       const response = await apiClient.getSettings();
 
       if (response.data) {
         setHasApiKey(response.data.hasApiKey || false);
         
-        if (response.data.theme) {
+        // Only use backend theme if localStorage doesn't have one
+        if (response.data.theme && !savedTheme) {
           setTheme(response.data.theme);
         }
         
@@ -57,14 +66,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   const handleThemeSelect = async (selectedTheme: 'blue' | 'green') => {
+    // Update theme in UI store (which will also update localStorage via subscription)
     setTheme(selectedTheme);
     const themeName = selectedTheme === 'blue' ? 'BLUE MODE' : 'GREEN PHOSPHOR';
     
     try {
+      // Save to backend as well
       await apiClient.updatePreferences({ theme: selectedTheme });
       showToast('success', `Theme changed to ${themeName}`);
     } catch (error: any) {
-      showToast('error', error.message || 'Failed to save theme');
+      console.warn('Failed to save theme to backend:', error);
+      // Don't show error toast - localStorage persistence is more important
+      // Backend sync is optional
+      showToast('success', `Theme changed to ${themeName}`);
     }
   };
 

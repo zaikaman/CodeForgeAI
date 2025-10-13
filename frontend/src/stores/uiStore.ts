@@ -180,25 +180,28 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 }))
 
-// Initialize theme on load
+// Initialize theme on load and persist to localStorage
 if (typeof window !== 'undefined') {
-  const raw = localStorage.getItem('codeforge-theme') as 'green' | 'amber' | 'blue' | null
-  // Migrate legacy values: 'green' was actually Blue Mode, 'amber' becomes Green Phosphor
-  const mapped: 'blue' | 'green' | null =
-    raw === 'amber' ? 'green' : raw === 'green' ? 'blue' : raw === 'blue' ? 'blue' : null
-
-  if (mapped) {
-    useUIStore.getState().setTheme(mapped)
+  // Load theme from localStorage
+  const savedTheme = localStorage.getItem('codeforge-theme') as 'blue' | 'green' | null
+  
+  // Validate and apply saved theme
+  if (savedTheme === 'blue' || savedTheme === 'green') {
+    useUIStore.getState().setTheme(savedTheme)
+    console.log('[UIStore] Loaded theme from localStorage:', savedTheme)
   } else {
-    // Default to blue
+    // Default to blue if no valid theme found
     useUIStore.getState().setTheme('blue')
+    localStorage.setItem('codeforge-theme', 'blue')
+    console.log('[UIStore] Initialized default theme: blue')
   }
 
-  // Save theme changes to localStorage
+  // Subscribe to theme changes and persist to localStorage
   let previousTheme = useUIStore.getState().theme
   useUIStore.subscribe((state) => {
     if (state.theme !== previousTheme) {
       localStorage.setItem('codeforge-theme', state.theme)
+      console.log('[UIStore] Theme persisted to localStorage:', state.theme)
       previousTheme = state.theme
     }
   })
