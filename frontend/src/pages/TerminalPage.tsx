@@ -961,6 +961,12 @@ export const TerminalPage: React.FC = () => {
                   className="input chat-input"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage(e);
+                    }
+                  }}
                   placeholder="Describe what you need: generate, review, refactor, optimize..."
                   disabled={isProcessing || uploadingImages}
                 />

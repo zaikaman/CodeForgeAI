@@ -146,7 +146,7 @@ export class ChatMemoryManager {
     currentFiles: Array<{ path: string; content: string }>,
     language?: string, // Optional - will be auto-detected if not provided
     _imageUrls?: string[]
-  ): Promise<{ contextMessage: string; totalTokens: number }> {
+  ): Promise<{ contextMessage: string; totalTokens: number; historyImageUrls: string[] }> {
     // Get recent messages (last 10 for performance - reduced from 20)
     console.log(`[ChatMemoryManager] Loading messages for generation ${generationId}...`);
     const recentMessages = await this.getRecentMessages(generationId, 10);
@@ -155,6 +155,7 @@ export class ChatMemoryManager {
     // Build conversation history (more concise format)
     let conversationHistory = '';
     let historyTokens = 0;
+    const historyImageUrls: string[] = [];
 
     if (recentMessages.length > 0) {
       conversationHistory = '\n\n=== RECENT CONVERSATION ===\n';
@@ -163,15 +164,17 @@ export class ChatMemoryManager {
         // More concise format without timestamp
         conversationHistory += `${msg.role === 'user' ? '👤' : '🤖'}: ${msg.content}\n`;
         
+        // Collect image URLs from history to send with context
         if (msg.imageUrls && msg.imageUrls.length > 0) {
-          conversationHistory += `  📎 ${msg.imageUrls.length} image(s)\n`;
+          conversationHistory += `  📎 ${msg.imageUrls.length} image(s) [ATTACHED]\n`;
+          historyImageUrls.push(...msg.imageUrls);
         }
         
         historyTokens += msg.tokenCount || this.estimateTokens(msg.content);
       }
       
       conversationHistory += '=== END HISTORY ===\n\n';
-      console.log(`[ChatMemoryManager] Built conversation history: ${historyTokens} tokens`);
+      console.log(`[ChatMemoryManager] Built conversation history: ${historyTokens} tokens, ${historyImageUrls.length} images`);
     } else {
       console.log(`[ChatMemoryManager] No previous messages found for generation ${generationId}`);
     }
@@ -194,6 +197,7 @@ ${filesContext}`;
     return {
       contextMessage,
       totalTokens,
+      historyImageUrls, // Return images from conversation history
     };
   }
 

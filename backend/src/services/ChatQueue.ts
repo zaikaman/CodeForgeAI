@@ -267,7 +267,7 @@ class ChatQueueManager {
         await this.emitProgress(job.id, 'ChatAgent', 'started', 'Analyzing your request and determining the best approach...');
 
         // Build context with conversation history
-        const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
+        const { contextMessage, totalTokens, historyImageUrls } = await ChatMemoryManager.buildContext(
           job.generationId,
           job.message,
           job.currentFiles,
@@ -288,12 +288,16 @@ class ChatQueueManager {
         const { runner } = await ChatAgent(job.githubContext);
         
         // Build the message with images if provided
+        // Combine current images with images from conversation history
+        const allImageUrls = [...(job.imageUrls || []), ...historyImageUrls];
         let chatMessage: any;
         
-        if (job.imageUrls && job.imageUrls.length > 0) {
+        if (allImageUrls.length > 0) {
+          console.log(`[ChatQueue] Including ${allImageUrls.length} images (${job.imageUrls?.length || 0} current + ${historyImageUrls.length} from history)`);
+          
           // Download images and convert to base64
           const imageParts = await Promise.all(
-            job.imageUrls.map(async (url) => {
+            allImageUrls.map(async (url) => {
               try {
                 const response = await globalThis.fetch(url);
                 const arrayBuffer = await response.arrayBuffer();

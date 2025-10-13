@@ -156,7 +156,8 @@ export class GenerateWorkflow {
           'Analyzing your requirements and understanding the project scope...'
         )
 
-        requirements = await this.interpretPrompt(request.prompt)
+        // Pass images to SpecInterpreter so it can analyze UI/UX from screenshots
+        requirements = await this.interpretPrompt(request.prompt, request.imageUrls)
         console.log(
           '[STEP 1] Requirements:',
           JSON.stringify(requirements, null, 2).substring(0, 500)
@@ -951,7 +952,7 @@ ${filesContext}
     }
   }
 
-  private async interpretPrompt(prompt: string): Promise<any> {
+  private async interpretPrompt(prompt: string, imageUrls?: string[]): Promise<any> {
     try {
       // Use SpecInterpreterAgent to analyze requirements
       console.log('\n[STEP 1] Analyzing requirements with SpecInterpreterAgent...')
@@ -962,13 +963,15 @@ ${filesContext}
 
 User requirement: ${prompt}
 
+${imageUrls && imageUrls.length > 0 ? `📷 IMAGES PROVIDED: ${imageUrls.length} screenshot(s) attached. Please analyze the UI/UX design, layout, components, color scheme, typography, and functionality visible in the images to extract detailed requirements.` : ''}
+
 Please provide:
 1. A brief summary of the requirement
-2. List of functional requirements
-3. Non-functional requirements (if any)
+2. List of functional requirements${imageUrls && imageUrls.length > 0 ? ' (include UI components and features visible in screenshots)' : ''}
+3. Non-functional requirements (if any)${imageUrls && imageUrls.length > 0 ? ' (include design patterns, responsiveness, accessibility from images)' : ''}
 4. Complexity level (simple/moderate/complex)
 5. Application domain
-6. Technical constraints
+6. Technical constraints${imageUrls && imageUrls.length > 0 ? ' (infer technologies/frameworks from UI design)' : ''}
 
 Return the result as JSON with the following structure:
 {
@@ -980,7 +983,43 @@ Return the result as JSON with the following structure:
   "technicalConstraints": ["...", "..."]
 }`
 
-      const response = (await runner.ask(analysisPrompt)) as string
+      // Build message with images if provided
+      let message: any
+      if (imageUrls && imageUrls.length > 0) {
+        console.log(`[SpecInterpreter] Processing with ${imageUrls.length} image(s)`)
+        
+        const imageParts = await Promise.all(
+          imageUrls.map(async (url: string) => {
+            try {
+              const response = await globalThis.fetch(url)
+              const arrayBuffer = await response.arrayBuffer()
+              const buffer = Buffer.from(arrayBuffer)
+              const base64 = buffer.toString('base64')
+              const contentType = response.headers.get('content-type') || 'image/jpeg'
+
+              return {
+                inline_data: {
+                  mime_type: contentType,
+                  data: base64,
+                },
+              }
+            } catch (error) {
+              console.error(`[SpecInterpreter] Failed to fetch image from ${url}:`, error)
+              return null
+            }
+          })
+        )
+
+        const validImageParts = imageParts.filter(part => part !== null)
+        const textPart = { text: analysisPrompt }
+        message = { parts: [textPart, ...validImageParts] }
+        
+        console.log(`[SpecInterpreter] Built multipart message with ${validImageParts.length} image(s)`)
+      } else {
+        message = analysisPrompt
+      }
+
+      const response = (await runner.ask(message)) as string
       console.log('Response from SpecInterpreterAgent:', response)
 
       // Parse response from agent
