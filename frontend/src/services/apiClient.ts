@@ -514,6 +514,20 @@ class ApiClient {
     return response.data
   }
 
+  // Delete user account and all associated data
+  async deleteAccount(confirmation: string): Promise<ApiResponse> {
+    const response = await this.client.delete('/api/settings/account', {
+      data: { confirmation }
+    })
+    return response.data
+  }
+
+  // Clear chat history for a specific generation
+  async clearChatHistory(generationId: string): Promise<ApiResponse> {
+    const response = await this.client.delete(`/api/chat/history/${generationId}`)
+    return response.data
+  }
+
   // Generate preview deployment on Fly.io
   async generatePreview(request: {
     generationId: string

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { StatusIndicator } from './StatusIndicator'
+import { useUIStore } from '../stores/uiStore'
 import '../styles/theme.css'
 import './AgentChat.css'
 
@@ -27,7 +28,8 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   className = '',
 }) => {
   const chatEndRef = useRef<HTMLDivElement>(null)
-  const [autoScroll, setAutoScroll] = useState(true)
+  const autoScrollChat = useUIStore((state) => state.autoScrollChat)
+  const [manualScrollOverride, setManualScrollOverride] = useState(false)
 
   // Log messages received
   useEffect(() => {
@@ -89,15 +91,22 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   }, [messages]);
 
   useEffect(() => {
-    if (autoScroll && chatEndRef.current) {
+    // Only auto-scroll if enabled in preferences and user hasn't manually scrolled
+    if (autoScrollChat && !manualScrollOverride && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [validMessages, autoScroll])
+  }, [validMessages, autoScrollChat, manualScrollOverride])
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    // Only track manual scroll if auto-scroll is enabled
+    if (!autoScrollChat) return
+    
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-    setAutoScroll(isAtBottom)
+    
+    // If user scrolls away from bottom, disable auto-scroll temporarily
+    // If they scroll back to bottom, re-enable it
+    setManualScrollOverride(!isAtBottom)
   }
 
   const getAgentIcon = (agent: string) => {
@@ -275,7 +284,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           <span className="text-muted">MESSAGES: {validMessages.length}</span>
           <span className="text-muted">STATUS: {isStreaming ? 'ACTIVE' : 'STANDBY'}</span>
           <span className="text-muted">
-            SCROLL: {autoScroll ? 'AUTO' : 'MANUAL'}
+            SCROLL: {autoScrollChat && !manualScrollOverride ? 'AUTO' : 'MANUAL'}
           </span>
         </div>
       </div>

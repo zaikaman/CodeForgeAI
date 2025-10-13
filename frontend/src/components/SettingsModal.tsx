@@ -12,17 +12,19 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
-  const { theme, setTheme, showToast } = useUIStore();
-  const [apiKey, setApiKey] = useState('');
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [preferences, setPreferences] = useState({
-    crtEffects: true,
-    phosphorGlow: true,
-    autoScrollChat: true,
-    soundEffects: false,
-  });
+  const { 
+    theme, 
+    setTheme, 
+    showToast,
+    crtEffects,
+    phosphorGlow,
+    autoScrollChat,
+    soundEffects,
+    setPreference,
+    loadPreferences
+  } = useUIStore();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'api' | 'github' | 'preferences' | 'danger'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'github' | 'preferences' | 'danger'>('account');
 
   useEffect(() => {
     if (isOpen) {
@@ -40,22 +42,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setTheme(savedTheme);
       }
       
-      // Then load backend settings (but don't override localStorage theme)
+      // Then load backend settings
       const response = await apiClient.getSettings();
 
       if (response.data) {
-        setHasApiKey(response.data.hasApiKey || false);
-        
         // Only use backend theme if localStorage doesn't have one
         if (response.data.theme && !savedTheme) {
           setTheme(response.data.theme);
         }
         
-        setPreferences({
-          crtEffects: response.data.crtEffects ?? true,
+        // Load preferences into UIStore
+        loadPreferences({
+          crtEffects: response.data.crtEffects ?? false,
           phosphorGlow: response.data.phosphorGlow ?? true,
           autoScrollChat: response.data.autoScrollChat ?? true,
-          soundEffects: response.data.soundEffects ?? false,
+          soundEffects: response.data.soundEffects ?? true,
         });
       }
     } catch (error) {
@@ -82,45 +83,98 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
-  const handleSaveApiKey = async () => {
-    if (!apiKey.trim()) return;
+  const handlePreferenceChange = async (key: 'crtEffects' | 'phosphorGlow' | 'autoScrollChat' | 'soundEffects') => {
+    // Get current value from store
+    const currentValue = useUIStore.getState()[key];
+    const newValue = !currentValue;
+    
+    // Update UI store immediately
+    setPreference(key, newValue);
 
     try {
-      await apiClient.updateApiKey(apiKey);
-      setHasApiKey(true);
-      setApiKey('');
-      showToast('success', 'API key saved successfully');
+      // Sync to backend
+      await apiClient.updatePreferences({ [key]: newValue });
+      showToast('success', 'Preference updated');
     } catch (error: any) {
-      showToast('error', error.message || 'Failed to save API key');
-    }
-  };
-
-  const handlePreferenceChange = async (key: keyof typeof preferences) => {
-    const newPreferences = {
-      ...preferences,
-      [key]: !preferences[key],
-    };
-
-    setPreferences(newPreferences);
-
-    try {
-      await apiClient.updatePreferences({ [key]: newPreferences[key] });
-      showToast('success', 'Preferences updated');
-    } catch (error: any) {
-      setPreferences(preferences);
-      showToast('error', error.message || 'Failed to update preferences');
+      // Revert on error
+      setPreference(key, currentValue);
+      showToast('error', error.message || 'Failed to update preference');
     }
   };
 
   const handleClearData = async () => {
-    if (confirm('Clear all cached data? This cannot be undone.')) {
-      try {
-        await apiClient.deleteSettings();
-        showToast('success', 'Data cleared successfully');
-        loadSettings();
-      } catch (error: any) {
-        showToast('error', error.message || 'Failed to clear data');
+    const confirmed = window.confirm(
+      '⚠️ WARNING ⚠️\n\n' +
+      'This will delete:\n' +
+      '• All chat history (all conversations in sidebar)\n' +
+      '• All generation history\n' +
+      '• All saved preferences\n' +
+      '• API keys and settings\n\n' +
+      'This action CANNOT be undone!\n\n' +
+      'Are you absolutely sure you want to continue?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      await apiClient.deleteSettings();
+      
+      // Clear local storage and stores
+      localStorage.clear();
+      
+      showToast('success', 'All data cleared successfully. Reloading...');
+      
+      // Reload the page to clear all state
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to clear data');
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const firstConfirm = window.confirm(
+      '⚠️ DANGER: ACCOUNT DELETION ⚠️\n\n' +
+      'This will PERMANENTLY delete:\n' +
+      '• Your entire account\n' +
+      '• All generation history\n' +
+      '• All chat conversations\n' +
+      '• All saved data and preferences\n\n' +
+      'This action is IRREVERSIBLE and CANNOT be undone!\n\n' +
+      'Do you want to proceed?'
+    );
+
+    if (!firstConfirm) return;
+
+    const confirmation = window.prompt(
+      'To confirm account deletion, please type exactly:\n\n' +
+      'DELETE MY ACCOUNT\n\n' +
+      '(Case sensitive)'
+    );
+
+    if (confirmation !== 'DELETE MY ACCOUNT') {
+      if (confirmation !== null) {
+        showToast('error', 'Confirmation text does not match. Account deletion cancelled.');
       }
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await apiClient.deleteAccount('DELETE MY ACCOUNT');
+      
+      showToast('success', 'Account data deleted successfully');
+      
+      // Sign out after a brief delay
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to delete account');
+      setLoading(false);
     }
   };
 
@@ -153,13 +207,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               >
                 <span className="tab-icon">🎨</span>
                 <span className="tab-label">THEME</span>
-              </button>
-              <button
-                className={`settings-tab ${activeTab === 'api' ? 'active' : ''}`}
-                onClick={() => setActiveTab('api')}
-              >
-                <span className="tab-icon">🔑</span>
-                <span className="tab-label">API KEYS</span>
               </button>
               <button
                 className={`settings-tab ${activeTab === 'github' ? 'active' : ''}`}
@@ -255,38 +302,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   )}
 
-                  {/* API Keys Tab */}
-                  {activeTab === 'api' && (
-                    <div className="settings-tab-content">
-                      <h2 className="settings-content-title phosphor-glow">◆ API CONFIGURATION</h2>
-                      
-                      <div className="setting-group mt-md">
-                        <label className="setting-label text-muted">&gt; OPENAI API KEY:</label>
-                        <div className="input-wrapper mt-sm">
-                          <input
-                            type="password"
-                            className="input"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            placeholder={hasApiKey ? '••••••••••••••' : 'sk-...'}
-                          />
-                        </div>
-                        <div className="setting-hint text-muted mt-sm">
-                          &gt; Required for code generation. Keys are encrypted.
-                          {hasApiKey && ' (Current key saved)'}
-                        </div>
-                      </div>
-
-                      <button 
-                        className="btn btn-primary mt-md" 
-                        onClick={handleSaveApiKey}
-                        disabled={!apiKey.trim()}
-                      >
-                        ► SAVE CONFIGURATION
-                      </button>
-                    </div>
-                  )}
-
                   {/* GitHub Tab */}
                   {activeTab === 'github' && (
                     <div className="settings-tab-content">
@@ -310,7 +325,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           <label className="preference-toggle">
                             <input
                               type="checkbox"
-                              checked={preferences.crtEffects}
+                              checked={crtEffects}
                               onChange={() => handlePreferenceChange('crtEffects')}
                             />
                             <span className="toggle-slider"></span>
@@ -325,7 +340,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           <label className="preference-toggle">
                             <input
                               type="checkbox"
-                              checked={preferences.phosphorGlow}
+                              checked={phosphorGlow}
                               onChange={() => handlePreferenceChange('phosphorGlow')}
                             />
                             <span className="toggle-slider"></span>
@@ -340,7 +355,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           <label className="preference-toggle">
                             <input
                               type="checkbox"
-                              checked={preferences.autoScrollChat}
+                              checked={autoScrollChat}
                               onChange={() => handlePreferenceChange('autoScrollChat')}
                             />
                             <span className="toggle-slider"></span>
@@ -355,7 +370,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           <label className="preference-toggle">
                             <input
                               type="checkbox"
-                              checked={preferences.soundEffects}
+                              checked={soundEffects}
                               onChange={() => handlePreferenceChange('soundEffects')}
                             />
                             <span className="toggle-slider"></span>
@@ -390,7 +405,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                               Permanently delete account and all associated data
                             </div>
                           </div>
-                          <button className="btn btn-danger mt-sm">
+                          <button className="btn btn-danger mt-sm" onClick={handleDeleteAccount}>
                             DELETE ACCOUNT
                           </button>
                         </div>

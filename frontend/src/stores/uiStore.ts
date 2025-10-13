@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { soundEffects } from '../utils/soundEffects'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -36,6 +37,12 @@ interface UIState {
   // Theme
   theme: 'blue' | 'green'
 
+  // Preferences
+  crtEffects: boolean
+  phosphorGlow: boolean
+  autoScrollChat: boolean
+  soundEffects: boolean
+
   // Actions
   setLoading: (isLoading: boolean, message?: string) => void
   setError: (error: string | null) => void
@@ -58,6 +65,10 @@ interface UIState {
   // Theme actions
   setTheme: (theme: 'blue' | 'green') => void
   toggleTheme: () => void
+
+  // Preference actions
+  setPreference: (key: 'crtEffects' | 'phosphorGlow' | 'autoScrollChat' | 'soundEffects', value: boolean) => void
+  loadPreferences: (preferences: { crtEffects?: boolean; phosphorGlow?: boolean; autoScrollChat?: boolean; soundEffects?: boolean }) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -69,6 +80,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   modals: [],
   sidebarOpen: true,
   theme: 'blue',
+  crtEffects: false,
+  phosphorGlow: true,
+  autoScrollChat: true,
+  soundEffects: true,
 
   // Loading
   setLoading: (isLoading: boolean, message: string = '') => {
@@ -98,6 +113,22 @@ export const useUIStore = create<UIState>((set, get) => ({
     set((state) => ({
       toasts: [...state.toasts, toast],
     }))
+
+    // Play sound based on toast type
+    if (get().soundEffects) {
+      switch (type) {
+        case 'success':
+          soundEffects.playSuccess()
+          break
+        case 'error':
+          soundEffects.playError()
+          break
+        case 'warning':
+        case 'info':
+          soundEffects.playNotification()
+          break
+      }
+    }
 
     // Auto-remove after duration
     if (duration > 0) {
@@ -178,9 +209,63 @@ export const useUIStore = create<UIState>((set, get) => ({
     const newTheme = get().theme === 'blue' ? 'green' : 'blue'
     get().setTheme(newTheme)
   },
+
+  // Preferences
+  setPreference: (key: 'crtEffects' | 'phosphorGlow' | 'autoScrollChat' | 'soundEffects', value: boolean) => {
+    set({ [key]: value })
+    
+    // Apply preference to document body
+    if (key === 'crtEffects') {
+      if (value) {
+        document.body.classList.add('crt-enabled')
+      } else {
+        document.body.classList.remove('crt-enabled')
+      }
+    } else if (key === 'phosphorGlow') {
+      if (value) {
+        document.body.classList.add('phosphor-enabled')
+      } else {
+        document.body.classList.remove('phosphor-enabled')
+      }
+    } else if (key === 'soundEffects') {
+      soundEffects.setEnabled(value)
+      // Play a test sound when enabling
+      if (value) {
+        soundEffects.playSuccess()
+      }
+    }
+    
+    // Persist to localStorage
+    localStorage.setItem(`codeforge-${key}`, String(value))
+  },
+
+  loadPreferences: (preferences: { crtEffects?: boolean; phosphorGlow?: boolean; autoScrollChat?: boolean; soundEffects?: boolean }) => {
+    set({
+      crtEffects: preferences.crtEffects ?? false,
+      phosphorGlow: preferences.phosphorGlow ?? true,
+      autoScrollChat: preferences.autoScrollChat ?? true,
+      soundEffects: preferences.soundEffects ?? true,
+    })
+    
+    // Apply visual preferences to document body
+    if (preferences.crtEffects === true) {
+      document.body.classList.add('crt-enabled')
+    } else {
+      document.body.classList.remove('crt-enabled')
+    }
+    
+    if (preferences.phosphorGlow !== false) {
+      document.body.classList.add('phosphor-enabled')
+    } else {
+      document.body.classList.remove('phosphor-enabled')
+    }
+    
+    // Apply sound preference
+    soundEffects.setEnabled(preferences.soundEffects ?? true)
+  },
 }))
 
-// Initialize theme on load and persist to localStorage
+// Initialize theme and preferences on load
 if (typeof window !== 'undefined') {
   // Load theme from localStorage
   const savedTheme = localStorage.getItem('codeforge-theme') as 'blue' | 'green' | null
@@ -195,6 +280,21 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('codeforge-theme', 'blue')
     console.log('[UIStore] Initialized default theme: blue')
   }
+
+  // Load preferences from localStorage
+  const savedCrtEffects = localStorage.getItem('codeforge-crtEffects')
+  const savedPhosphorGlow = localStorage.getItem('codeforge-phosphorGlow')
+  const savedAutoScrollChat = localStorage.getItem('codeforge-autoScrollChat')
+  const savedSoundEffects = localStorage.getItem('codeforge-soundEffects')
+
+  useUIStore.getState().loadPreferences({
+    crtEffects: savedCrtEffects !== null ? savedCrtEffects === 'true' : false,
+    phosphorGlow: savedPhosphorGlow !== null ? savedPhosphorGlow === 'true' : true,
+    autoScrollChat: savedAutoScrollChat !== null ? savedAutoScrollChat === 'true' : true,
+    soundEffects: savedSoundEffects !== null ? savedSoundEffects === 'true' : true,
+  })
+
+  console.log('[UIStore] Loaded preferences from localStorage')
 
   // Subscribe to theme changes and persist to localStorage
   let previousTheme = useUIStore.getState().theme

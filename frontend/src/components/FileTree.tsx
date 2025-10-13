@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 import './FileTree.css';
 
 interface FileTreeProps {
@@ -16,6 +17,8 @@ interface FileNode {
 }
 
 export const FileTree: React.FC<FileTreeProps> = ({ files, onSelectFile, selectedFile }) => {
+  const { playFileSelect, playToggle } = useSoundEffects();
+  
   // Remove duplicate files (keep the last occurrence)
   const uniqueFiles = files.reduce((acc, file) => {
     const existingIndex = acc.findIndex(f => f.path === file.path);
@@ -72,8 +75,10 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, onSelectFile, selecte
 
     const handleClick = () => {
       if (node.type === 'folder') {
+        playToggle();
         setIsExpanded(!isExpanded);
       } else {
+        playFileSelect();
         onSelectFile({ path: node.path, content: node.content || '' });
       }
     };

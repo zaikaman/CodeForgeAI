@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ImageUpload, UploadedImage } from './ImageUpload';
 import { useAuthContext } from '../contexts/AuthContext';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 import '../styles/theme.css';
 import './ChatInput.css';
 
@@ -29,6 +30,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [showUpload, setShowUpload] = useState(false);
   const { user } = useAuthContext();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { playClick, playToggle, playType } = useSoundEffects();
+  const lastTypeTimeRef = useRef<number>(0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +56,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
+
+    // Play typing sound (throttled to avoid too many sounds)
+    const now = Date.now();
+    if (now - lastTypeTimeRef.current > 100) {
+      playType();
+      lastTypeTimeRef.current = now;
+    }
 
     // Auto-resize textarea
     if (textareaRef.current) {
@@ -101,7 +111,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <button
                 type="button"
                 className={`btn-image-toggle ${showUpload ? 'active' : ''}`}
-                onClick={toggleUpload}
+                onClick={() => {
+                  playToggle();
+                  toggleUpload();
+                }}
                 disabled={disabled}
                 title="Attach images"
               >
@@ -130,6 +143,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               className="btn btn-primary btn-send"
               disabled={disabled || (!text.trim() && uploadedImages.length === 0)}
               title="Send message (Enter)"
+              onClick={() => playClick()}
             >
               <span className="icon">►</span>
               SEND

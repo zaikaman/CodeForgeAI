@@ -12,7 +12,7 @@ export const SettingsPage: React.FC = () => {
   const [apiKey, setApiKey] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
   const [preferences, setPreferences] = useState({
-    crtEffects: true,
+    crtEffects: false,
     phosphorGlow: true,
     autoScrollChat: true,
     soundEffects: false,
@@ -38,7 +38,7 @@ export const SettingsPage: React.FC = () => {
         }
         
         setPreferences({
-          crtEffects: response.data.crtEffects ?? true,
+          crtEffects: response.data.crtEffects ?? false,
           phosphorGlow: response.data.phosphorGlow ?? true,
           autoScrollChat: response.data.autoScrollChat ?? true,
           soundEffects: response.data.soundEffects ?? false,
@@ -108,16 +108,80 @@ export const SettingsPage: React.FC = () => {
   }
 
   const handleClearData = async () => {
-    if (confirm('Clear all cached data? This cannot be undone.')) {
-      try {
-        await apiClient.deleteSettings()
-        showToast('success', 'Data cleared successfully')
-        loadSettings()
-      } catch (error: any) {
-        showToast('error', error.message || 'Failed to clear data')
-      }
+    const confirmed = window.confirm(
+      '⚠️ WARNING ⚠️\n\n' +
+      'This will delete:\n' +
+      '• All chat history (all conversations in sidebar)\n' +
+      '• All generation history\n' +
+      '• All saved preferences\n' +
+      '• API keys and settings\n\n' +
+      'This action CANNOT be undone!\n\n' +
+      'Are you absolutely sure you want to continue?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      await apiClient.deleteSettings();
+      
+      // Clear local storage and stores
+      localStorage.clear();
+      
+      showToast('success', 'All data cleared successfully. Reloading...');
+      
+      // Reload the page to clear all state
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to clear data');
+      setLoading(false);
     }
-  }
+  };
+
+  const handleDeleteAccount = async () => {
+    const firstConfirm = window.confirm(
+      '⚠️ DANGER: ACCOUNT DELETION ⚠️\n\n' +
+      'This will PERMANENTLY delete:\n' +
+      '• Your entire account\n' +
+      '• All generation history\n' +
+      '• All chat conversations\n' +
+      '• All saved data and preferences\n\n' +
+      'This action is IRREVERSIBLE and CANNOT be undone!\n\n' +
+      'Do you want to proceed?'
+    );
+
+    if (!firstConfirm) return;
+
+    const confirmation = window.prompt(
+      'To confirm account deletion, please type exactly:\n\n' +
+      'DELETE MY ACCOUNT\n\n' +
+      '(Case sensitive)'
+    );
+
+    if (confirmation !== 'DELETE MY ACCOUNT') {
+      if (confirmation !== null) {
+        showToast('error', 'Confirmation text does not match. Account deletion cancelled.');
+      }
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await apiClient.deleteAccount('DELETE MY ACCOUNT');
+      
+      showToast('success', 'Account data deleted successfully');
+      
+      // Sign out after a brief delay
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to delete account');
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -332,7 +396,7 @@ export const SettingsPage: React.FC = () => {
                     Permanently delete account and all associated data
                   </div>
                 </div>
-                <button className="btn btn-danger mt-sm">
+                <button className="btn btn-danger mt-sm" onClick={handleDeleteAccount}>
                   DELETE ACCOUNT
                 </button>
               </div>

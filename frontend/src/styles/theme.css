@@ -151,15 +151,14 @@ body {
   box-shadow: var(--glow-medium);
 }
 
-/* CRT Screen Effect - DISABLED FOR MOST PAGES */
+/* CRT Screen Effect - Controlled by user preference */
 .crt-screen {
   position: relative;
   overflow: hidden;
 }
 
-/* Scanlines and flicker animations - COMMENTED OUT to reduce glitchy movement */
-/*
-.crt-screen::before {
+/* CRT Effects - Only enabled when body has crt-enabled class */
+body.crt-enabled .crt-screen::before {
   content: '';
   position: absolute;
   top: 0;
@@ -177,7 +176,7 @@ body {
   animation: scanlines 16s linear infinite;
 }
 
-.crt-screen::after {
+body.crt-enabled .crt-screen::after {
   content: '';
   position: absolute;
   top: 0;
@@ -190,9 +189,8 @@ body {
   pointer-events: none;
   animation: flicker 8s infinite;
 }
-*/
 
-/* CRT Screen Effect - ENABLED ONLY FOR AUTH PAGES */
+/* Always enable CRT on auth pages */
 .crt-screen.auth-page::before {
   content: '';
   position: absolute;
@@ -208,7 +206,6 @@ body {
   background-size: 100% 4px;
   z-index: var(--z-scanlines);
   pointer-events: none;
-  /* Removed constant scanlines animation */
 }
 
 .crt-screen.auth-page::after {
@@ -222,7 +219,6 @@ body {
   opacity: 0;
   z-index: var(--z-scanlines);
   pointer-events: none;
-  /* Removed constant flicker animation */
 }
 
 /* Scanline Animation */
@@ -257,30 +253,36 @@ body {
   30%, 100% { opacity: 0; }
 }
 
-/* Phosphor Glow Effect - DISABLED FOR MOST PAGES */
-.phosphor-glow {
-  text-shadow: var(--glow-text);
-  /* animation: phosphor-pulse 8s infinite; - COMMENTED OUT */
+/* Phosphor Glow Effect - Only when enabled */
+body.phosphor-enabled .phosphor-glow {
+  text-shadow: 0 0 4px var(--border-primary), 
+               0 0 8px var(--border-primary), 
+               0 0 2px currentColor;
+  filter: brightness(1.1);
+  animation: phosphor-pulse 8s infinite;
 }
 
-/* Phosphor Glow Effect - ENABLED ONLY FOR AUTH PAGES */
+/* Always enable phosphor glow on auth pages */
 .phosphor-glow.auth-page {
-  text-shadow: var(--glow-text);
-  /* Removed constant phosphor-pulse animation */
+  text-shadow: 0 0 4px var(--border-primary), 
+               0 0 8px var(--border-primary), 
+               0 0 2px currentColor;
+  filter: brightness(1.1);
+  animation: phosphor-pulse 8s infinite;
 }
 
 @keyframes phosphor-pulse {
   /* First pulse */
   0%, 2% { text-shadow: var(--glow-text); }
-  1% { text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary); }
+  1% { text-shadow: 0 0 5px var(--border-primary), 0 0 8px var(--border-primary), 0 0 12px var(--border-primary); }
   
   /* Second pulse */
   4%, 6% { text-shadow: var(--glow-text); }
-  5% { text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary); }
+  5% { text-shadow: 0 0 5px var(--border-primary), 0 0 8px var(--border-primary), 0 0 12px var(--border-primary); }
   
   /* Third pulse */
   8%, 10% { text-shadow: var(--glow-text); }
-  9% { text-shadow: 0 0 5px var(--terminal-primary), 0 0 8px var(--terminal-primary); }
+  9% { text-shadow: 0 0 5px var(--border-primary), 0 0 8px var(--border-primary), 0 0 12px var(--border-primary); }
   
   /* Long pause */
   10%, 100% { text-shadow: var(--glow-text); }

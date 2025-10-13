@@ -10,6 +10,7 @@ import { useGenerationStore } from '../stores/generationStore';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useChatJobPolling } from '../hooks/useChatJobPolling';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 import apiClient from '../services/apiClient';
 import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
 import '../styles/theme.css';
@@ -63,6 +64,10 @@ export const TerminalPage: React.FC = () => {
   
 
   
+  // Sound effects
+  const { playClick, playTabSwitch, playToggle, playType } = useSoundEffects();
+  const lastTypeTimeRef = useRef<number>(0);
+
   // Store
   const store = useGenerationStore();
   const { 
@@ -674,7 +679,10 @@ export const TerminalPage: React.FC = () => {
             <span className="logo-icon phosphor-glow">⬡</span>
             <span className="logo-text">CODEFORGE</span>
           </div>
-          <button className="btn-new-chat" onClick={handleNewChat}>
+          <button className="btn-new-chat" onClick={() => {
+            playClick();
+            handleNewChat();
+          }}>
             <span className="icon">✚</span>
             <span className="text">NEW CHAT</span>
           </button>
@@ -698,7 +706,10 @@ export const TerminalPage: React.FC = () => {
                 <button
                   key={session.id}
                   className={`chat-session-item ${id === session.id ? 'active' : ''}`}
-                  onClick={() => handleSelectChat(session.id)}
+                  onClick={() => {
+                    playClick();
+                    handleSelectChat(session.id);
+                  }}
                 >
                   <span className="session-icon">💬</span>
                   <div className="session-content">
@@ -717,7 +728,10 @@ export const TerminalPage: React.FC = () => {
                 <button
                   key={session.id}
                   className={`chat-session-item ${id === session.id ? 'active' : ''}`}
-                  onClick={() => handleSelectChat(session.id)}
+                  onClick={() => {
+                    playClick();
+                    handleSelectChat(session.id);
+                  }}
                 >
                   <span className="session-icon">💬</span>
                   <div className="session-content">
@@ -769,13 +783,17 @@ export const TerminalPage: React.FC = () => {
         </div>
 
         <div className="sidebar-footer">
-          <button className="btn-settings" onClick={() => setShowSettings(!showSettings)}>
+          <button className="btn-settings" onClick={() => {
+            playClick();
+            setShowSettings(!showSettings);
+          }}>
             <span className="icon">⚙</span>
             <span className="text">SETTINGS</span>
           </button>
           <button 
             className="btn-logout" 
             onClick={async () => {
+              playClick();
               await supabase.auth.signOut();
               navigate('/');
             }}
@@ -960,7 +978,15 @@ export const TerminalPage: React.FC = () => {
                   type="text"
                   className="input chat-input"
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={(e) => {
+                    setChatInput(e.target.value);
+                    // Play typing sound (throttled to avoid too many sounds)
+                    const now = Date.now();
+                    if (now - lastTypeTimeRef.current > 100) {
+                      playType();
+                      lastTypeTimeRef.current = now;
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -981,7 +1007,10 @@ export const TerminalPage: React.FC = () => {
                 <button 
                   type="button"
                   className="btn btn-secondary btn-image"
-                  onClick={handleImageButtonClick}
+                  onClick={() => {
+                    playClick();
+                    handleImageButtonClick();
+                  }}
                   disabled={isProcessing || uploadingImages}
                   title="Attach images"
                 >
@@ -991,6 +1020,7 @@ export const TerminalPage: React.FC = () => {
                   type="submit" 
                   className="btn btn-primary btn-send"
                   disabled={isProcessing || uploadingImages || !chatInput.trim()}
+                  onClick={() => playClick()}
                 >
                   ►
                 </button>
@@ -1016,19 +1046,28 @@ export const TerminalPage: React.FC = () => {
             <div className="tabs">
               <button 
                 className={activeTab === 'source' ? 'active' : ''} 
-                onClick={() => setActiveTab('source')}
+                onClick={() => {
+                  playTabSwitch();
+                  setActiveTab('source');
+                }}
               >
                 SOURCE CODE
               </button>
               <button 
                 className={activeTab === 'preview' ? 'active' : ''} 
-                onClick={() => setActiveTab('preview')}
+                onClick={() => {
+                  playTabSwitch();
+                  setActiveTab('preview');
+                }}
               >
                 PREVIEW
               </button>
               <button 
                 className={activeTab === 'deploy' ? 'active' : ''} 
-                onClick={() => setActiveTab('deploy')}
+                onClick={() => {
+                  playTabSwitch();
+                  setActiveTab('deploy');
+                }}
               >
                 DEPLOY
               </button>
@@ -1043,7 +1082,10 @@ export const TerminalPage: React.FC = () => {
               )}
               <button 
                 className="btn-close-panel"
-                onClick={() => setIsPreviewPanelVisible(false)}
+                onClick={() => {
+                  playClick();
+                  setIsPreviewPanelVisible(false);
+                }}
                 title="Hide preview panel"
               >
                 ✕
@@ -1056,7 +1098,10 @@ export const TerminalPage: React.FC = () => {
                   <span className="file-tree-title">FILES</span>
                   <button 
                     className="collapse-btn"
-                    onClick={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
+                    onClick={() => {
+                      playToggle();
+                      setIsFileTreeCollapsed(!isFileTreeCollapsed);
+                    }}
                     title={isFileTreeCollapsed ? 'Expand' : 'Collapse'}
                   >
                     {isFileTreeCollapsed ? '▶' : '◀'}
