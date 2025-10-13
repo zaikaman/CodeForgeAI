@@ -14,6 +14,7 @@ import { getPromptCache } from '../../utils/PromptCache';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
 import type { GitHubToolsContext } from '../../utils/githubTools';
+import { sanitizePrompt } from '../../utils/PromptSanitizer';
 
 interface CodeGeneratorOptions {
   language?: string;
@@ -80,6 +81,10 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
                        '\n\n' + staticValidationRules + 
                        (learnedRules ? '\n\n' + learnedRules : '') + 
                        '\n\n' + checklist;
+  
+  // Sanitize the combined prompt to escape any remaining template variables
+  // This prevents ADK from treating {variable} patterns as context variables
+  combinedPrompt = sanitizePrompt(combinedPrompt);
   
   // Compress the final prompt to reduce size
   const compressedPrompt = smartCompress(combinedPrompt);

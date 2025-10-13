@@ -79,6 +79,7 @@ export async function mountFiles(
   // If files already mounted but changed, update them instead of remounting
   if (webcontainerState.isMounted() && webcontainerState.getCurrentFilesHash() !== filesHash) {
     console.log('[WebContainer] Files changed, updating...');
+    // Note: onUpdateComplete callback should be passed from caller if needed
     await updateFiles(container, files);
     webcontainerState.setCurrentFilesHash(filesHash);
     return;
@@ -97,7 +98,8 @@ export async function mountFiles(
  */
 export async function updateFiles(
   container: WebContainer,
-  files: Array<{ path: string; content: string }>
+  files: Array<{ path: string; content: string }>,
+  onUpdateComplete?: () => void
 ): Promise<void> {
   console.log('[WebContainer] ⚡ Updating files in WebContainer...');
   console.log(`[WebContainer] Files to update: ${files.length}`);
@@ -115,8 +117,14 @@ export async function updateFiles(
   
   console.log(`[WebContainer] ✅ Files updated successfully (${updatedCount}/${files.length})`);
   
+  // Callback to trigger refresh after update
+  if (onUpdateComplete) {
+    console.log('[WebContainer] Triggering update complete callback...');
+    onUpdateComplete();
+  }
+  
   // Note: Dev server should auto-reload when files change via HMR
-  // No need to restart the server manually
+  // But we also provide a callback to force refresh if needed
 }
 
 /**

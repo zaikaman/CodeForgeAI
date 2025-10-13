@@ -46,11 +46,10 @@ export interface GenerateResponse {
 export interface ChatRequest {
   generationId: string
   message: string
-  snapshotId?: string // NEW: Use snapshot ID for efficient file handling
-  currentFiles?: Array<{
+  currentFiles: Array<{
     path: string
     content: string
-  }> // OLD: Direct file content (for backward compatibility)
+  }>
   language: string
   imageUrls?: string[]
   githubContext?: {

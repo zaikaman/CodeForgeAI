@@ -13,9 +13,6 @@ interface ChatJob {
   generationId: string;
   userId: string;
   message: string;
-  // NEW: Snapshot ID for efficient file access
-  snapshotId?: string;
-  // OLD: Direct file array (backward compatibility)
   currentFiles: Array<{ path: string; content: string }>;
   language: string;
   imageUrls?: string[];
@@ -46,7 +43,6 @@ class ChatQueueManager {
     generationId: string;
     userId: string;
     message: string;
-    snapshotId?: string; // NEW
     currentFiles: Array<{ path: string; content: string }>;
     language: string;
     imageUrls?: string[];
@@ -265,8 +261,7 @@ class ChatQueueManager {
         job.message,
         job.currentFiles,
         job.language,
-        job.imageUrls,
-        job.snapshotId // NEW: Pass snapshotId for efficient mode
+        job.imageUrls
       );
 
       console.log(`[ChatQueue] Chat context built: ${totalTokens} estimated tokens`);
@@ -278,20 +273,8 @@ class ChatQueueManager {
         console.log(`[ChatQueue] No GitHub context provided`);
       }
 
-      // Prepare file system context if snapshot available
-      let fileSystemContext = undefined;
-      if (job.snapshotId) {
-        fileSystemContext = {
-          snapshotId: job.snapshotId,
-          userId: job.userId,
-        };
-        console.log(`[ChatQueue] File system context available: ${job.snapshotId}`);
-      } else if (job.currentFiles && job.currentFiles.length > 0) {
-        console.log(`[ChatQueue] Using legacy mode with ${job.currentFiles.length} files inline (less efficient)`);
-      }
-
-      // Use ChatAgent with file system + GitHub context
-      const { runner } = await ChatAgent(job.githubContext, fileSystemContext);
+      // Use ChatAgent with improved error handling and GitHub context
+      const { runner } = await ChatAgent(job.githubContext);
       
       // Build the message with images if provided
       let chatMessage: any;
@@ -336,23 +319,6 @@ class ChatQueueManager {
       
       // Check if specialist agent is needed
       if (response.needsSpecialist) {
-        // Load files from snapshot if needed for specialist agents
-        let filesToPass = job.currentFiles;
-        if (job.snapshotId && (!job.currentFiles || job.currentFiles.length === 0)) {
-          console.log(`[ChatQueue] Loading files from snapshot for specialist agent...`);
-          await this.emitProgress(job.id, 'System', 'started', 'Loading project files for specialist agent...');
-          
-          const { codebaseStorage } = await import('../services/CodebaseStorageService');
-          const manifest = await codebaseStorage.getManifest(job.snapshotId, job.userId);
-          
-          // Load all files (specialists need full context)
-          const filePaths = manifest.files.map((f: any) => f.path);
-          filesToPass = await codebaseStorage.readFiles(job.snapshotId, job.userId, filePaths);
-          
-          console.log(`[ChatQueue] Loaded ${filesToPass.length} files from snapshot for specialist`);
-          await this.emitProgress(job.id, 'System', 'completed', `Loaded ${filesToPass.length} project files`);
-        }
-        
         // Normalize agent names to handle variations
         const agentNameMap: Record<string, string> = {
           'DocsWeaver': 'DocWeaver',  // Fix common typo
@@ -395,7 +361,7 @@ class ChatQueueManager {
           };
           
           workflowResult = await workflow.run({
-            code: filesToPass,
+            code: job.currentFiles,
             language: job.language,
             options: reviewOptions,
           });
@@ -414,7 +380,7 @@ class ChatQueueManager {
             complexity: 'moderate',
             agents: [specialistAgent],
             imageUrls: job.imageUrls,
-            currentFiles: filesToPass || [], // Pass loaded files (from snapshot or inline)
+            currentFiles: job.currentFiles || [], // Pass existing files for doc-only requests
           });
         }
         

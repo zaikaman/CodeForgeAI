@@ -67,6 +67,22 @@ export async function installPackages(container: WebContainer): Promise<ProcessR
 }
 
 /**
+ * Clear webpack cache in WebContainer
+ */
+async function clearWebpackCache(container: WebContainer): Promise<void> {
+  console.log('[WebContainer] Clearing webpack cache...');
+  try {
+    // Clear node_modules/.cache directory (common webpack cache location)
+    await runCommand(container, 'rm', ['-rf', 'node_modules/.cache']);
+    // Also try clearing .next cache for Next.js apps
+    await runCommand(container, 'rm', ['-rf', '.next']);
+    console.log('[WebContainer] Cache cleared successfully');
+  } catch (error) {
+    console.warn('[WebContainer] Failed to clear cache (non-critical):', error);
+  }
+}
+
+/**
  * Start development server with state tracking
  */
 export async function startDevServer(
@@ -102,11 +118,49 @@ export async function startDevServer(
   // Start dev server in background
   const process = await container.spawn('npm', ['run', 'dev']);
   
+  let cacheErrorDetected = false;
+  
   // Capture output to detect errors
   process.output.pipeTo(
     new WritableStream({
       write(data) {
-        // Look for error patterns in the output
+        // Look for webpack cache errors (need auto-fix)
+        const cacheErrorPatterns = [
+          /webpack\.cache.*Error.*invalid stored block lengths/i,
+          /webpack\.cache.*failed/i,
+          /Cache.*corrupted/i,
+        ];
+        
+        const hasCacheError = cacheErrorPatterns.some(pattern => pattern.test(data));
+        
+        if (hasCacheError && !cacheErrorDetected) {
+          cacheErrorDetected = true;
+          console.error('[WebContainer] Webpack cache error detected - will attempt auto-fix');
+          
+          // Auto-fix: Clear cache and restart server
+          (async () => {
+            try {
+              console.log('[WebContainer] Stopping server to clear cache...');
+              await webcontainerState.stopServer();
+              await clearWebpackCache(container);
+              
+              // Give it a moment
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              console.log('[WebContainer] Restarting server after cache clear...');
+              // Restart will happen automatically on next render
+              if (onError) {
+                onError('Webpack cache error - automatically clearing cache and restarting...');
+              }
+            } catch (error) {
+              console.error('[WebContainer] Auto-fix failed:', error);
+            }
+          })();
+          
+          return;
+        }
+        
+        // Look for other error patterns in the output
         const errorPatterns = [
           /error/i,
           /failed to compile/i,
@@ -119,7 +173,7 @@ export async function startDevServer(
         
         const hasError = errorPatterns.some(pattern => pattern.test(data));
         
-        if (hasError && onError) {
+        if (hasError && onError && !cacheErrorDetected) {
           // Clean up ANSI codes for cleaner error messages
           const cleanError = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
           console.error('[WebContainer] Build error detected:', cleanError);

@@ -257,18 +257,25 @@ export const useGenerationStore = create<GenerationState>()(
         
         console.log(`[GenerationStore] Updating files for generation ${generationId}:`, {
           filesCount: filesCopy.length,
-          isCurrentGeneration: currentGeneration?.id === generationId
+          isCurrentGeneration: currentGeneration?.id === generationId,
+          hasCurrentResponse: !!currentGeneration?.response
         });
 
         // Update current generation if it matches
-        if (currentGeneration?.id === generationId && currentGeneration.response) {
+        if (currentGeneration?.id === generationId) {
           const updatedGeneration = {
             ...currentGeneration,
-            response: {
+            response: currentGeneration.response ? {
               ...currentGeneration.response,
-              files: filesCopy, // Use the copy
+              files: filesCopy,
+            } : {
+              // Create response object if it doesn't exist
+              files: filesCopy,
+              language: currentGeneration.request.targetLanguage || 'typescript',
             },
           }
+
+          console.log(`[GenerationStore] Updated current generation with ${filesCopy.length} files`);
 
           set({
             currentGeneration: updatedGeneration,
@@ -284,15 +291,19 @@ export const useGenerationStore = create<GenerationState>()(
         } else {
           // Update in history only
           const historyIndex = history.findIndex((entry) => entry.id === generationId)
-          if (historyIndex !== -1 && history[historyIndex].response) {
+          if (historyIndex !== -1) {
             const updatedHistory = [...history]
             updatedHistory[historyIndex] = {
               ...updatedHistory[historyIndex],
-              response: {
+              response: updatedHistory[historyIndex].response ? {
                 ...updatedHistory[historyIndex].response!,
-                files: filesCopy, // Use the copy
+                files: filesCopy,
+              } : {
+                files: filesCopy,
+                language: updatedHistory[historyIndex].request.targetLanguage || 'typescript',
               },
             }
+            console.log(`[GenerationStore] Updated history entry with ${filesCopy.length} files`);
             set({ history: updatedHistory })
           }
         }
@@ -375,29 +386,44 @@ export const useGenerationStore = create<GenerationState>()(
             );
 
             // Convert database data to GenerationHistoryEntry format
-            const dbHistory: GenerationHistoryEntry[] = generations.map((item: any) => ({
-              id: item.id,
-              prompt: item.prompt || '',
-              request: {
+            // IMPORTANT: Preserve files from local history if they exist
+            const localHistoryMap = new Map(
+              localHistory.map(h => [h.id, h])
+            );
+            
+            const dbHistory: GenerationHistoryEntry[] = generations.map((item: any) => {
+              const localEntry = localHistoryMap.get(item.id);
+              
+              // If local entry has files loaded from snapshot, preserve them
+              const response = localEntry?.response?.files 
+                ? localEntry.response // Use local response with files
+                : item.files ? { // Fallback to database files (legacy)
+                    files: item.files,
+                    language: item.target_language || 'typescript',
+                  } 
+                : null; // No files available
+              
+              return {
+                id: item.id,
                 prompt: item.prompt || '',
-                targetLanguage: item.target_language || 'typescript',
-                complexity: item.complexity || 'medium',
-                agents: item.agents || ['CodeGenerator'], // Default agents
-                projectContext: item.project_context,
-              },
-              response: item.files ? {
-                files: item.files,
-                language: item.target_language || 'typescript',
-              } : null,
-              status: item.status || 'pending',
-              error: item.error,
-              agentMessages: item.agent_thoughts || [], // Load agent thoughts from database
-              startedAt: new Date(item.created_at),
-              completedAt: item.updated_at ? new Date(item.updated_at) : undefined,
-              duration: item.updated_at 
-                ? new Date(item.updated_at).getTime() - new Date(item.created_at).getTime()
-                : undefined,
-            }));
+                request: {
+                  prompt: item.prompt || '',
+                  targetLanguage: item.target_language || 'typescript',
+                  complexity: item.complexity || 'medium',
+                  agents: item.agents || ['CodeGenerator'], // Default agents
+                  projectContext: item.project_context,
+                },
+                response,
+                status: item.status || 'pending',
+                error: item.error,
+                agentMessages: item.agent_thoughts || [], // Load agent thoughts from database
+                startedAt: new Date(item.created_at),
+                completedAt: item.updated_at ? new Date(item.updated_at) : undefined,
+                duration: item.updated_at 
+                  ? new Date(item.updated_at).getTime() - new Date(item.created_at).getTime()
+                  : undefined,
+              };
+            });
 
             // Merge: database history + local pending (that aren't in database yet)
             const dbIds = new Set(dbHistory.map((h) => h.id));

@@ -38,6 +38,18 @@ export const ensureJsonResponse = (_req: Request, res: Response, next: NextFunct
 
   // Override send method to prevent non-JSON responses
   res.send = function(data: any) {
+    // Skip validation if response has already been sent
+    if (res.headersSent) {
+      return originalSend.call(this, data);
+    }
+    
+    // Skip validation if Content-Type is already set to JSON
+    // This means res.json() was already called and Express handled serialization
+    const contentType = res.getHeader('Content-Type');
+    if (contentType && contentType.toString().includes('application/json')) {
+      return originalSend.call(this, data);
+    }
+    
     // If data is not a Buffer and looks like it might be HTML
     if (typeof data === 'string' && (data.includes('<!DOCTYPE') || data.includes('<html'))) {
       console.warn('[JsonResponse] Attempted to send HTML response, converting to JSON error');

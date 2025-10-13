@@ -7,7 +7,7 @@
 export const VALIDATION_RULES = {
   typescript: {
     imports: [
-      "Always import hooks at the top of React components: import { useState, useEffect } from 'react'",
+      "Always import hooks at the top of React components: import useState and useEffect from 'react'",
       "Always import Next.js routing hook from 'next/router' package",
       "Never access routing hook as a property, import and call it directly",
       "Never use require() for hooks, always use ES6 imports"
@@ -66,7 +66,7 @@ export const VALIDATION_RULES = {
     ],
     
     state: [
-      "Initialize useState with proper types: const [count, setCount] = useState<number>(0)",
+      "Initialize useState with proper types, example: const [count, setCount] = useState with type number and initial value 0",
       "Never mutate state directly, always use setState function",
       "For complex state, consider useReducer"
     ]
@@ -179,7 +179,7 @@ export function getErrorPreventionRules(): string[] {
     "3. AVOID nested template strings with backticks - use String.raw or concatenation for XML/HTML generation",
     "4. CHECK all imports are listed in package.json dependencies or devDependencies",
     "5. USE proper TypeScript syntax - no 'require' for hooks, no module.exports in ESM",
-    "6. VERIFY all React hooks (useState, useEffect, routing hooks) are imported before use",
+    "6. VERIFY all React hooks like useState, useEffect, routing hooks are imported before use",
     "7. TEST template strings for proper escaping - especially in sitemap.xml.ts or similar files",
     "8. ENSURE package.json has correct 'type' field matching the module system used",
     "9. INCLUDE @types/* packages for all non-TypeScript dependencies",
@@ -365,12 +365,12 @@ export function getAIChecklistPrompt(): string {
 
 Please verify ALL of these before generating the final code:
 
-✅ 1. All React hooks (useState, useEffect, routing hooks, etc.) are imported at the top
+✅ 1. All React hooks like useState, useEffect, routing hooks are imported at the top
 ✅ 2. Routing hooks are imported directly from their package, not accessed as properties
 ✅ 3. All packages used in imports are listed in package.json
 ✅ 4. Template strings don't have problematic nested backticks
 ✅ 5. No module.exports if package.json has "type": "module"
-✅ 6. All JSX attributes use = sign: className={...} not className{...}
+✅ 6. All JSX attributes use = sign with curly braces properly
 ✅ 7. TypeScript types are properly defined for components and functions
 ✅ 8. No hardcoded values that should be environment variables
 ✅ 9. All async functions have proper error handling

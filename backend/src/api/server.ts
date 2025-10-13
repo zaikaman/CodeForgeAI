@@ -23,7 +23,7 @@ import downloadRouter from './routes/download';
 import deployRouter from './routes/deploy';
 import fixPreviewErrorsRouter from '../routes/fix-preview-errors';
 import cacheRouter from './cache';
-import codebaseRouter from './routes/codebase';
+// import codebaseRouter from './routes/codebase'; // DISABLED - rollback to legacy mode
 
 const app = express();
 
@@ -92,7 +92,7 @@ app.use('/api', downloadRouter);
 app.use('/api', deployRouter);
 app.use('/api/fix-preview-errors', fixPreviewErrorsRouter);
 app.use('/api/cache', cacheRouter);
-app.use('/api', codebaseRouter);
+// app.use('/api', codebaseRouter); // DISABLED - rollback to legacy mode
 
 // Socket.io connection
 io.on('connection', (socket) => {

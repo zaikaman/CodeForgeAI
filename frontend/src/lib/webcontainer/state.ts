@@ -11,6 +11,7 @@ export class WebContainerState {
   private serverProcess: WebContainerProcess | null = null;
   private serverUrl: string | null = null;
   private currentFilesHash: string | null = null;
+  private refreshCallbacks: Array<() => void> = [];
 
   private constructor() {}
 
@@ -84,6 +85,34 @@ export class WebContainerState {
     this.installed = false;
     this.currentFilesHash = null;
     console.log('[WebContainerState] State reset');
+  }
+
+  /**
+   * Register a callback to be called when refresh is needed
+   */
+  onRefresh(callback: () => void): () => void {
+    this.refreshCallbacks.push(callback);
+    // Return unsubscribe function
+    return () => {
+      const index = this.refreshCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.refreshCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * Trigger all registered refresh callbacks
+   */
+  triggerRefresh(): void {
+    console.log('[WebContainerState] Triggering refresh callbacks:', this.refreshCallbacks.length);
+    this.refreshCallbacks.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('[WebContainerState] Error in refresh callback:', error);
+      }
+    });
   }
 }
 

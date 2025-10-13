@@ -193,24 +193,8 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
     // - Always include if completed/failed (user needs to see result)
     const shouldIncludeFiles = includeFull || ['completed', 'failed'].includes(generation.status);
     
-    // Load files from storage if snapshot_id exists and files are requested
-    let files = generation.files;
-    if (shouldIncludeFiles && generation.snapshot_id && !files) {
-      try {
-        console.log(`[GET /generate/${id}] Loading files from snapshot ${generation.snapshot_id}`);
-        const { codebaseStorage } = await import('../../services/CodebaseStorageService');
-        const manifest = await codebaseStorage.getManifest(generation.snapshot_id, userId);
-        
-        // Load all files from snapshot
-        const filePaths = manifest.files.map((f: any) => f.path);
-        files = await codebaseStorage.readFiles(generation.snapshot_id, userId, filePaths);
-        
-        console.log(`[GET /generate/${id}] Loaded ${files.length} files from snapshot`);
-      } catch (storageError: any) {
-        console.error(`[GET /generate/${id}] Failed to load files from snapshot:`, storageError);
-        // Continue without files
-      }
-    }
+    // Get files from generation record
+    const files = generation.files;
     
     // Build response data object
     const responseData = {
@@ -229,7 +213,6 @@ router.get('/generate/:id', optionalAuth, async (req, res) => {
       deploymentStatus: generation.deployment_status,
       createdAt: generation.created_at,
       updatedAt: generation.updated_at,
-      snapshotId: generation.snapshot_id, // Add snapshot reference for client
       // Add file count so frontend knows if files exist
       fileCount: files ? (Array.isArray(files) ? files.length : Object.keys(files).length) : 0,
     };

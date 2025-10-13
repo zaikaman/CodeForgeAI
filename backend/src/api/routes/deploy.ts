@@ -174,7 +174,11 @@ router.post('/deploy', optionalAuth, async (req, res) => {
 });
 
 // Background deployment function
-async function deployInBackground(projectId: string, files: any[], platform: string): Promise<void> {
+async function deployInBackground(
+  projectId: string, 
+  files: any[], 
+  platform: string
+): Promise<void> {
   try {
     console.log(`[deployInBackground] Starting deployment for ${projectId} to ${platform}`);
     

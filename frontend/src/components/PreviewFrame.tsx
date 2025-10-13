@@ -4,7 +4,8 @@ import {
   mountFiles, 
   installPackages, 
   startDevServer,
-  webcontainerState 
+  webcontainerState,
+  resetWebContainer
 } from '@/lib/webcontainer/exports';
 import { createFilesHash } from '@/lib/webcontainer/files';
 import { getPreviewErrorCapture, PreviewError } from '@/utils/previewErrorCapture';
@@ -24,6 +25,7 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
   const [isEnlarged, setIsEnlarged] = useState<boolean>(false);
   const isInitializingRef = useRef<boolean>(false);
   const [previewErrors, setPreviewErrors] = useState<PreviewError[]>([]);
+  const [iframeKey, setIframeKey] = useState<number>(0); // Key to force iframe refresh
 
   // Setup error capture
   useEffect(() => {
@@ -47,6 +49,18 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
       unsubscribe();
     };
   }, [onPreviewError]);
+
+  // Listen for refresh events from WebContainer state
+  useEffect(() => {
+    const unsubscribe = webcontainerState.onRefresh(() => {
+      console.log('[PreviewFrame] Refresh triggered by WebContainer state');
+      setIframeKey(prev => prev + 1);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Create a stable hash of files to detect changes
   // This ensures useEffect runs when files actually change
@@ -100,12 +114,8 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
         }
 
         // Files have changed or need to initialize
-        if (currentHash !== filesHash) {
-          console.log('[PreviewFrame] ⚡ Files changed! Updating WebContainer...');
-        }
-
-        // Files have changed or need to initialize
-        if (currentHash !== filesHash) {
+        const filesChanged = currentHash !== filesHash;
+        if (filesChanged) {
           console.log('[PreviewFrame] ⚡ Files changed! Updating WebContainer...');
         } else {
           console.log('[PreviewFrame] Initializing WebContainer for the first time...');
@@ -117,6 +127,15 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
 
         // Mount files (will update if hash is different)
         await mountFiles(container, files);
+        
+        // Force iframe refresh when files change
+        if (filesChanged && webcontainerState.isServerRunning()) {
+          console.log('[PreviewFrame] 🔄 Forcing iframe refresh due to file changes...');
+          // Small delay to ensure files are written before refresh
+          setTimeout(() => {
+            setIframeKey(prev => prev + 1);
+          }, 500);
+        }
 
         if (!mounted) return;
 
@@ -247,27 +266,64 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
             </span>
           )}
         </div>
-        <button
-          onClick={() => setIsEnlarged(!isEnlarged)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
-          title={isEnlarged ? "Exit enlarged view" : "Enlarge preview"}
-        >
-          {isEnlarged ? (
-            <>
+        <div className="flex items-center gap-2">
+          {/* Refresh Button - Always available when ready */}
+          {status === 'ready' && previewUrl && (
+            <button
+              onClick={() => {
+                console.log('[PreviewFrame] Manual refresh triggered');
+                setIframeKey(prev => prev + 1);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-300 hover:text-blue-100 bg-blue-900/50 hover:bg-blue-900/70 rounded-md transition-colors"
+              title="Refresh preview"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>Exit</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
-              <span>Enlarge</span>
-            </>
+              <span>Refresh</span>
+            </button>
           )}
-        </button>
+          {/* Clear Cache Button - show when error or cache issues */}
+          {(status === 'error' || previewErrors.length > 0) && (
+            <button
+              onClick={async () => {
+                setStatus('idle');
+                setErrorMessage('');
+                await resetWebContainer({ clearFiles: true });
+                // Trigger re-initialization by updating files hash
+                window.location.reload();
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-orange-300 hover:text-orange-100 bg-orange-900/50 hover:bg-orange-900/70 rounded-md transition-colors"
+              title="Clear cache and restart preview"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Clear Cache</span>
+            </button>
+          )}
+          <button
+            onClick={() => setIsEnlarged(!isEnlarged)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+            title={isEnlarged ? "Exit enlarged view" : "Enlarge preview"}
+          >
+            {isEnlarged ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Exit</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+                <span>Enlarge</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Preview Content */}
@@ -281,6 +337,7 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
           </div>
         ) : status === 'ready' && previewUrl ? (
           <iframe
+            key={iframeKey}
             ref={iframeRef}
             src={previewUrl}
             className="w-full h-full border-0"

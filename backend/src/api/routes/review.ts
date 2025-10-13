@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { ReviewWorkflow } from '../../workflows/ReviewWorkflow';
 import { z } from 'zod';
-import { optionalAuth, AuthenticatedRequest } from '../middleware/supabaseAuth';
+import { optionalAuth } from '../middleware/supabaseAuth';
 
 const router = Router();
 
@@ -17,8 +17,7 @@ const reviewRequestSchema = z.object({
         content: z.string(),
       })
     ]))
-  ]).optional(),
-  snapshotId: z.string().uuid().optional(),
+  ]),
   language: z.string().default('typescript'),
   options: z.object({
     checkSecurity: z.boolean().default(true),
@@ -26,10 +25,7 @@ const reviewRequestSchema = z.object({
     checkStyle: z.boolean().default(true),
     checkBugs: z.boolean().default(true),
   }).optional(),
-}).refine(
-  (data) => data.code !== undefined || data.snapshotId !== undefined,
-  { message: 'Either code or snapshotId must be provided' }
-);
+});
 
 /**
  * POST /api/review - Review code with specialized agents
@@ -41,45 +37,22 @@ router.post('/review', optionalAuth, async (req, res) => {
     // Validate request
     const validatedRequest = reviewRequestSchema.parse(req.body);
 
-    // Load code from snapshot if snapshotId provided
+    // Normalize code to array format
     let codeArray: any[];
-    if (validatedRequest.snapshotId) {
-      console.log(`[POST /review] Loading files from snapshot ${validatedRequest.snapshotId}`);
-      const { codebaseStorage } = await import('../../services/CodebaseStorageService');
-      
-      // Get userId from auth
-      const userId = (req as AuthenticatedRequest).userId;
-      
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          error: 'Authentication required to use snapshotId',
-        });
-        return;
-      }
-      
-      const manifest = await codebaseStorage.getManifest(validatedRequest.snapshotId, userId);
-      const filePaths = manifest.files.map((f: any) => f.path);
-      codeArray = await codebaseStorage.readFiles(validatedRequest.snapshotId, userId, filePaths);
-      
-      console.log(`[POST /review] Loaded ${codeArray.length} files from snapshot`);
+    if (typeof validatedRequest.code === 'string') {
+      codeArray = [{ path: 'code.ts', content: validatedRequest.code }];
+    } else if (Array.isArray(validatedRequest.code)) {
+      codeArray = validatedRequest.code.map((item, index) => {
+        if (typeof item === 'string') {
+          return { path: `code${index + 1}.ts`, content: item };
+        }
+        return item;
+      });
     } else {
-      // Normalize code to array format
-      if (typeof validatedRequest.code === 'string') {
-        codeArray = [{ path: 'code.ts', content: validatedRequest.code }];
-      } else if (Array.isArray(validatedRequest.code)) {
-        codeArray = validatedRequest.code.map((item, index) => {
-          if (typeof item === 'string') {
-            return { path: `code${index + 1}.ts`, content: item };
-          }
-          return item;
-        });
-      } else {
-        codeArray = [];
-      }
-      
-      console.log(`[POST /review] Reviewing ${codeArray.length} files (inline)`);
+      codeArray = [];
     }
+    
+    console.log(`[POST /review] Reviewing ${codeArray.length} files`);
 
     // Run review workflow
     const reviewWorkflow = new ReviewWorkflow();

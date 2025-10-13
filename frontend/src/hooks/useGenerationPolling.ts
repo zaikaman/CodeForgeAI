@@ -17,7 +17,6 @@ export interface GenerationStatus {
   complexity?: string;
   previewUrl?: string;
   deploymentStatus?: string;
-  snapshotId?: string;
 }
 
 export interface UseGenerationPollingOptions {
@@ -99,7 +98,6 @@ export const useGenerationPolling = ({
         complexity: generationData.complexity,
         previewUrl: generationData.preview_url,
         deploymentStatus: generationData.deployment_status,
-        snapshotId: generationData.snapshot_id,
       });
 
       // Notify callbacks
@@ -121,7 +119,6 @@ export const useGenerationPolling = ({
           agentThoughts: generationData.agent_thoughts || [],
           targetLanguage: generationData.target_language,
           complexity: generationData.complexity,
-          snapshotId: generationData.snapshot_id,
         };
         
         onComplete?.(result);

@@ -64,12 +64,16 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   private readonly MAX_CONSECUTIVE_FAILURES = 10; // Prevent infinite loops (10 attempts max)
   private readonly MAX_SAME_ERROR_RETRIES = 5; // Prevent getting stuck on same error (5 times max)
 
-  constructor(_maxRetries: number = 10) { // maxRetries parameter kept for backward compatibility but not used
+  constructor(
+    _maxRetries: number = 10 // maxRetries parameter kept for backward compatibility but not used
+  ) {
     if (!process.env.FLY_API_TOKEN) {
       throw new Error('FLY_API_TOKEN environment variable is not set.');
     }
     this.flyApiToken = process.env.FLY_API_TOKEN;
     this.learningService = new LearningIntegrationService();
+    
+    console.log(`[PreviewServiceWithRetry] Initialized in legacy mode (files passed inline)`);
   }
 
   /**
@@ -313,33 +317,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         // it might be double-stringified
         let contentToWrite = file.content;
         
-        if (file.path.endsWith('.json')) {
-          // Try to detect and fix double-stringified JSON
-          if (typeof contentToWrite === 'string' && 
-              contentToWrite.startsWith('"') && 
-              contentToWrite.endsWith('"')) {
-            try {
-              const parsed = JSON.parse(contentToWrite);
-              if (typeof parsed === 'string') {
-                contentToWrite = parsed;
-                console.log(`✓ Fixed double-stringified JSON for ${file.path}`);
-              }
-            } catch (e) {
-              // Keep original if parsing fails
-            }
-          }
-          
-          // Validate JSON syntax before writing
-          try {
-            JSON.parse(contentToWrite);
-            console.log(`✓ Validated JSON syntax for ${file.path}`);
-          } catch (e: any) {
-            console.error(`✗ Invalid JSON syntax in ${file.path}: ${e.message}`);
-            console.error(`   Content preview: ${contentToWrite.substring(0, 100)}`);
-          }
-        }
-        
-        // Fix escaped content - LLM often returns JSON-escaped strings
+        // Fix escaped content FIRST - LLM often returns JSON-escaped strings
         // We need to unescape: \n -> newline, \" -> ", \\ -> \, etc.
         
         // Check if content looks like it's JSON-escaped (has \n or \" patterns)
@@ -375,6 +353,33 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
           contentToWrite = contentToWrite.replace(/\\\\([sdwSDW])/g, '\\$1');
           // Double-escaped dots in regex: \\. -> \.
           contentToWrite = contentToWrite.replace(/\\\\\./g, '\\.');
+        }
+        
+        // NOW validate JSON files AFTER unescaping
+        if (file.path.endsWith('.json')) {
+          // Try to detect and fix double-stringified JSON
+          if (typeof contentToWrite === 'string' && 
+              contentToWrite.startsWith('"') && 
+              contentToWrite.endsWith('"')) {
+            try {
+              const parsed = JSON.parse(contentToWrite);
+              if (typeof parsed === 'string') {
+                contentToWrite = parsed;
+                console.log(`✓ Fixed double-stringified JSON for ${file.path}`);
+              }
+            } catch (e) {
+              // Keep original if parsing fails
+            }
+          }
+          
+          // Validate JSON syntax
+          try {
+            JSON.parse(contentToWrite);
+            console.log(`✓ Validated JSON syntax for ${file.path}`);
+          } catch (e: any) {
+            console.error(`✗ Invalid JSON syntax in ${file.path}: ${e.message}`);
+            console.error(`   Content preview: ${contentToWrite.substring(0, 100)}`);
+          }
         }
         
         fs.writeFileSync(filePath, contentToWrite);
@@ -467,7 +472,9 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   ): Promise<Array<{ path: string; content: string }> | null> {
     try {
       console.log('→ Initializing ChatAgent...');
-      const { runner } = await ChatAgent();
+      
+      // ChatAgent in legacy mode - no file system context needed
+      const { runner } = await ChatAgent(undefined);
 
       const filesContext = currentFiles.map(f => 
         `File: ${f.path}\n\`\`\`\n${f.content}\n\`\`\``
@@ -475,12 +482,69 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
 
       // Parse TypeScript errors if present
       let typeScriptErrorGuide = '';
+      let typeScriptErrorContext = '';
       if (TypeScriptErrorParser.hasTypeScriptErrors(logs)) {
         const parsedErrors = TypeScriptErrorParser.parseErrors(logs);
         typeScriptErrorGuide = '\n\n' + TypeScriptErrorParser.generateFixGuide(parsedErrors) + '\n';
+        
+        // Add detailed error context for each error
+        typeScriptErrorContext = '\n\n🔍 DETAILED TYPESCRIPT ERROR ANALYSIS:\n';
+        typeScriptErrorContext += '=' .repeat(80) + '\n';
+        
+        for (const err of parsedErrors) {
+          typeScriptErrorContext += `\n❌ Error ${err.code} in ${err.file}:${err.line}:${err.column}\n`;
+          typeScriptErrorContext += `   Category: ${err.category}\n`;
+          typeScriptErrorContext += `   Message: ${err.message}\n`;
+          
+          // Find the relevant file content
+          const targetFile = currentFiles.find(f => f.path.includes(err.file) || err.file.includes(f.path));
+          if (targetFile) {
+            const lines = targetFile.content.split('\n');
+            const errorLineIndex = err.line - 1;
+            
+            if (errorLineIndex >= 0 && errorLineIndex < lines.length) {
+              typeScriptErrorContext += `\n   Context (lines ${Math.max(1, err.line - 2)} to ${Math.min(lines.length, err.line + 2)}):\n`;
+              
+              for (let i = Math.max(0, errorLineIndex - 2); i <= Math.min(lines.length - 1, errorLineIndex + 2); i++) {
+                const lineNum = i + 1;
+                const prefix = lineNum === err.line ? '   >>> ' : '       ';
+                const marker = lineNum === err.line && err.column ? ' '.repeat(err.column - 1) + '^' : '';
+                typeScriptErrorContext += `${prefix}${lineNum}: ${lines[i]}\n`;
+                if (marker) {
+                  typeScriptErrorContext += `${prefix}${' '.repeat(String(lineNum).length + 2)}${marker}\n`;
+                }
+              }
+            }
+          }
+          
+          // Add specific fix hint based on error code
+          typeScriptErrorContext += `\n   💡 FIX STRATEGY:\n`;
+          if (err.code === 'TS2345') {
+            typeScriptErrorContext += `      This is a type mismatch error. Check:\n`;
+            typeScriptErrorContext += `      - Are you passing a function where a value is expected?\n`;
+            typeScriptErrorContext += `      - For setState: use setX(value) not setX(prev => value) if the setter expects a value\n`;
+            typeScriptErrorContext += `      - Check the function signature and ensure argument types match\n`;
+          } else if (err.code === 'TS2339') {
+            typeScriptErrorContext += `      Property doesn't exist. Check:\n`;
+            typeScriptErrorContext += `      - Spelling and case sensitivity\n`;
+            typeScriptErrorContext += `      - Is the property defined in the type/interface?\n`;
+            typeScriptErrorContext += `      - Do you need to add it to the type definition?\n`;
+          } else if (err.code === 'TS2304') {
+            typeScriptErrorContext += `      Name not found. Check:\n`;
+            typeScriptErrorContext += `      - Is the import statement present?\n`;
+            typeScriptErrorContext += `      - Is the variable/type defined?\n`;
+            typeScriptErrorContext += `      - Check spelling and scope\n`;
+          }
+          typeScriptErrorContext += '\n' + '-'.repeat(80) + '\n';
+        }
       }
 
-      const fixPrompt = `The deployment to Fly.io FAILED on attempt ${attempt}. Please analyze the error and fix the code.
+      const fixPrompt = `🚨 URGENT DEPLOYMENT FIX REQUIRED 🚨
+
+You are in DEPLOYMENT FIX MODE. DO NOT route this to any specialist agent!
+You MUST fix the code yourself and return the fixed files immediately.
+
+The deployment to Fly.io FAILED on attempt ${attempt}. You need to analyze the error and fix the code NOW.
 
 DEPLOYMENT ERROR:
 ${error}
@@ -488,36 +552,73 @@ ${error}
 DEPLOYMENT LOGS:
 ${logs}
 ${typeScriptErrorGuide}
+${typeScriptErrorContext}
 
 CURRENT CODEBASE (${currentFiles.length} files):
 ${filesContext}
 
-⚠️ CRITICAL REQUIREMENT - FILE COUNT VALIDATION:
-You MUST return ALL ${currentFiles.length} files from the current codebase.
-- If you fix an existing file: include it with fixes
-- If you don't need to change a file: include it UNCHANGED
-- If you create a NEW file: add it to the list (total will be ${currentFiles.length + 1}+)
-- NEVER omit or delete files from your response
+⚠️ CRITICAL REQUIREMENTS:
 
-Response will be REJECTED if you return fewer than ${currentFiles.length} files!
+1. **DO NOT ROUTE TO SPECIALISTS** - This is a deployment fix, you must handle it yourself!
+   - DO NOT set needsSpecialist: true
+   - DO NOT route to BugHunter, SecuritySentinel, or any other agent
+   - FIX THE CODE YOURSELF using the error information provided
 
-Please:
-1. Analyze the error and logs carefully (ESPECIALLY the TypeScript error analysis above if present)
-2. Identify what's causing the deployment to fail
-3. Fix the issues in the code following the provided fix strategies
-4. Return EVERY SINGLE FILE from the codebase (modified or not) + any new files you create
-5. Provide a summary of what you fixed
+2. **FILE COUNT VALIDATION** - You MUST return ALL ${currentFiles.length} files:
+   - If you fix an existing file: include it with fixes
+   - If you don't need to change a file: include it UNCHANGED
+   - If you create a NEW file: add it to the list (total will be ${currentFiles.length + 1}+)
+   - NEVER omit or delete files from your response
+   - Response will be REJECTED if you return fewer than ${currentFiles.length} files!
 
-Common issues to check:
-- TypeScript type errors (see detailed analysis above)
-- Missing package.json or incorrect dependencies
-- Build script errors
-- Port configuration issues
-- Missing environment variables
-- Dockerfile issues
-- File path problems
+3. **RESPONSE FORMAT** - Return a JSON object with:
+   {
+     "files": [
+       { "path": "file1.ts", "content": "fixed content..." },
+       { "path": "file2.json", "content": "..." },
+       ... all ${currentFiles.length}+ files
+     ],
+     "summary": "Brief description of what you fixed"
+   }
 
-Return the complete fixed codebase.`;
+FIXING INSTRUCTIONS:
+1. **READ THE ERROR ANALYSIS CAREFULLY** - All TypeScript errors are shown above with:
+   - Exact error location (file, line, column)
+   - Code context (the problematic lines)
+   - Specific fix strategies for each error
+
+2. **IDENTIFY THE ROOT CAUSE** - Look at the error code and message:
+   - TS2345 = Type mismatch (wrong type passed to function/variable)
+   - TS2339 = Property doesn't exist
+   - TS2304 = Name/import not found
+   - Check the code context shown above to understand what went wrong
+
+3. **APPLY THE FIX** - Based on the error type:
+   ${typeScriptErrorGuide ? '- Follow the TypeScript fix strategies provided above (CRITICAL!)' : ''}
+   - For TS2345: Fix the type being passed (e.g., pass a value instead of a function)
+   - For missing dependencies: Add them to package.json
+   - For syntax errors: Correct the syntax
+   - For missing files: Create the missing files with proper content
+   - For build config errors: Fix the configuration
+
+4. **VERIFY YOUR FIX** - After fixing:
+   - Make sure the line mentioned in error is corrected
+   - Ensure types match the expected signature
+   - Check that imports are present
+
+5. **RETURN COMPLETE CODEBASE** - Include ALL ${currentFiles.length} files (modified + unmodified) + any new files
+
+6. **SUMMARIZE CHANGES** - Explain what you fixed and why
+
+Common deployment issues:
+- TypeScript compilation errors (check error codes like TS2345, TS2339, etc.)
+- Missing or incorrect dependencies in package.json
+- Build script configuration errors
+- Port or environment variable issues
+- Dockerfile misconfigurations
+- Import/module resolution errors
+
+REMEMBER: DO NOT route to specialists! Fix the code yourself and return the complete codebase!`;
 
       console.log('→ Sending fix request to ChatAgent...');
       console.log(`   Prompt length: ${fixPrompt.length} characters`);
@@ -529,6 +630,24 @@ Return the complete fixed codebase.`;
         retryDelay: 2000,
         context: 'PreviewServiceFixCode'
       });
+
+      // Handle specialist transfer case
+      if (response.needsSpecialist && response.specialistAgent) {
+        console.log(`⚠ ChatAgent requested specialist transfer to: ${response.specialistAgent}`);
+        console.log(`   Summary: ${response.summary || 'No summary provided'}`);
+        console.log(`   Note: Specialist transfers are not supported in deployment fixes`);
+        console.log(`   Treating this as a failed fix attempt`);
+        return null;
+      }
+
+      // Check if response has files array
+      if (!response.files || !Array.isArray(response.files)) {
+        console.warn('⚠ ChatAgent response missing files array');
+        if (response.summary) {
+          console.log(`   Summary: ${response.summary}`);
+        }
+        return null;
+      }
 
       if (response.files.length === 0) {
         console.warn('⚠ ChatAgent returned empty files array');

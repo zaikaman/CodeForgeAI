@@ -12,13 +12,10 @@ const router = Router();
 const chatRequestSchema = z.object({
   generationId: z.string().min(1, 'Generation ID is required'),
   message: z.string().min(1, 'Message is required'),
-  // NEW WAY: Use snapshotId (efficient)
-  snapshotId: z.string().uuid().optional(),
-  // OLD WAY: Send currentFiles directly (backward compatibility)
   currentFiles: z.array(z.object({
     path: z.string(),
     content: z.string()
-  })).optional(),
+  })).default([]), // Default to empty array if not provided
   language: z.string().default('typescript'),
   imageUrls: z.array(z.string()).optional(),
   githubContext: z.object({
@@ -44,19 +41,11 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
-    const { generationId, message, snapshotId, currentFiles, language, imageUrls, githubContext } = validatedRequest;
+    const { generationId, message, currentFiles, language, imageUrls, githubContext } = validatedRequest;
 
     console.log(`[POST /chat] Processing message for generation ${generationId}`);
     console.log(`[POST /chat] Message: ${message.substring(0, 100)}...`);
-    
-    if (snapshotId) {
-      console.log(`[POST /chat] Using snapshot: ${snapshotId} (efficient mode)`);
-    } else if (currentFiles && currentFiles.length > 0) {
-      console.log(`[POST /chat] Using currentFiles: ${currentFiles.length} files (legacy mode)`);
-    } else {
-      console.log(`[POST /chat] No files provided, will fetch from generation if needed`);
-    }
-    
+    console.log(`[POST /chat] Current files: ${currentFiles.length}`);
     if (githubContext) {
       console.log(`[POST /chat] GitHub context provided for user: ${githubContext.username}`);
     }
@@ -69,7 +58,7 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     // Ensure generation exists in DB before storing chat messages
     const { data: existingGeneration } = await supabase
       .from('generations')
-      .select('id, user_id, files')
+      .select('id, user_id')
       .eq('id', generationId)
       .single();
 
@@ -144,15 +133,6 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       // Continue anyway, chatQueue has its own storage
     }
 
-    // Determine which files to use
-    let filesToUse = currentFiles || [];
-    
-    // If no files provided and generation exists, use generation's files
-    if (filesToUse.length === 0 && existingGeneration?.files) {
-      console.log(`[POST /chat] Using files from generation (${existingGeneration.files.length} files)`);
-      filesToUse = existingGeneration.files;
-    }
-
     // Enqueue the chat job for background processing
     // ChatAgent will decide if code generation is needed
     await chatQueue.enqueue({
@@ -160,8 +140,7 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       generationId,
       userId,
       message,
-      snapshotId, // NEW: Pass snapshot ID if available
-      currentFiles: filesToUse, // Use determined files
+      currentFiles,
       language,
       imageUrls,
       githubContext,

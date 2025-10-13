@@ -61,6 +61,8 @@ export const TerminalPage: React.FC = () => {
     status: 'pending' | 'deploying' | 'deployed' | 'failed' | null;
   }>({ url: null, status: null });
   
+
+  
   // Store
   const store = useGenerationStore();
   const { 
@@ -72,10 +74,16 @@ export const TerminalPage: React.FC = () => {
   } = store;
 
   // Get current generation if ID exists
+  // IMPORTANT: Include history in dependencies to re-render when files are updated
   const generation = React.useMemo(() => {
     if (!id) return null;
-    return currentGeneration?.id === id ? currentGeneration : getGenerationById(id);
-  }, [id, currentGeneration, history, getGenerationById]);
+    const gen = currentGeneration?.id === id ? currentGeneration : getGenerationById(id);
+    console.log(`[TerminalPage] Generation memo updated for ${id}:`, {
+      hasFiles: !!gen?.response?.files,
+      filesCount: gen?.response?.files?.length || 0
+    });
+    return gen;
+  }, [id, currentGeneration, getGenerationById, history]);
 
   // Load chat sessions - reload when ID changes (NOT on every message)
   useEffect(() => {
@@ -116,7 +124,7 @@ export const TerminalPage: React.FC = () => {
     jobId: currentJobId,
     enabled: isProcessing && !!currentJobId,
     pollInterval: 500, // Poll every 500ms for smooth progress updates
-    maxAttempts: 240, // 2 minutes max (500ms * 240 = 120s)
+    maxAttempts: 1000, // 2 minutes max (500ms * 240 = 120s)
     onProgressUpdate: (messages) => {
       setProgressMessages(messages);
     },
@@ -152,16 +160,44 @@ export const TerminalPage: React.FC = () => {
         setMessages(prev => [...prev, suggestionsMessage]);
       }
 
-      // Update files if present
+      // Update files if present AND ensure panel becomes visible
       if (result.files && id) {
+        console.log(`📦 Updating generation ${id} with ${result.files.length} files`);
+        console.log('Files received:', result.files.map((f: any) => f.path));
+        
+        // Update the generation with files
         updateGenerationFiles(id, result.files);
         
+        // Force panel to be visible when files are ready
+        setIsPreviewPanelVisible(true);
+        
+        // Select first file automatically
         if (selectedFile) {
           const updatedFile = result.files.find((f: any) => f.path === selectedFile.path);
           if (updatedFile) {
             setSelectedFile(updatedFile);
           }
+        } else if (result.files.length > 0) {
+          // Auto-select first file if no file is selected
+          console.log('Auto-selecting first file:', result.files[0].path);
+          setSelectedFile(result.files[0]);
         }
+        
+        // Log verification
+        setTimeout(() => {
+          const gen = getGenerationById(id);
+          console.log('Verification - Generation after update:', {
+            hasGeneration: !!gen,
+            hasResponse: !!gen?.response,
+            hasFiles: !!gen?.response?.files,
+            filesCount: gen?.response?.files?.length || 0
+          });
+        }, 100);
+      }
+      // If no files in result, they should be loaded by loadSession effect
+      // Don't load here to avoid duplication
+      else if (!result.files && id) {
+        console.log('ℹ️ No files in result, they will be loaded by loadSession effect');
       }
     },
     onError: (error) => {
@@ -215,6 +251,7 @@ export const TerminalPage: React.FC = () => {
         }
         
         console.log('✅ Loaded session from database:', generationData.id);
+        console.log('Session has files:', !!generationData.files, 'Count:', generationData.files?.length || 0);
         
         if (!generation) {
           startGenerationWithId(id, {
@@ -225,8 +262,13 @@ export const TerminalPage: React.FC = () => {
           });
         }
         
-        if (generationData.files) {
+        // Load files from database (legacy mode)
+        if (generationData.files && Array.isArray(generationData.files) && generationData.files.length > 0) {
+          console.log('📦 Loading files from database (legacy):', generationData.files.length);
           updateGenerationFiles(id, generationData.files);
+          
+          // Ensure panel is visible when files are loaded
+          setIsPreviewPanelVisible(true);
         }
         
         const { data: chatData, error: chatError } = await supabase
@@ -271,9 +313,56 @@ export const TerminalPage: React.FC = () => {
   // Auto-select first file when files are available
   useEffect(() => {
     if (generation?.response?.files && generation.response.files.length > 0 && !selectedFile) {
+      console.log('🎯 Auto-selecting first file from generation files');
       setSelectedFile(generation.response.files[0]);
     }
   }, [generation?.response?.files]);
+
+  // Debug: Log when generation or files change
+  useEffect(() => {
+    if (generation) {
+      console.log('[TerminalPage] Generation state:', {
+        id: generation.id,
+        hasResponse: !!generation.response,
+        hasFiles: !!generation.response?.files,
+        filesCount: generation.response?.files?.length || 0,
+        panelVisible: isPreviewPanelVisible
+      });
+    }
+  }, [generation, isPreviewPanelVisible]);
+
+  // DISABLED: This effect caused duplicate API calls
+  // Files are now loaded ONLY in loadSession effect to prevent duplicates
+  // Solution: Single source of truth = loadSession effect handles all file loading
+  
+  /*
+  useEffect(() => {
+    // This effect is disabled - files loaded in loadSession only
+  }, [generation?.status, generation?.response?.files, id]);
+  */
+
+  // Auto-show preview panel when files are loaded
+  useEffect(() => {
+    console.log('🔍 Panel visibility check:', {
+      hasGeneration: !!generation,
+      hasResponse: !!generation?.response,
+      hasFiles: !!generation?.response?.files,
+      filesCount: generation?.response?.files?.length || 0,
+      currentPanelState: isPreviewPanelVisible
+    });
+    
+    if (generation?.response?.files && generation.response.files.length > 0) {
+      console.log('📂 Files detected, showing preview panel');
+      setIsPreviewPanelVisible(true);
+      
+      // Auto-select first file if none selected
+      if (!selectedFile) {
+        setSelectedFile(generation.response.files[0]);
+      }
+    } else if (generation && !generation?.response?.files) {
+      console.warn('⚠️ Generation exists but no files in response');
+    }
+  }, [generation?.response?.files?.length]); // Only trigger when files count changes
 
   // Handle image selection
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -424,12 +513,10 @@ export const TerminalPage: React.FC = () => {
         language: generation?.response?.targetLanguage || 'typescript',
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         githubContext,
+        currentFiles: files, // Always send files, even if empty array
       };
 
-      // Include currentFiles only if we have files (avoid sending empty array)
-      if (files.length > 0) {
-        chatRequest.currentFiles = files;
-      }
+      console.log(`📦 Sending ${files.length} files inline with chat request`);
 
       const chatResponse = await apiClient.chat(chatRequest);
 

@@ -123,7 +123,7 @@ router.post('/preview', async (req, res) => {
       // Otherwise, retrieve the generated files from the database
       const { data: generationData, error: generationError } = await supabase
         .from('generations')
-        .select('files, preview_url, deployment_status')
+        .select('files, preview_url, deployment_status, snapshot_id, user_id')
         .eq('id', generationId)
         .maybeSingle();
 

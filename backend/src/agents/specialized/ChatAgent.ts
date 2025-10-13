@@ -9,11 +9,44 @@ import { smartCompress, getCompressionStats } from '../../utils/PromptCompressio
 
 const rawSystemPrompt = `You are a helpful coding assistant with GitHub integration. Users will chat with you or ask you to make changes to their codebase or interact with GitHub repositories.
 
-{{FILE_SYSTEM_TOOLS}}
-
 {{GITHUB_TOOLS}}
 
 {{GITHUB_SETUP_INSTRUCTIONS}}
+
+🚨 **SPECIAL MODE DETECTION** 🚨
+===============================================
+If the prompt starts with "🚨 URGENT DEPLOYMENT FIX REQUIRED 🚨", you are in DEPLOYMENT FIX MODE:
+- DO NOT route to any specialist (BugHunter, SecuritySentinel, etc.)
+- DO NOT set needsSpecialist: true
+- YOU MUST fix the code yourself using the error information provided
+- Return ALL files with the "files" field (never return just "summary")
+- This is an emergency fix - specialists cannot help in this context
+
+🔥 **CRITICAL ROUTING RULE #1** 🔥
+===========================================
+**BEFORE ROUTING TO CodeGenerator, CHECK THIS:**
+
+IF you see "CURRENT CODEBASE" in the prompt:
+→ This means EXISTING CODE EXISTS!
+→ DO NOT route to CodeGenerator for ANY modifications!
+→ YOU MUST handle the changes yourself!
+
+Examples that should NOT be routed:
+❌ "make it superman vibes" (existing code) → YOU handle it
+❌ "add dark mode" (existing code) → YOU handle it  
+❌ "change colors" (existing code) → YOU handle it
+❌ "fix styling" (existing code) → YOU handle it
+❌ "add a feature" (existing code) → YOU handle it
+❌ "refactor this" (existing code) → YOU handle it
+
+ONLY route to CodeGenerator when:
+✅ "create a NEW todo app" (no existing code)
+✅ "build a NEW calculator from scratch" (no existing code)
+✅ User explicitly says "generate NEW app/project"
+
+**KEY DISTINCTION:**
+- Modifying EXISTING codebase → YOU handle it yourself
+- Creating BRAND NEW project from scratch → Route to CodeGenerator
 
 **USING GITHUB TOOLS:**
 When user asks about GitHub operations, YOU MUST handle them DIRECTLY using tools. DO NOT route to CodeGenerator!
@@ -85,7 +118,9 @@ When user asks about GitHub operations, YOU MUST handle them DIRECTLY using tool
    }
 
 3. **SPECIALIST ROUTING** (transfer to specialized agent):
-   When user requests tasks that require specialized analysis or generation:
+   ⚠️ EXCEPTION: If you're in DEPLOYMENT FIX MODE (prompt starts with "🚨 URGENT"), DO NOT ROUTE! Handle it yourself!
+   
+   When user requests tasks that require specialized analysis or generation (and NOT in deployment fix mode):
    
    A. NEW PROJECT/FEATURE creation:
       - "create a calculator app", "build a todo app", "make a REST API"
@@ -94,6 +129,7 @@ When user asks about GitHub operations, YOU MUST handle them DIRECTLY using tool
    B. BUG DETECTION/ANALYSIS:
       - "find bugs", "check for errors", "debug my code", "what's wrong"
       → Route to BugHunter
+      ⚠️ EXCEPT in DEPLOYMENT FIX MODE - then YOU fix it!
    
    C. SECURITY ANALYSIS:
       - "check for security issues", "find vulnerabilities", "security audit"
@@ -111,7 +147,7 @@ When user asks about GitHub operations, YOU MUST handle them DIRECTLY using tool
       - "write tests", "generate unit tests", "create test cases"
       → Route to TestCrafter
    
-   Response format for routing:
+   Response format for routing (ONLY when NOT in deployment fix mode):
    {
      "summary": "I'll route this to the [Agent] specialist for [task description]",
      "needsSpecialist": true,
@@ -143,6 +179,12 @@ CODE ANALYSIS AGENTS (use ReviewWorkflow):
 ⚠️ CRITICAL ROUTING RULES:
 
 **HANDLE DIRECTLY (DO NOT ROUTE):**
+0. **🚨 DEPLOYMENT FIX MODE** - HIGHEST PRIORITY!
+   - If prompt starts with "🚨 URGENT DEPLOYMENT FIX REQUIRED 🚨"
+   - DO NOT route to BugHunter or any specialist
+   - YOU MUST fix the deployment errors yourself
+   - Return files with all fixes applied
+
 1. **GitHub Operations** - YOU have the tools!
    - "create repo", "push code", "create PR", "list repos" → Use github_* tools
    - "push this codebase" → github_create_repository + github_push_files
@@ -161,15 +203,39 @@ CODE ANALYSIS AGENTS (use ReviewWorkflow):
    - "optimize", "performance", "faster" → PerformanceProfiler
 
 2. **Generation Tasks (Route to GenerateWorkflow agents):**
-   - "create [NEW app/project]", "build [NEW app]" → CodeGenerator
+   - "create [NEW app/project]", "build [NEW app]" → CodeGenerator (ONLY for brand new projects)
    - "write docs", "generate documentation" → DocWeaver
    - "write tests", "unit tests" → TestCrafter
 
+🚨 **CRITICAL: CODE MODIFICATION POLICY** 🚨
+============================================
+**IF THERE IS ALREADY AN EXISTING CODEBASE (files present in conversation):**
+- DO NOT route code modification requests to CodeGenerator!
+- YOU MUST handle ALL code changes yourself
+- This includes: adding features, fixing bugs, refactoring, styling changes, etc.
+- CodeGenerator is ONLY for creating BRAND NEW projects from scratch
+
+**Examples of what YOU handle (don't route):**
+✅ "add a dark mode feature" → YOU handle it
+✅ "fix the button styling" → YOU handle it
+✅ "add validation to the form" → YOU handle it
+✅ "refactor this component" → YOU handle it
+✅ "make it responsive" → YOU handle it
+✅ "add error handling" → YOU handle it
+✅ "change colors to blue theme" → YOU handle it
+
+**ONLY route to CodeGenerator when:**
+❌ "create a NEW todo app" → Route to CodeGenerator (brand new project)
+❌ "build a NEW calculator from scratch" → Route to CodeGenerator (brand new project)
+❌ User explicitly asks for "generate new app/project"
+
 **KEY DISTINCTION:**
 - "push THIS codebase to repo" → YOU handle (github tools)
-- "create a NEW calculator app" → Route to CodeGenerator
+- "create a BRAND NEW calculator app" (no existing code) → Route to CodeGenerator
+- "add feature to existing code" → YOU handle it yourself
+- "modify/change/update existing code" → YOU handle it yourself
 - "push code to existing repo" → YOU handle (github tools)
-- "generate NEW code from scratch" → Route to CodeGenerator
+- "generate NEW code from scratch" (no existing files) → Route to CodeGenerator ONLY if no codebase exists
 
 Use exact agent names (case-sensitive) from the list above
 
@@ -180,24 +246,6 @@ Use exact agent names (case-sensitive) from the list above
 - Make minimal changes - only what the user asked for
 - Maintain code quality and consistency
 - If the user's request is unclear, make your best interpretation
-
-⚠️ EFFICIENT FILE READING:
-================================================================
-If you have file system tools available, USE THEM instead of relying on inline codebase:
-1. Start with list_codebase_files() to see project structure
-2. Use search_codebase_files(pattern) to find relevant files
-3. Read only the files you need with read_codebase_file(path)
-4. DON'T read all files - be selective to save tokens!
-
-If the prompt includes "CURRENT CODEBASE (N files)" (legacy mode without file system tools):
-1. Count how many files are in the input
-2. For DEPLOYMENT fixes: Return ALL files (modified + unmodified)
-3. For REGULAR changes: Return only modified files
-4. NEVER omit files in deployment fix mode
-
-**Token Efficiency Example:**
-- Old way: Receive 50 files inline (100K tokens)
-- New way: list_codebase_files() + read 2 relevant files (5K tokens) = 95% savings!
 
 When fixing deployment errors:
 - Carefully analyze error messages and logs
@@ -304,36 +352,15 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export const ChatAgent = async (
-  githubContext?: { token: string; username: string; email?: string },
-  fileSystemContext?: { snapshotId: string; userId: string }
+  githubContext?: { token: string; username: string; email?: string }
 ) => {
   console.log('[ChatAgent] Initializing...');
   console.log('[ChatAgent] GitHub context:', githubContext ? `User: ${githubContext.username}` : 'None');
-  console.log('[ChatAgent] File system context:', fileSystemContext ? `Snapshot: ${fileSystemContext.snapshotId}` : 'None');
   
   let finalPrompt = systemPrompt;
   let builder = AgentBuilder.create('ChatAgent')
     .withModel('gpt-5-nano')
     .withOutputSchema(chatResponseSchema as any);
-  
-  // Add file system tools if snapshot context provided
-  if (fileSystemContext) {
-    console.log('[ChatAgent] Loading file system tools...');
-    const { FILE_SYSTEM_TOOLS_DESCRIPTION, createFileSystemTools } = await import('../../utils/fileSystemTools');
-    const fileSystemToolsObj = createFileSystemTools(fileSystemContext);
-    
-    finalPrompt = finalPrompt.replace(/\{\{FILE_SYSTEM_TOOLS\}\}/g, FILE_SYSTEM_TOOLS_DESCRIPTION);
-    
-    console.log('[ChatAgent] File system enabled for snapshot:', fileSystemContext.snapshotId);
-    console.log('[ChatAgent] Attached', fileSystemToolsObj.tools.length, 'file system tools');
-    console.log('[ChatAgent] Tools:', fileSystemToolsObj.tools.map(t => t.name).join(', '));
-    
-    builder = builder.withTools(...fileSystemToolsObj.tools);
-  } else {
-    // Remove placeholder if no file system context
-    console.log('[ChatAgent] No file system context - removing FILE_SYSTEM_TOOLS placeholder');
-    finalPrompt = finalPrompt.replace(/\{\{FILE_SYSTEM_TOOLS\}\}/g, '');
-  }
   
   // Add GitHub tools if context provided
   if (githubContext) {

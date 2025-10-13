@@ -150,7 +150,6 @@ router.get('/history/:id', optionalAuth, async (req, res) => {
       response: files ? {
         files: files,
         preview: generation.preview_url,
-        snapshotId: generation.snapshot_id, // Include snapshot reference
       } : null,
       status: generation.status,
       error: generation.error,
