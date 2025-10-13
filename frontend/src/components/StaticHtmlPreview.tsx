@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAutoRefreshScript, createFilesHash } from '@/utils/vanillaPreviewRefresh';
 
 interface StaticHtmlPreviewProps {
   files: Array<{ path: string; content: string }>;
@@ -15,18 +14,9 @@ export function StaticHtmlPreview({ files, onError, onReady }: StaticHtmlPreview
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [isReady, setIsReady] = useState(false);
-  const [iframeKey, setIframeKey] = useState<number>(0);
-
-  // Create a hash of files to track changes using vanilla JS utility
-  const filesHash = createFilesHash(files);
 
   useEffect(() => {
     try {
-      // Force iframe refresh by updating key when files change
-      console.log('[StaticHtmlPreview] Files changed, refreshing preview...');
-      setIframeKey(prev => prev + 1);
-      setIsReady(false);
-
       // Find HTML, CSS, and JS files
       const htmlFile = files.find(f => f.path === 'index.html' || f.path.endsWith('.html'));
       const cssFile = files.find(f => f.path === 'styles.css' || f.path === 'style.css' || f.path.endsWith('.css'));
@@ -73,8 +63,22 @@ export function StaticHtmlPreview({ files, onError, onReady }: StaticHtmlPreview
         html = `${baseTag}\n${html}`;
       }
 
-      // Add auto-refresh script using vanilla JavaScript utility
-      const errorHandlingScript = getAutoRefreshScript();
+      // Add error handling script
+      const errorHandlingScript = `
+        <script>
+          window.addEventListener('error', function(e) {
+            console.error('Preview Error:', e.error || e.message);
+            window.parent.postMessage({
+              type: 'preview-error',
+              error: e.error ? e.error.toString() : e.message
+            }, '*');
+          });
+          
+          window.addEventListener('load', function() {
+            window.parent.postMessage({ type: 'preview-ready' }, '*');
+          });
+        </script>
+      `;
       
       if (html.includes('</head>')) {
         html = html.replace('</head>', `${errorHandlingScript}\n</head>`);
@@ -82,7 +86,7 @@ export function StaticHtmlPreview({ files, onError, onReady }: StaticHtmlPreview
         html = `${errorHandlingScript}\n${html}`;
       }
 
-      console.log('[StaticHtmlPreview] Generated HTML preview (hash:', filesHash.substring(0, 50), ')');
+      console.log('[StaticHtmlPreview] Generated HTML preview');
       setHtmlContent(html);
       setIsReady(true);
 
@@ -90,20 +94,17 @@ export function StaticHtmlPreview({ files, onError, onReady }: StaticHtmlPreview
       console.error('[StaticHtmlPreview] Error generating preview:', error);
       onError?.(error.message || 'Failed to generate preview');
     }
-  }, [files, filesHash, onError]);
+  }, [files, onError]);
 
-  // Listen for messages from iframe (vanilla JavaScript communication)
+  // Listen for messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'preview-ready') {
-        console.log('[StaticHtmlPreview] Preview loaded successfully at:', event.data.timestamp);
+        console.log('[StaticHtmlPreview] Preview loaded successfully');
         onReady?.();
       } else if (event.data.type === 'preview-error') {
         console.error('[StaticHtmlPreview] Runtime error:', event.data.error);
         onError?.(event.data.error);
-      } else if (event.data.type === 'preview-content-changed') {
-        console.log('[StaticHtmlPreview] Content changed detected at:', event.data.timestamp);
-        // Could trigger additional actions here if needed
       }
     };
 
@@ -124,7 +125,6 @@ export function StaticHtmlPreview({ files, onError, onReady }: StaticHtmlPreview
 
   return (
     <iframe
-      key={iframeKey}
       ref={iframeRef}
       srcDoc={htmlContent}
       className="w-full h-full border-0"
