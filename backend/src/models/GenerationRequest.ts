@@ -46,7 +46,7 @@ export const GenerationRequestSchema = z.object({
   prompt: z.string().min(1),
   projectId: z.string().uuid(),
   contextFiles: z.array(ContextFileSchema).default([]),
-  options: GenerationOptionsSchema.default({}),
+  options: GenerationOptionsSchema.optional(),
   targetFile: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
   userId: z.string().optional(),

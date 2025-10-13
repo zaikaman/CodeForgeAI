@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import tmp from 'tmp';
 import fs from 'fs';
 import path from 'path';
-import { ChatAgent } from '../../agents/specialized/ChatAgent';
+import { CodeModificationAgent } from '../../agents/specialized/CodeModificationAgent';
 import { generateDockerfile, detectLanguageFromFiles } from './DockerfileTemplates';
 import { LearningIntegrationService } from '../learning/LearningIntegrationService';
 import { TypeScriptErrorParser } from '../errors/TypeScriptErrorParser';
@@ -80,14 +80,14 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
    * Generate preview with automatic retry mechanism
    * If deployment fails, it will:
    * 1. Capture the error logs
-   * 2. Send them to ChatAgent to fix the issues
+   * 2. Send them to CodeModificationAgent to fix the issues
    * 3. Retry deployment with fixed code
    * 4. Repeat until successful or max safety limits reached
    * 
    * Safety measures:
    * - Max 5 consecutive failures without any progress
    * - Max 3 retries for the same error message
-   * - ChatAgent must provide different fixes each time
+   * - CodeModificationAgent must provide different fixes each time
    */
   async generatePreviewWithRetry(
     generationId: string, 
@@ -120,7 +120,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
           
           // If this was a retry (attempt > 1), mark the previous error as resolved
           if (attempt > 1 && lastErrorId) {
-            await this.markErrorResolved(lastErrorId, 'Fixed via automated retry and ChatAgent');
+            await this.markErrorResolved(lastErrorId, 'Fixed via automated retry and CodeModificationAgent');
           }
           
           return {
@@ -187,21 +187,21 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
           };
         }
 
-        // Try to fix the code using ChatAgent
-        console.log(`\n→ Sending error logs to ChatAgent for fixes (attempt ${attempt}, same error count: ${sameErrorCount})...`);
+        // Try to fix the code using CodeModificationAgent
+        console.log(`\n→ Sending error logs to CodeModificationAgent for fixes (attempt ${attempt}, same error count: ${sameErrorCount})...`);
         const fixedFiles = await this.fixCodeWithAgent(currentFiles, lastError, lastLogs, attempt);
         
         if (!fixedFiles || fixedFiles.length === 0) {
-          console.log(`✗ ChatAgent could not provide fixes. Stopping retry.`);
+          console.log(`✗ CodeModificationAgent could not provide fixes. Stopping retry.`);
           return {
             success: false,
-            error: `ChatAgent could not fix the issues after attempt ${attempt}`,
+            error: `CodeModificationAgent could not fix the issues after attempt ${attempt}`,
             logs: lastLogs,
             attempt
           };
         }
 
-        console.log(`✓ ChatAgent provided fixes. Retrying deployment...`);
+        console.log(`✓ CodeModificationAgent provided fixes. Retrying deployment...`);
   currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
         
         // Reset consecutive failures counter (we got a fix, so we're making progress)
@@ -255,7 +255,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
 
         // Try to fix even unexpected errors
         try {
-          console.log(`\n→ Attempting to fix unexpected error with ChatAgent...`);
+          console.log(`\n→ Attempting to fix unexpected error with CodeModificationAgent...`);
           const fixedFiles = await this.fixCodeWithAgent(currentFiles, lastError, lastLogs, attempt);
           if (fixedFiles && fixedFiles.length > 0) {
             currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
@@ -269,7 +269,7 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
             };
           }
         } catch (fixError) {
-          console.error(`✗ Failed to get fixes from ChatAgent:`, fixError);
+          console.error(`✗ Failed to get fixes from CodeModificationAgent:`, fixError);
           return {
             success: false,
             error: lastError,
@@ -462,7 +462,11 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   }
 
   /**
-   * Use ChatAgent to fix code based on deployment errors
+   * Use CodeModificationAgent to fix code based on deployment errors
+   * CodeModificationAgent is specialized for code fixes and has:
+   * - Language-specific validation rules
+   * - Error learning system integration
+   * - Better prompt engineering for fixes
    */
   private async fixCodeWithAgent(
     currentFiles: Array<{ path: string; content: string }>,
@@ -471,10 +475,25 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     attempt: number
   ): Promise<Array<{ path: string; content: string }> | null> {
     try {
-      console.log('→ Initializing ChatAgent...');
+      console.log('→ Initializing CodeModificationAgent for deployment fix...');
       
-      // ChatAgent in legacy mode - no file system context needed
-      const { runner } = await ChatAgent(undefined);
+      // Detect language from files
+      const language = detectLanguageFromFiles(currentFiles);
+      
+      // Build error context for the agent
+      const errorContext = `DEPLOYMENT ERROR (Attempt ${attempt}):
+${error}
+
+DEPLOYMENT LOGS:
+${logs}`;
+      
+      // Initialize CodeModificationAgent with error context
+      const { runner } = await CodeModificationAgent({
+        language: language,
+        platform: 'fly.io',
+        errorContext: errorContext,
+        githubContext: null // No GitHub context in deployment fixes
+      });
 
       const filesContext = currentFiles.map(f => 
         `File: ${f.path}\n\`\`\`\n${f.content}\n\`\`\``
@@ -539,12 +558,9 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         }
       }
 
-      const fixPrompt = `🚨 URGENT DEPLOYMENT FIX REQUIRED 🚨
+      const fixPrompt = `Fix the following deployment errors in the codebase.
 
-You are in DEPLOYMENT FIX MODE. DO NOT route this to any specialist agent!
-You MUST fix the code yourself and return the fixed files immediately.
-
-The deployment to Fly.io FAILED on attempt ${attempt}. You need to analyze the error and fix the code NOW.
+DEPLOYMENT TO FLY.IO FAILED (Attempt ${attempt})
 
 DEPLOYMENT ERROR:
 ${error}
@@ -557,12 +573,12 @@ ${typeScriptErrorContext}
 CURRENT CODEBASE (${currentFiles.length} files):
 ${filesContext}
 
-⚠️ CRITICAL REQUIREMENTS:
+REQUIREMENTS:
 
-1. **DO NOT ROUTE TO SPECIALISTS** - This is a deployment fix, you must handle it yourself!
-   - DO NOT set needsSpecialist: true
-   - DO NOT route to BugHunter, SecuritySentinel, or any other agent
-   - FIX THE CODE YOURSELF using the error information provided
+1. **ANALYZE THE ERRORS** - Carefully read the error messages and logs above
+   - TypeScript errors show exact location (file, line, column)
+   - Build errors indicate missing dependencies or config issues
+   - Runtime errors show what went wrong during execution
 
 2. **FILE COUNT VALIDATION** - You MUST return ALL ${currentFiles.length} files:
    - If you fix an existing file: include it with fixes
@@ -571,56 +587,29 @@ ${filesContext}
    - NEVER omit or delete files from your response
    - Response will be REJECTED if you return fewer than ${currentFiles.length} files!
 
-3. **RESPONSE FORMAT** - Return a JSON object with:
+3. **OUTPUT FORMAT** - Return JSON matching this structure:
    {
      "files": [
        { "path": "file1.ts", "content": "fixed content..." },
        { "path": "file2.json", "content": "..." },
        ... all ${currentFiles.length}+ files
-     ],
-     "summary": "Brief description of what you fixed"
+     ]
    }
 
 FIXING INSTRUCTIONS:
-1. **READ THE ERROR ANALYSIS CAREFULLY** - All TypeScript errors are shown above with:
-   - Exact error location (file, line, column)
-   - Code context (the problematic lines)
-   - Specific fix strategies for each error
-
-2. **IDENTIFY THE ROOT CAUSE** - Look at the error code and message:
-   - TS2345 = Type mismatch (wrong type passed to function/variable)
+1. **READ THE ERROR ANALYSIS** - All TypeScript errors are shown above with exact locations
+2. **IDENTIFY THE ROOT CAUSE**:
+   ${typeScriptErrorGuide ? '- Follow the TypeScript fix strategies provided above' : ''}
+   - TS2345 = Type mismatch (wrong type passed)
    - TS2339 = Property doesn't exist
    - TS2304 = Name/import not found
-   - Check the code context shown above to understand what went wrong
+   - Missing dependencies = Add to package.json
+   - Syntax errors = Correct the syntax
+   - Missing files = Create them
+3. **APPLY THE FIX** - Make targeted changes to fix the errors
+4. **RETURN COMPLETE CODEBASE** - Include ALL ${currentFiles.length} files (modified + unmodified) + any new files`;
 
-3. **APPLY THE FIX** - Based on the error type:
-   ${typeScriptErrorGuide ? '- Follow the TypeScript fix strategies provided above (CRITICAL!)' : ''}
-   - For TS2345: Fix the type being passed (e.g., pass a value instead of a function)
-   - For missing dependencies: Add them to package.json
-   - For syntax errors: Correct the syntax
-   - For missing files: Create the missing files with proper content
-   - For build config errors: Fix the configuration
-
-4. **VERIFY YOUR FIX** - After fixing:
-   - Make sure the line mentioned in error is corrected
-   - Ensure types match the expected signature
-   - Check that imports are present
-
-5. **RETURN COMPLETE CODEBASE** - Include ALL ${currentFiles.length} files (modified + unmodified) + any new files
-
-6. **SUMMARIZE CHANGES** - Explain what you fixed and why
-
-Common deployment issues:
-- TypeScript compilation errors (check error codes like TS2345, TS2339, etc.)
-- Missing or incorrect dependencies in package.json
-- Build script configuration errors
-- Port or environment variable issues
-- Dockerfile misconfigurations
-- Import/module resolution errors
-
-REMEMBER: DO NOT route to specialists! Fix the code yourself and return the complete codebase!`;
-
-      console.log('→ Sending fix request to ChatAgent...');
+      console.log('→ Sending fix request to CodeModificationAgent...');
       console.log(`   Prompt length: ${fixPrompt.length} characters`);
       console.log(`   Files to fix: ${currentFiles.length}`);
 
@@ -631,33 +620,21 @@ REMEMBER: DO NOT route to specialists! Fix the code yourself and return the comp
         context: 'PreviewServiceFixCode'
       });
 
-      // Handle specialist transfer case
-      if (response.needsSpecialist && response.specialistAgent) {
-        console.log(`⚠ ChatAgent requested specialist transfer to: ${response.specialistAgent}`);
-        console.log(`   Summary: ${response.summary || 'No summary provided'}`);
-        console.log(`   Note: Specialist transfers are not supported in deployment fixes`);
-        console.log(`   Treating this as a failed fix attempt`);
-        return null;
-      }
-
       // Check if response has files array
       if (!response.files || !Array.isArray(response.files)) {
-        console.warn('⚠ ChatAgent response missing files array');
-        if (response.summary) {
-          console.log(`   Summary: ${response.summary}`);
-        }
+        console.warn('⚠ CodeModificationAgent response missing files array');
         return null;
       }
 
       if (response.files.length === 0) {
-        console.warn('⚠ ChatAgent returned empty files array');
+        console.warn('⚠ CodeModificationAgent returned empty files array');
         return null;
       }
 
-      // ⚠️ CRITICAL: For deployment fixes, ChatAgent MUST return ALL files
+      // ⚠️ CRITICAL: For deployment fixes, agent MUST return ALL files
       // It can return MORE files (if creating new ones), but never LESS
       if (response.files.length < currentFiles.length) {
-        console.error(`✗ ChatAgent returned FEWER files than input!`);
+        console.error(`✗ CodeModificationAgent returned FEWER files than input!`);
         console.error(`   Input files: ${currentFiles.length}`);
         console.error(`   Returned files: ${response.files.length}`);
         console.error(`   Missing ${currentFiles.length - response.files.length} file(s)`);
@@ -674,12 +651,9 @@ REMEMBER: DO NOT route to specialists! Fix the code yourself and return the comp
         return null;
       }
 
-      console.log(`✓ ChatAgent fixed ${response.files.length} files (input: ${currentFiles.length})`);
+      console.log(`✓ CodeModificationAgent fixed ${response.files.length} files (input: ${currentFiles.length})`);
       if (response.files.length > currentFiles.length) {
         console.log(`   ✨ Created ${response.files.length - currentFiles.length} new file(s)`);
-      }
-      if (response.summary) {
-        console.log(`   Summary: ${response.summary}`);
       }
 
       // Validate file structure and ensure content is string
@@ -748,7 +722,7 @@ REMEMBER: DO NOT route to specialists! Fix the code yourself and return the comp
       return this.sanitizeGeneratedFiles(response.files);
 
     } catch (error: any) {
-      console.error('✗ Error getting fixes from ChatAgent:');
+      console.error('✗ Error getting fixes from CodeModificationAgent:');
       console.error(`   Error type: ${error.constructor.name}`);
       console.error(`   Error message: ${error.message}`);
       if (error.stack) {

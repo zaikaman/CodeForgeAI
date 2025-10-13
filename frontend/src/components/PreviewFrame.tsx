@@ -9,6 +9,7 @@ import {
 } from '@/lib/webcontainer/exports';
 import { createFilesHash } from '@/lib/webcontainer/files';
 import { getPreviewErrorCapture, PreviewError } from '@/utils/previewErrorCapture';
+import { StaticHtmlPreview } from './StaticHtmlPreview';
 
 interface PreviewFrameProps {
   files: Array<{ path: string; content: string }>;
@@ -26,6 +27,7 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
   const isInitializingRef = useRef<boolean>(false);
   const [previewErrors, setPreviewErrors] = useState<PreviewError[]>([]);
   const [iframeKey, setIframeKey] = useState<number>(0); // Key to force iframe refresh
+  const [forceReloadTimestamp, setForceReloadTimestamp] = useState<number>(0); // Timestamp for cache busting
 
   // Setup error capture
   useEffect(() => {
@@ -50,17 +52,84 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
     };
   }, [onPreviewError]);
 
+  // Hard refresh function - forces complete reload with cache busting
+  const hardRefreshIframe = () => {
+    console.log('[PreviewFrame] 🔥 HARD REFRESH triggered - forcing complete reload');
+    
+    // Method 1: Try to communicate with iframe to clear its cache
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        // Send message to clear cache and service workers
+        iframeRef.current.contentWindow.postMessage({ 
+          type: 'hard-refresh',
+          clearCache: true,
+          clearStorage: true 
+        }, '*');
+        
+        console.log('[PreviewFrame] Sent hard-refresh message to iframe');
+      } catch (e) {
+        console.warn('[PreviewFrame] Could not send message to iframe:', e);
+      }
+    }
+    
+    // Method 2: Add timestamp to force cache busting
+    setForceReloadTimestamp(Date.now());
+    
+    // Method 3: Update iframe key to unmount and remount (most aggressive)
+    setTimeout(() => {
+      setIframeKey(prev => prev + 1);
+    }, 100);
+    
+    // Method 4: Try to force reload the iframe after remount
+    setTimeout(() => {
+      if (iframeRef.current?.contentWindow) {
+        try {
+          iframeRef.current.contentWindow.location.reload();
+        } catch (e) {
+          console.warn('[PreviewFrame] Could not reload iframe:', e);
+        }
+      }
+    }, 300);
+  };
+
   // Listen for refresh events from WebContainer state
   useEffect(() => {
     const unsubscribe = webcontainerState.onRefresh(() => {
       console.log('[PreviewFrame] Refresh triggered by WebContainer state');
-      setIframeKey(prev => prev + 1);
+      hardRefreshIframe();
     });
 
     return () => {
       unsubscribe();
     };
   }, []);
+
+  // Detect if this is a static HTML project early
+  const isStaticHtml = useMemo(() => {
+    const hasIndexHtml = files.some(f => f.path === 'index.html' || f.path.endsWith('.html'));
+    const hasPackageJson = files.some(f => f.path === 'package.json');
+    const isStatic = hasIndexHtml && !hasPackageJson;
+    
+    console.log('[PreviewFrame] Project type detection:', {
+      hasIndexHtml,
+      hasPackageJson,
+      isStatic
+    });
+    
+    return isStatic;
+  }, [files]);
+
+  // If static HTML, use simple preview component (no WebContainer needed)
+  if (isStaticHtml) {
+    console.log('[PreviewFrame] Using StaticHtmlPreview for vanilla HTML project');
+    return (
+      <StaticHtmlPreview 
+        files={files} 
+        onError={onError} 
+        onReady={onReady}
+      />
+    );
+  }
 
   // Create a stable hash of files to detect changes
   // This ensures useEffect runs when files actually change
@@ -128,12 +197,12 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
         // Mount files (will update if hash is different)
         await mountFiles(container, files);
         
-        // Force iframe refresh when files change
+        // Force HARD iframe refresh when files change
         if (filesChanged && webcontainerState.isServerRunning()) {
-          console.log('[PreviewFrame] 🔄 Forcing iframe refresh due to file changes...');
+          console.log('[PreviewFrame] 🔄 Forcing HARD iframe refresh due to file changes...');
           // Small delay to ensure files are written before refresh
           setTimeout(() => {
-            setIframeKey(prev => prev + 1);
+            hardRefreshIframe();
           }, 500);
         }
 
@@ -271,11 +340,11 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
           {status === 'ready' && previewUrl && (
             <button
               onClick={() => {
-                console.log('[PreviewFrame] Manual refresh triggered');
-                setIframeKey(prev => prev + 1);
+                console.log('[PreviewFrame] Manual HARD refresh triggered');
+                hardRefreshIframe();
               }}
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-300 hover:text-blue-100 bg-blue-900/50 hover:bg-blue-900/70 rounded-md transition-colors"
-              title="Refresh preview"
+              title="Hard refresh preview (clears cache)"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -339,10 +408,11 @@ export function PreviewFrame({ files, onError, onReady, onPreviewError }: Previe
           <iframe
             key={iframeKey}
             ref={iframeRef}
-            src={previewUrl}
+            src={`${previewUrl}${forceReloadTimestamp ? `?t=${forceReloadTimestamp}` : ''}`}
             className="w-full h-full border-0"
             title="Preview"
             sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-presentation"
+            allow="cross-origin-isolated"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">

@@ -12,7 +12,7 @@ const router = Router();
 const generateRequestSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
   projectContext: z.string().optional(),
-  targetLanguage: z.string().default('typescript'),
+  targetLanguage: z.string().optional(), // Let workflow auto-detect (vanilla HTML or TypeScript)
   complexity: z.enum(['simple', 'moderate', 'complex']).default('moderate'),
   agents: z.array(z.string()).default(['CodeGenerator']),
   imageUrls: z.array(z.string()).optional(),
@@ -78,12 +78,12 @@ router.post('/generate', optionalAuth, async (req, res) => {
       id: generationId,
       prompt: validatedRequest.prompt,
       projectContext: validatedRequest.projectContext,
-      targetLanguage: validatedRequest.targetLanguage,
+      ...(validatedRequest.targetLanguage && { targetLanguage: validatedRequest.targetLanguage }), // Only include if provided
       complexity: validatedRequest.complexity,
       agents: validatedRequest.agents,
       imageUrls: validatedRequest.imageUrls,
       autoPreview: validatedRequest.autoPreview, // Pass through autoPreview flag
-    });
+    } as any); // Type assertion since targetLanguage is optional
 
     // Return immediately with the generation ID
     res.json({

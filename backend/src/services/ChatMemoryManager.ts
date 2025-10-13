@@ -144,7 +144,7 @@ export class ChatMemoryManager {
     generationId: string,
     currentMessage: string,
     currentFiles: Array<{ path: string; content: string }>,
-    language: string,
+    language?: string, // Optional - will be auto-detected if not provided
     _imageUrls?: string[]
   ): Promise<{ contextMessage: string; totalTokens: number }> {
     // Get recent messages (last 10 for performance - reduced from 20)
@@ -178,7 +178,7 @@ export class ChatMemoryManager {
 
     // Build current files context
     const filesContext = currentFiles
-      .map(f => `File: ${f.path}\n\`\`\`${language}\n${f.content}\n\`\`\``)
+      .map(f => `File: ${f.path}\n\`\`\`${language || ''}\n${f.content}\n\`\`\``)
       .join('\n\n');
 
     const filesTokens = this.estimateTokens(filesContext);

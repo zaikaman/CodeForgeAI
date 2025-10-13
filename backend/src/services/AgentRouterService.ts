@@ -360,7 +360,7 @@ export class AgentRouterService {
     return await workflow.run({
       prompt: request.message,
       projectContext: request.context,
-      targetLanguage: params?.targetLanguage || 'typescript',
+      targetLanguage: params?.targetLanguage, // Auto-detect if not provided
       complexity: params?.complexity || 'moderate',
       agents: params?.agents || ['CodeGenerator'],
       imageUrls: request.imageUrls,
@@ -375,7 +375,7 @@ export class AgentRouterService {
     
     return await workflow.run({
       code: request.currentFiles || [],
-      language: params?.language || 'typescript',
+      language: params?.language, // Auto-detect from file extensions if not provided
       options: {
         checkSecurity: true,
         checkPerformance: true,
@@ -393,7 +393,7 @@ export class AgentRouterService {
     
     return await workflow.run({
       code: request.currentFiles || [],
-      language: params?.language || 'typescript',
+      language: params?.language, // Auto-detect from file extensions
       improvements: request.message,
       agents: params?.agents || ['RefactorGuru'],
     });
@@ -409,7 +409,7 @@ export class AgentRouterService {
     return await workflow.run({
       prompt: request.message,
       projectContext: request.context,
-      targetLanguage: params?.targetLanguage || 'typescript',
+      targetLanguage: params?.targetLanguage, // Auto-detect based on prompt
       complexity: 'simple',
       agents: ['CodeGenerator'],
       existingFiles: request.currentFiles,

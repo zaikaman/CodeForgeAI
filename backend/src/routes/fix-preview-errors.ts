@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { chatQueue } from '../services/ChatQueue';
 import { supabase } from '../storage/SupabaseClient';
 import { z } from 'zod';
+import { escapeAdkTemplateVariables } from '../utils/adkEscaping';
 
 const router = Router();
 
@@ -72,6 +73,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Format errors for LLM
     const errorReport = formatErrorsForLLM(errors);
+    
+    // CRITICAL: Escape curly braces in error report to prevent ADK template variable errors
+    // Error messages often contain {variable} syntax from code examples
+    const escapedErrorReport = escapeAdkTemplateVariables(errorReport);
 
     // Create a message asking LLM to fix the errors
     const message = `
@@ -79,19 +84,19 @@ router.post('/', async (req: Request, res: Response) => {
 
 The preview is showing errors. Please analyze and fix them:
 
-${errorReport}
+${escapedErrorReport}
 
 INSTRUCTIONS:
 1. Read the error messages carefully
 2. Identify which files need to be fixed
 3. Make the necessary changes to fix ALL errors
-4. Return the fixed files
+4. Return ALL files (both modified and unchanged)
 5. Provide a summary of what you fixed
 
-IMPORTANT: Only return files that you modified. Do not return unchanged files.
+⚠️ CRITICAL: You MUST return ALL ${currentFiles.length} files, not just the modified ones.
     `.trim();
 
-    // Queue the chat request
+    // Queue the chat request with CodeModification agent explicitly set
     const jobId = `fix-${generationId}-${Date.now()}`;
     
     await chatQueue.enqueue({
@@ -101,6 +106,10 @@ IMPORTANT: Only return files that you modified. Do not return unchanged files.
       currentFiles,
       language,
       userId, // Use actual user ID from generation
+      // 🚨 IMPORTANT: Force routing to CodeModificationAgent
+      specialistAgent: 'CodeModification',
+      // Pass detailed error context for better fixes (already escaped above)
+      errorContext: escapedErrorReport,
     });
 
     console.log(`[FixPreviewErrors] Job queued: ${jobId}`);

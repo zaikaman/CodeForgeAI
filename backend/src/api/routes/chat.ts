@@ -16,7 +16,7 @@ const chatRequestSchema = z.object({
     path: z.string(),
     content: z.string()
   })).default([]), // Default to empty array if not provided
-  language: z.string().default('typescript'),
+  language: z.string().optional(), // Let workflow auto-detect (vanilla HTML or TypeScript)
   imageUrls: z.array(z.string()).optional(),
   githubContext: z.object({
     token: z.string(),
@@ -141,10 +141,10 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       userId,
       message,
       currentFiles,
-      language,
+      ...(language && { language }), // Only include if provided
       imageUrls,
       githubContext,
-    });
+    } as any); // Type assertion since language is optional
 
     console.log(`[POST /chat] Job ${jobId} enqueued, ChatAgent will handle routing`);
 

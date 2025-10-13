@@ -50,7 +50,7 @@ export interface ChatRequest {
     path: string
     content: string
   }>
-  language: string
+  language?: string // Optional - let backend auto-detect (vanilla HTML vs TypeScript)
   imageUrls?: string[]
   githubContext?: {
     token: string

@@ -18,7 +18,7 @@ const reviewRequestSchema = z.object({
       })
     ]))
   ]),
-  language: z.string().default('typescript'),
+  language: z.string().optional(), // Auto-detect from file extensions if not provided
   options: z.object({
     checkSecurity: z.boolean().default(true),
     checkPerformance: z.boolean().default(true),

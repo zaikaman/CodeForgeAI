@@ -14,7 +14,6 @@ import { getPromptCache } from '../../utils/PromptCache';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
 import type { GitHubToolsContext } from '../../utils/githubTools';
-import { sanitizePrompt } from '../../utils/PromptSanitizer';
 
 interface CodeGeneratorOptions {
   language?: string;
@@ -25,10 +24,17 @@ interface CodeGeneratorOptions {
 }
 
 export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
-  // WebContainer only supports TypeScript/JavaScript - always use TypeScript
-  const targetLanguage = 'typescript';
+  // Detect language from requirements - prioritize simplicity
+  const { detectLanguage } = await import('../../prompts/webcontainer-templates');
+  const detectedLanguage = options?.requirements 
+    ? detectLanguage(options.requirements) 
+    : null;
   
-  console.log('[CodeGeneratorAgent] Using WebContainer-optimized TypeScript/React prompt');
+  // Use detected language or fallback to typescript
+  const targetLanguage = detectedLanguage || options?.language || 'typescript';
+  
+  console.log('[CodeGeneratorAgent] Detected language:', targetLanguage);
+  console.log('[CodeGeneratorAgent] Requirements:', options?.requirements?.substring(0, 100));
   
   const promptCache = getPromptCache();
   
@@ -38,37 +44,43 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
     () => getLanguagePrompt(targetLanguage)
   );
   
+  // CRITICAL: Escape curly braces to prevent ADK template conflicts
+  systemPrompt = systemPrompt.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
+  
   // Enhance with GitHub tools description if available
   systemPrompt = enhancePromptWithGitHub(systemPrompt, options?.githubContext || null);
   
-  // Add static validation rules (cached)
-  const staticValidationRules = promptCache.getOrLoad(
+  // Add static validation rules (cached) - skip for vanilla HTML
+  let staticValidationRules = promptCache.getOrLoad(
     `validation:${targetLanguage}`,
     () => generateValidationPrompt(targetLanguage || 'typescript')
   );
-  const checklist = promptCache.getOrLoad(
-    'checklist:ai',
-    () => getAIChecklistPrompt()
+  staticValidationRules = staticValidationRules.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
+  
+  // Add checklist (cached) - simplified for vanilla HTML
+  let checklist = promptCache.getOrLoad(
+    `checklist:${targetLanguage}`,
+    () => getAIChecklistPrompt(targetLanguage || 'typescript')
   );
+  checklist = checklist.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
   
   // Get DYNAMIC learned rules from ErrorLearningSystem
   let learnedRules = '';
   try {
     const learningService = getLearningIntegration();
-    learnedRules = await learningService.getSmartPromptAddition({
+    const rawLearnedRules = await learningService.getSmartPromptAddition({
       language: targetLanguage || 'typescript',
       framework: options?.framework,
       platform: options?.platform || 'webcontainer', // Default to WebContainer, but can deploy to fly.io optionally
       prompt: options?.requirements || ''
     });
     
-    // Sanitize learned rules to remove potential template variables that could conflict with ADK
-    // Replace {variable} patterns with VARIABLE_NAME to avoid ADK template processing
-    const originalLength = learnedRules.length;
-    learnedRules = learnedRules.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, 'VARIABLE_$1');
+    // CRITICAL: Sanitize learned rules IMMEDIATELY to prevent ADK template variable conflicts
+    // ADK treats {variable} as context variables, so we must escape them with double braces
+    learnedRules = rawLearnedRules.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
     
-    if (learnedRules.length !== originalLength) {
-      console.log('[CodeGeneratorAgent] Sanitized learned rules to prevent template conflicts');
+    if (rawLearnedRules !== learnedRules) {
+      console.log('[CodeGeneratorAgent] Escaped curly braces in learned rules to prevent ADK template conflicts');
     }
     
   } catch (error) {
@@ -76,15 +88,11 @@ export const CodeGeneratorAgent = async (options?: CodeGeneratorOptions) => {
   }
   
   // Combine: base prompt + static rules + learned rules + checklist
-  // Note: learnedRules already sanitized above to prevent template variable conflicts
+  // Note: All components already have curly braces escaped above
   let combinedPrompt = systemPrompt + 
                        '\n\n' + staticValidationRules + 
                        (learnedRules ? '\n\n' + learnedRules : '') + 
                        '\n\n' + checklist;
-  
-  // Sanitize the combined prompt to escape any remaining template variables
-  // This prevents ADK from treating {variable} patterns as context variables
-  combinedPrompt = sanitizePrompt(combinedPrompt);
   
   // Compress the final prompt to reduce size
   const compressedPrompt = smartCompress(combinedPrompt);

@@ -70,7 +70,8 @@ export const TerminalPage: React.FC = () => {
     getGenerationById, 
     updateGenerationFiles, 
     history,
-    startGenerationWithId
+    startGenerationWithId,
+    clearCurrent
   } = store;
 
   // Get current generation if ID exists
@@ -256,7 +257,7 @@ export const TerminalPage: React.FC = () => {
         if (!generation) {
           startGenerationWithId(id, {
             prompt: generationData.prompt || '',
-            targetLanguage: generationData.target_language || 'typescript',
+            targetLanguage: generationData.target_language || 'html', // Fallback to vanilla HTML
             complexity: generationData.complexity || 'moderate',
             agents: generationData.agents || ['CodeGenerator'],
           });
@@ -405,6 +406,8 @@ export const TerminalPage: React.FC = () => {
     setChatInput('');
     setSelectedImages([]);
     setSelectedFile(null);
+    // 🔧 FIX: Clear current generation state to prevent file leakage
+    clearCurrent();
   };
 
   const handleSelectChat = (chatId: string) => {
@@ -458,7 +461,8 @@ export const TerminalPage: React.FC = () => {
       // setMessages(prev => [...prev, thinkingMessage]);
       
       // Create new session if needed BEFORE saving user message
-      if (!sessionId) {
+      const isNewSession = !sessionId;
+      if (isNewSession) {
         console.log('📝 Creating new chat session ID...');
         // Generate UUID on frontend
         sessionId = crypto.randomUUID();
@@ -505,15 +509,26 @@ export const TerminalPage: React.FC = () => {
         console.log('⚠️ No GitHub token found. Please add your GitHub Personal Access Token in Settings.');
       }
 
-      // Prepare chat request with proper file handling
-      const files = generation?.response?.files || [];
+      // 🔧 FIX: Only send files if this is the SAME session (not a new chat)
+      // For new chat sessions, always send empty array to prevent file leakage from previous sessions
+      const files = (!isNewSession && generation?.response?.files) ? generation.response.files : [];
+      
+      console.log(`📦 Session context:`, {
+        isNewSession,
+        hasGeneration: !!generation,
+        generationId: generation?.id,
+        requestedSessionId: sessionId,
+        filesCount: files.length
+      });
+      
       const chatRequest: any = {
         generationId: sessionId,
         message: userMessage,
-        language: generation?.response?.targetLanguage || 'typescript',
+        // Only include language if we have it from generation AND it's the same session
+        ...(!isNewSession && generation?.response?.targetLanguage && { language: generation.response.targetLanguage }),
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         githubContext,
-        currentFiles: files, // Always send files, even if empty array
+        currentFiles: files, // Empty array for new sessions, existing files for current session
       };
 
       console.log(`📦 Sending ${files.length} files inline with chat request`);
@@ -1029,72 +1044,68 @@ export const TerminalPage: React.FC = () => {
               </button>
             </div>
 
-            {activeTab === 'source' && (
-              <div className="source-code-view">
-                <div className={`file-tree-sidebar ${isFileTreeCollapsed ? 'collapsed' : ''}`}>
-                  <div className="file-tree-header">
-                    <span className="file-tree-title">FILES</span>
-                    <button 
-                      className="collapse-btn"
-                      onClick={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
-                      title={isFileTreeCollapsed ? 'Expand' : 'Collapse'}
-                    >
-                      {isFileTreeCollapsed ? '▶' : '◀'}
-                    </button>
-                  </div>
-                  <div className="file-tree-content">
-                    <FileTree 
-                      files={generation.response.files} 
-                      onSelectFile={setSelectedFile}
-                      selectedFile={selectedFile}
-                    />
-                  </div>
+            <div className="source-code-view" style={{ display: activeTab === 'source' ? 'flex' : 'none' }}>
+              <div className={`file-tree-sidebar ${isFileTreeCollapsed ? 'collapsed' : ''}`}>
+                <div className="file-tree-header">
+                  <span className="file-tree-title">FILES</span>
+                  <button 
+                    className="collapse-btn"
+                    onClick={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
+                    title={isFileTreeCollapsed ? 'Expand' : 'Collapse'}
+                  >
+                    {isFileTreeCollapsed ? '▶' : '◀'}
+                  </button>
                 </div>
-                
-                <div className="code-editor-wrapper">
-                  {selectedFile && (
-                    <div className="active-file-tab">
-                      <span className="file-icon">📄</span>
-                      <span className="file-name">{selectedFile.path}</span>
-                    </div>
-                  )}
-                  <div className="code-editor-container">
-                    <CodeEditor
-                      value={selectedFile?.content || '// Select a file from the sidebar'}
-                      onChange={() => {}}
-                      language={selectedFile?.path.split('.').pop() || 'typescript'}
-                      readOnly={true}
-                      title={selectedFile?.path || 'CODEFORGE EDITOR'}
-                      height="100%"
-                    />
-                  </div>
+                <div className="file-tree-content">
+                  <FileTree 
+                    files={generation.response.files} 
+                    onSelectFile={setSelectedFile}
+                    selectedFile={selectedFile}
+                  />
                 </div>
               </div>
-            )}
+              
+              <div className="code-editor-wrapper">
+                {selectedFile && (
+                  <div className="active-file-tab">
+                    <span className="file-icon">📄</span>
+                    <span className="file-name">{selectedFile.path}</span>
+                  </div>
+                )}
+                <div className="code-editor-container">
+                  <CodeEditor
+                    value={selectedFile?.content || '// Select a file from the sidebar'}
+                    onChange={() => {}}
+                    language={selectedFile?.path.split('.').pop() || 'typescript'}
+                    readOnly={true}
+                    title={selectedFile?.path || 'CODEFORGE EDITOR'}
+                    height="100%"
+                  />
+                </div>
+              </div>
+            </div>
 
-            {activeTab === 'preview' && (
-              <div className="preview-view">
-                <ProjectWorkspace
-                  files={generation.response.files}
-                  generationId={id || ''}
-                  language={generation.response.targetLanguage || 'typescript'}
-                  onPreviewReady={() => console.log('✅ Preview ready')}
-                  autoFixErrors={true}
-                  onFilesUpdated={(updatedFiles) => {
-                    if (id) {
-                      updateGenerationFiles(id, updatedFiles);
-                      if (selectedFile) {
-                        const updated = updatedFiles.find((f: any) => f.path === selectedFile.path);
-                        if (updated) setSelectedFile(updated);
-                      }
+            <div className="preview-view" style={{ display: activeTab === 'preview' ? 'block' : 'none' }}>
+              <ProjectWorkspace
+                files={generation.response.files}
+                generationId={id || ''}
+                language={generation.response.targetLanguage || 'typescript'}
+                onPreviewReady={() => console.log('✅ Preview ready')}
+                autoFixErrors={true}
+                onFilesUpdated={(updatedFiles) => {
+                  if (id) {
+                    updateGenerationFiles(id, updatedFiles);
+                    if (selectedFile) {
+                      const updated = updatedFiles.find((f: any) => f.path === selectedFile.path);
+                      if (updated) setSelectedFile(updated);
                     }
-                  }}
-                />
-              </div>
-            )}
+                  }
+                }}
+              />
+            </div>
 
-            {activeTab === 'deploy' && id && (
-              <div className="deploy-view">
+            {id && (
+              <div className="deploy-view" style={{ display: activeTab === 'deploy' ? 'block' : 'none' }}>
                 <div className="deploy-container">
                   <div className="deploy-content">
                     <h2 className="deploy-title">Deploy to Fly.io</h2>
@@ -1109,6 +1120,19 @@ export const TerminalPage: React.FC = () => {
                         initialDeploymentStatus={deploymentData.status}
                         onDeployComplete={(url: string) => {
                           setDeploymentData({ url, status: 'deployed' });
+                        }}
+                        onStatusChange={(status) => {
+                          // Map internal button status to deployment status
+                          const statusMap: Record<string, 'pending' | 'deploying' | 'deployed' | 'failed'> = {
+                            'idle': 'pending',
+                            'deploying': 'deploying',
+                            'success': 'deployed',
+                            'error': 'failed',
+                          };
+                          setDeploymentData({ 
+                            url: deploymentData.url, 
+                            status: statusMap[status] 
+                          });
                         }}
                       />
                     </div>

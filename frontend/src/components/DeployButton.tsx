@@ -9,6 +9,7 @@ interface DeployButtonProps {
   onDeployStart?: () => void;
   onDeployComplete?: (url: string) => void;
   onDeployError?: (error: string) => void;
+  onStatusChange?: (status: 'idle' | 'deploying' | 'success' | 'error') => void;
 }
 
 export function DeployButton({
@@ -19,10 +20,17 @@ export function DeployButton({
   onDeployStart,
   onDeployComplete,
   onDeployError,
+  onStatusChange,
 }: DeployButtonProps) {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'success' | 'error'>('idle');
   const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
+
+  // Helper to update status and notify parent
+  const updateStatus = (status: 'idle' | 'deploying' | 'success' | 'error') => {
+    setDeployStatus(status);
+    onStatusChange?.(status);
+  };
 
   const pollDeploymentStatus = async (projectId: string): Promise<void> => {
     const maxAttempts = 60; // 5 minutes (5 seconds interval)
@@ -39,7 +47,7 @@ export function DeployButton({
           const { deploymentStatus, deploymentUrl, error } = response.data;
 
           if (deploymentStatus === 'deployed' && deploymentUrl) {
-            setDeployStatus('success');
+            updateStatus('success');
             setIsDeploying(false);
             setDeployedUrl(deploymentUrl);
             onDeployComplete?.(deploymentUrl);
@@ -60,7 +68,7 @@ export function DeployButton({
       } catch (error) {
         console.error('[DeployButton] Status check error:', error);
         const message = error instanceof Error ? error.message : 'Failed to check deployment status';
-        setDeployStatus('error');
+        updateStatus('error');
         setIsDeploying(false);
         onDeployError?.(message);
         return;
@@ -68,7 +76,7 @@ export function DeployButton({
     }
 
     // Timeout
-    setDeployStatus('error');
+    updateStatus('error');
     setIsDeploying(false);
     onDeployError?.('Deployment timeout');
   };
@@ -82,7 +90,7 @@ export function DeployButton({
 
     try {
       setIsDeploying(true);
-      setDeployStatus('deploying');
+      updateStatus('deploying');
       onDeployStart?.();
 
       console.log('[DeployButton] Starting deployment to fly.io...');
@@ -108,7 +116,7 @@ export function DeployButton({
     } catch (error) {
       console.error('[DeployButton] Deployment error:', error);
       const message = error instanceof Error ? error.message : 'Deployment failed';
-      setDeployStatus('error');
+      updateStatus('error');
       setIsDeploying(false);
       onDeployError?.(message);
     }
@@ -120,14 +128,14 @@ export function DeployButton({
       setDeployedUrl(initialDeploymentUrl);
       
       if (initialDeploymentStatus === 'deployed') {
-        setDeployStatus('success');
+        updateStatus('success');
       } else if (initialDeploymentStatus === 'deploying') {
-        setDeployStatus('deploying');
+        updateStatus('deploying');
         setIsDeploying(true);
         // Start polling if deployment is in progress
         pollDeploymentStatus(projectId);
       } else if (initialDeploymentStatus === 'failed') {
-        setDeployStatus('error');
+        updateStatus('error');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

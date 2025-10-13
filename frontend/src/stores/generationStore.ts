@@ -271,7 +271,7 @@ export const useGenerationStore = create<GenerationState>()(
             } : {
               // Create response object if it doesn't exist
               files: filesCopy,
-              language: currentGeneration.request.targetLanguage || 'typescript',
+              language: currentGeneration.request.targetLanguage || 'html', // Fallback to vanilla HTML
             },
           }
 
@@ -300,7 +300,7 @@ export const useGenerationStore = create<GenerationState>()(
                 files: filesCopy,
               } : {
                 files: filesCopy,
-                language: updatedHistory[historyIndex].request.targetLanguage || 'typescript',
+                language: updatedHistory[historyIndex].request.targetLanguage || 'html', // Fallback to vanilla HTML
               },
             }
             console.log(`[GenerationStore] Updated history entry with ${filesCopy.length} files`);
@@ -399,7 +399,7 @@ export const useGenerationStore = create<GenerationState>()(
                 ? localEntry.response // Use local response with files
                 : item.files ? { // Fallback to database files (legacy)
                     files: item.files,
-                    language: item.target_language || 'typescript',
+                    language: item.target_language || 'html', // Fallback to vanilla HTML
                   } 
                 : null; // No files available
               
@@ -408,7 +408,7 @@ export const useGenerationStore = create<GenerationState>()(
                 prompt: item.prompt || '',
                 request: {
                   prompt: item.prompt || '',
-                  targetLanguage: item.target_language || 'typescript',
+                  targetLanguage: item.target_language || 'html', // Fallback to vanilla HTML
                   complexity: item.complexity || 'medium',
                   agents: item.agents || ['CodeGenerator'], // Default agents
                   projectContext: item.project_context,

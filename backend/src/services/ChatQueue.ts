@@ -14,13 +14,15 @@ interface ChatJob {
   userId: string;
   message: string;
   currentFiles: Array<{ path: string; content: string }>;
-  language: string;
+  language?: string; // Optional - let workflow auto-detect
   imageUrls?: string[];
   githubContext?: {
     token: string;
     username: string;
     email?: string;
   };
+  specialistAgent?: string; // Force routing to specific agent (e.g., 'CodeModification')
+  errorContext?: string; // Detailed error information for error fixing tasks
   status: 'pending' | 'processing' | 'completed' | 'error';
   result?: {
     files: Array<{ path: string; content: string }>;
@@ -44,13 +46,15 @@ class ChatQueueManager {
     userId: string;
     message: string;
     currentFiles: Array<{ path: string; content: string }>;
-    language: string;
+    language?: string; // Optional - let workflow auto-detect
     imageUrls?: string[];
     githubContext?: {
       token: string;
       username: string;
       email?: string;
     };
+    specialistAgent?: string; // Force routing to specific agent
+    errorContext?: string; // Detailed error information for error fixing
   }): Promise<void> {
     console.log(`[ChatQueue] Creating chat job ${params.id} in database...`);
     
@@ -134,6 +138,8 @@ class ChatQueueManager {
       language: params.language,
       imageUrls: params.imageUrls,
       githubContext: params.githubContext,
+      specialistAgent: params.specialistAgent, // Add specialist agent
+      errorContext: params.errorContext, // Add error context
       status: 'pending',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -141,7 +147,7 @@ class ChatQueueManager {
 
     this.queue.push(job);
     
-    console.log(`[ChatQueue] Enqueued chat job ${params.id} for generation ${params.generationId}`);
+    console.log(`[ChatQueue] Enqueued chat job ${params.id} for generation ${params.generationId}${params.specialistAgent ? ` (force route to ${params.specialistAgent})` : ''}${params.errorContext ? ' with error context' : ''}`);
 
     // Start processing if not already
     if (!this.isProcessing) {
@@ -252,85 +258,174 @@ class ChatQueueManager {
         })
         .eq('id', job.id);
 
-      // Emit initial progress
-      await this.emitProgress(job.id, 'ChatAgent', 'started', 'Analyzing your request and determining the best approach...');
-
-      // Build context with conversation history
-      const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
-        job.generationId,
-        job.message,
-        job.currentFiles,
-        job.language,
-        job.imageUrls
-      );
-
-      console.log(`[ChatQueue] Chat context built: ${totalTokens} estimated tokens`);
-
-      // Log GitHub context status
-      if (job.githubContext) {
-        console.log(`[ChatQueue] GitHub context available for user: ${job.githubContext.username}`);
-      } else {
-        console.log(`[ChatQueue] No GitHub context provided`);
-      }
-
-      // Use ChatAgent with improved error handling and GitHub context
-      const { runner } = await ChatAgent(job.githubContext);
+      // Check if specialist agent is forced (skip ChatAgent routing)
+      let specialistAgent = job.specialistAgent;
+      let needsSpecialist = !!specialistAgent;
       
-      // Build the message with images if provided
-      let chatMessage: any;
-      
-      if (job.imageUrls && job.imageUrls.length > 0) {
-        // Download images and convert to base64
-        const imageParts = await Promise.all(
-          job.imageUrls.map(async (url) => {
-            try {
-              const response = await globalThis.fetch(url);
-              const arrayBuffer = await response.arrayBuffer();
-              const buffer = Buffer.from(arrayBuffer);
-              const base64 = buffer.toString('base64');
-              const contentType = response.headers.get('content-type') || 'image/jpeg';
-              
-              return {
-                inline_data: {
-                  mime_type: contentType,
-                  data: base64
-                }
-              };
-            } catch (error) {
-              console.error(`[ChatQueue] Failed to fetch image from ${url}:`, error);
-              return null;
-            }
-          })
+      if (!specialistAgent) {
+        // No forced agent, use ChatAgent to determine routing
+        await this.emitProgress(job.id, 'ChatAgent', 'started', 'Analyzing your request and determining the best approach...');
+
+        // Build context with conversation history
+        const { contextMessage, totalTokens } = await ChatMemoryManager.buildContext(
+          job.generationId,
+          job.message,
+          job.currentFiles,
+          job.language,
+          job.imageUrls
         );
-        
-        const validImageParts = imageParts.filter(part => part !== null);
-        const textPart = { text: contextMessage };
-        chatMessage = { parts: [textPart, ...validImageParts] };
-      } else {
-        chatMessage = contextMessage;
-      }
 
-      // Use safe agent call with automatic retry and validation
-      const response = await safeAgentCall(runner, chatMessage, {
-        maxRetries: 3,
-        retryDelay: 1000,
-        context: 'ChatQueue'
-      });
+        console.log(`[ChatQueue] Chat context built: ${totalTokens} estimated tokens`);
+
+        // Log GitHub context status
+        if (job.githubContext) {
+          console.log(`[ChatQueue] GitHub context available for user: ${job.githubContext.username}`);
+        } else {
+          console.log(`[ChatQueue] No GitHub context provided`);
+        }
+
+        // Use ChatAgent with improved error handling and GitHub context
+        const { runner } = await ChatAgent(job.githubContext);
+        
+        // Build the message with images if provided
+        let chatMessage: any;
+        
+        if (job.imageUrls && job.imageUrls.length > 0) {
+          // Download images and convert to base64
+          const imageParts = await Promise.all(
+            job.imageUrls.map(async (url) => {
+              try {
+                const response = await globalThis.fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                const base64 = buffer.toString('base64');
+                const contentType = response.headers.get('content-type') || 'image/jpeg';
+                
+                return {
+                  inline_data: {
+                    mime_type: contentType,
+                    data: base64
+                  }
+                };
+              } catch (error) {
+                console.error(`[ChatQueue] Failed to fetch image from ${url}:`, error);
+                return null;
+              }
+            })
+          );
+          
+          const validImageParts = imageParts.filter(part => part !== null);
+          const textPart = { text: contextMessage };
+          chatMessage = { parts: [textPart, ...validImageParts] };
+        } else {
+          chatMessage = contextMessage;
+        }
+
+        // Use safe agent call with automatic retry and validation
+        const response = await safeAgentCall(runner, chatMessage, {
+          maxRetries: 3,
+          retryDelay: 1000,
+          context: 'ChatQueue'
+        });
+        
+        // Check if ChatAgent determined a specialist is needed
+        needsSpecialist = response.needsSpecialist || false;
+        specialistAgent = response.specialistAgent || '';
+        
+        // If no specialist needed, handle as conversational response
+        if (!needsSpecialist) {
+          // Check if this is a conversational response (no files) or code changes
+          const isConversational = !response.files || response.files.length === 0;
+          
+          let updatedFiles: Array<{ path: string; content: string }> = [...job.currentFiles];
+          
+          if (!isConversational && response.files) {
+            // Merge modified/new files with existing files
+            const responseFilesMap = new Map<string, { path: string; content: string }>(
+              response.files.map((f: any) => [f.path, f as { path: string; content: string }])
+            );
+            
+            updatedFiles = job.currentFiles.map(originalFile => {
+              const modifiedFile = responseFilesMap.get(originalFile.path);
+              if (modifiedFile) {
+                responseFilesMap.delete(originalFile.path);
+                return modifiedFile;
+              }
+              return originalFile;
+            });
+            
+            responseFilesMap.forEach((newFile: { path: string; content: string }) => {
+              updatedFiles.push(newFile);
+            });
+          }
+
+          // Store assistant response in memory
+          await ChatMemoryManager.storeMessage({
+            generationId: job.generationId,
+            role: 'assistant',
+            content: response.summary || 'Applied requested changes to the codebase',
+            metadata: {
+              filesModified: response.files?.length || 0,
+              isConversational,
+            },
+          });
+
+          // Update job with result in database
+          job.status = 'completed';
+          job.result = {
+            files: isConversational ? [] : updatedFiles, // Empty array for conversational responses
+            summary: response.summary || (isConversational ? 'Chat response' : 'Applied requested changes to the codebase'),
+          };
+          job.updatedAt = new Date();
+
+          await supabase
+            .from('chat_jobs')
+            .update({
+              status: 'completed',
+              result: job.result,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', job.id);
+
+          // Only reset deployment status if there were file changes
+          if (!isConversational) {
+            console.log(`[ChatQueue] Resetting deployment status for generation ${job.generationId}`);
+            await supabase
+              .from('generations')
+              .update({
+                deployment_status: 'pending',
+                files: updatedFiles,
+              })
+              .eq('id', job.generationId);
+          } else {
+            console.log(`[ChatQueue] Conversational response only, no file changes`);
+          }
+
+          console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
+          return;
+        }
+      } else {
+        console.log(`[ChatQueue] Specialist agent forced: ${specialistAgent}, skipping ChatAgent routing`);
+      }
       
-      // Check if specialist agent is needed
-      if (response.needsSpecialist) {
+      // Handle specialist agent routing
+      if (needsSpecialist && specialistAgent) {
         // Normalize agent names to handle variations
         const agentNameMap: Record<string, string> = {
           'DocsWeaver': 'DocWeaver',  // Fix common typo
           'DocWeaverAgent': 'DocWeaver',
           'CodeGeneratorAgent': 'CodeGenerator',
+          'CodeModificationAgent': 'CodeModification',
           'TestCrafterAgent': 'TestCrafter',
           'SecuritySentinelAgent': 'SecuritySentinel',
           'PerformanceProfilerAgent': 'PerformanceProfiler',
           'BugHunterAgent': 'BugHunter',
         };
         
-        let specialistAgent = response.specialistAgent || 'CodeGenerator';
+        if (agentNameMap[specialistAgent]) {
+          console.log(`[ChatQueue] Normalizing agent name: ${specialistAgent} → ${agentNameMap[specialistAgent]}`);
+          specialistAgent = agentNameMap[specialistAgent];
+        }
         if (agentNameMap[specialistAgent]) {
           console.log(`[ChatQueue] Normalizing agent name: ${specialistAgent} → ${agentNameMap[specialistAgent]}`);
           specialistAgent = agentNameMap[specialistAgent];
@@ -362,7 +457,7 @@ class ChatQueueManager {
           
           workflowResult = await workflow.run({
             code: job.currentFiles,
-            language: job.language,
+            language: job.language, // Optional - will auto-detect if undefined
             options: reviewOptions,
           });
         } else {
@@ -376,11 +471,12 @@ class ChatQueueManager {
           workflowResult = await workflow.run({
             prompt: job.message,
             projectContext: '',
-            targetLanguage: job.language,
+            ...(job.language && { targetLanguage: job.language }), // Only include if provided, let workflow auto-detect otherwise
             complexity: 'moderate',
             agents: [specialistAgent],
             imageUrls: job.imageUrls,
             currentFiles: job.currentFiles || [], // Pass existing files for doc-only requests
+            errorContext: job.errorContext, // Pass error context for better fixes
           });
         }
         
@@ -433,6 +529,7 @@ class ChatQueueManager {
             .update({
               deployment_status: 'pending',
               files: workflowResult.files,
+              target_language: workflowResult.language, // Update detected language
             })
             .eq('id', job.generationId);
         }
@@ -453,75 +550,6 @@ class ChatQueueManager {
         console.log(`[ChatQueue] Chat job ${job.id} completed via ${isReviewWorkflow ? 'ReviewWorkflow' : 'GenerateWorkflow'} (${specialistAgent})`);
         return;
       }
-      
-      // Check if this is a conversational response (no files) or code changes
-      const isConversational = !response.files || response.files.length === 0;
-      
-      let updatedFiles: Array<{ path: string; content: string }> = [...job.currentFiles];
-      
-      if (!isConversational && response.files) {
-        // Merge modified/new files with existing files
-        const responseFilesMap = new Map<string, { path: string; content: string }>(
-          response.files.map((f: any) => [f.path, f as { path: string; content: string }])
-        );
-        
-        updatedFiles = job.currentFiles.map(originalFile => {
-          const modifiedFile = responseFilesMap.get(originalFile.path);
-          if (modifiedFile) {
-            responseFilesMap.delete(originalFile.path);
-            return modifiedFile;
-          }
-          return originalFile;
-        });
-        
-        responseFilesMap.forEach((newFile: { path: string; content: string }) => {
-          updatedFiles.push(newFile);
-        });
-      }
-
-      // Store assistant response in memory
-      await ChatMemoryManager.storeMessage({
-        generationId: job.generationId,
-        role: 'assistant',
-        content: response.summary || 'Applied requested changes to the codebase',
-        metadata: {
-          filesModified: response.files?.length || 0,
-          isConversational,
-        },
-      });
-
-      // Update job with result in database
-      job.status = 'completed';
-      job.result = {
-        files: isConversational ? [] : updatedFiles, // Empty array for conversational responses
-        summary: response.summary || (isConversational ? 'Chat response' : 'Applied requested changes to the codebase'),
-      };
-      job.updatedAt = new Date();
-
-      await supabase
-        .from('chat_jobs')
-        .update({
-          status: 'completed',
-          result: job.result,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-
-      // Only reset deployment status if there were file changes
-      if (!isConversational) {
-        console.log(`[ChatQueue] Resetting deployment status for generation ${job.generationId}`);
-        await supabase
-          .from('generations')
-          .update({
-            deployment_status: 'pending',
-            files: updatedFiles,
-          })
-          .eq('id', job.generationId);
-      } else {
-        console.log(`[ChatQueue] Conversational response only, no file changes`);
-      }
-
-      console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
 
     } catch (error: any) {
       console.error(`[ChatQueue] Chat job ${job.id} failed:`, error);

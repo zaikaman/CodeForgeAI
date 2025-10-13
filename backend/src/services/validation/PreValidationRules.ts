@@ -115,8 +115,16 @@ export const VALIDATION_RULES = {
 
 /**
  * Generate a prompt addition that includes validation rules
+ * Skip validation for vanilla HTML projects (simplicity first)
  */
 export function generateValidationPrompt(language: string = 'typescript'): string {
+  // Skip validation rules for vanilla HTML/CSS/JS projects
+  // These are simple projects that don't need strict validation
+  if (language === 'html' || language === 'vanilla') {
+    return '\n\n## VANILLA HTML/CSS/JS - Keep it simple!\n' +
+           'Create clean, simple code. No strict validation needed.\n';
+  }
+  
   const rules = VALIDATION_RULES[language as keyof typeof VALIDATION_RULES] || VALIDATION_RULES.common;
   
   let prompt = '\n\n## CRITICAL CODE QUALITY RULES - MUST FOLLOW:\n\n';
@@ -129,8 +137,8 @@ export function generateValidationPrompt(language: string = 'typescript'): strin
     prompt += '\n';
   }
   
-  // Add HTML-specific rules for static sites
-  if (language === 'html' || language === 'static') {
+  // Add HTML-specific rules for static sites (but only for TypeScript projects with HTML)
+  if (language === 'static') {
     prompt += '### ⚠️ STATIC HTML SITES - CRITICAL RULES:\n';
     for (const [category, ruleList] of Object.entries(VALIDATION_RULES.html)) {
       prompt += `\n#### ${category.toUpperCase()}:\n`;
@@ -358,8 +366,24 @@ export function validateStaticHtmlFiles(files: Array<{ path: string; content: st
 
 /**
  * Get checklist for AI to verify before returning code
+ * Only applies to TypeScript/React projects, not vanilla HTML
  */
-export function getAIChecklistPrompt(): string {
+export function getAIChecklistPrompt(language: string = 'typescript'): string {
+  // Skip checklist for vanilla HTML projects (keep it simple)
+  if (language === 'html' || language === 'vanilla') {
+    return `
+## VANILLA HTML/CSS/JS - Simple Guidelines:
+
+Just create clean, working code:
+- ✅ Use relative paths: "styles.css" not "/styles.css"
+- ✅ Pure JavaScript (no TypeScript syntax)
+- ✅ Files at root: index.html, styles.css, scripts.js
+
+No strict checklist needed - keep it simple and functional!
+`;
+  }
+
+  // Full checklist for TypeScript/React projects
   return `
 ## BEFORE RETURNING CODE - CHECKLIST:
 
@@ -375,13 +399,6 @@ Please verify ALL of these before generating the final code:
 ✅ 8. No hardcoded values that should be environment variables
 ✅ 9. All async functions have proper error handling
 ✅ 10. Code follows consistent formatting (semicolons, indentation)
-
-### 🚨 FOR STATIC HTML SITES ONLY:
-✅ 11. NO leading slashes in href/src: use "styles.css" NOT "/styles.css"
-✅ 12. Files at ROOT level: index.html, styles.css, scripts.js (no src/, public/, dist/)
-✅ 13. Pure vanilla JavaScript in .js files - NO TypeScript syntax
-✅ 14. NO package.json, tsconfig.json for simple static landing pages
-✅ 15. CSS file has 100+ lines of complete styling (not empty or placeholder)
 
 If ANY item is unchecked, fix it before returning the code.
 `;

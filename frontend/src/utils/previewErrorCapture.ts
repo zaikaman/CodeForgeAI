@@ -281,6 +281,69 @@ export const ERROR_CAPTURE_SCRIPT = `
     });
   };
 
-  console.log('[PreviewErrorCapture] Error capture initialized');
+  // Listen for hard refresh commands from parent
+  window.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'hard-refresh') {
+      console.log('[PreviewErrorCapture] 🔥 HARD REFRESH received from parent');
+      
+      try {
+        // Clear localStorage
+        if (event.data.clearStorage) {
+          localStorage.clear();
+          sessionStorage.clear();
+          console.log('[PreviewErrorCapture] Cleared localStorage and sessionStorage');
+        }
+        
+        // Clear all caches
+        if (event.data.clearCache && 'caches' in window) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) {
+              caches.delete(name);
+            });
+            console.log('[PreviewErrorCapture] Cleared all caches');
+          });
+        }
+        
+        // Unregister service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(registration) {
+              registration.unregister();
+            });
+            console.log('[PreviewErrorCapture] Unregistered all service workers');
+          });
+        }
+        
+        // Force hard reload after a short delay
+        setTimeout(function() {
+          console.log('[PreviewErrorCapture] Executing hard reload...');
+          window.location.reload();
+        }, 200);
+        
+      } catch (error) {
+        console.error('[PreviewErrorCapture] Error during hard refresh:', error);
+      }
+    }
+    
+    // Handle cache clear command
+    if (event.data && event.data.type === 'clear-cache') {
+      console.log('[PreviewErrorCapture] 🧹 Cache clear command received');
+      
+      try {
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            names.forEach(function(name) {
+              caches.delete(name);
+            });
+            console.log('[PreviewErrorCapture] Cleared all caches');
+          });
+        }
+      } catch (error) {
+        console.error('[PreviewErrorCapture] Error clearing cache:', error);
+      }
+    }
+  });
+
+  console.log('[PreviewErrorCapture] Error capture and hard refresh handler initialized');
 })();
 `;
