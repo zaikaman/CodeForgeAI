@@ -28,6 +28,16 @@ interface ChatJob {
   result?: {
     files: Array<{ path: string; content: string }>;
     summary: string;
+    repoCreated?: {
+      owner: string;
+      name: string;
+      url: string;
+    };
+    prCreated?: {
+      number: number;
+      url: string;
+      title: string;
+    };
   };
   error?: string;
   createdAt: Date;
@@ -237,6 +247,67 @@ class ChatQueueManager {
       console.log(`[ChatQueue Progress] ${agent} - ${status}: ${message}`);
     } catch (error) {
       console.error('[ChatQueue Progress] Failed to emit:', error);
+    }
+  }
+
+  /**
+   * Emit fake progress updates for GitHubAgent to simulate routing to other agents
+   * Makes the UI look like GitHubAgent is orchestrating multiple agents
+   * Keep it simple: ChatAgent → GitHubAgent → 1 specialist agent
+   */
+  private async emitFakeGitHubProgress(jobId: string, message: string): Promise<void> {
+    const lowerMessage = message.toLowerCase();
+    
+    // Determine which fake agent to show based on the task (keep it simple - just 1 agent)
+    let fakeProgressSteps: Array<{ agent: string; message: string; delay: number }> = [];
+    
+    // Documentation-related tasks: ChatAgent → GitHubAgent → DocWeaver
+    if (lowerMessage.includes('doc') || lowerMessage.includes('readme') || lowerMessage.includes('translate')) {
+      fakeProgressSteps = [
+        { agent: 'DocWeaverAgent', message: 'Analyzing and generating documentation...', delay: 400 },
+        { agent: 'DocWeaverAgent', message: 'Finalizing documentation content ✓', delay: 800 },
+      ];
+    }
+    // Test-related tasks: ChatAgent → GitHubAgent → TestCrafter
+    else if (lowerMessage.includes('test') || lowerMessage.includes('testing') || lowerMessage.includes('unit test')) {
+      fakeProgressSteps = [
+        { agent: 'TestCrafterAgent', message: 'Analyzing code and creating test cases...', delay: 400 },
+        { agent: 'TestCrafterAgent', message: 'Finalizing test suite ✓', delay: 800 },
+      ];
+    }
+    // Complex code tasks: ChatAgent → GitHubAgent → ComplexCoder
+    else if (lowerMessage.includes('complex') || lowerMessage.includes('architect') || lowerMessage.includes('system') || lowerMessage.includes('framework')) {
+      fakeProgressSteps = [
+        { agent: 'ComplexCoderAgent', message: 'Designing and implementing complex logic...', delay: 500 },
+        { agent: 'ComplexCoderAgent', message: 'Finalizing code structure ✓', delay: 1000 },
+      ];
+    }
+    // Simple code tasks: ChatAgent → GitHubAgent → SimpleCoder
+    else if (lowerMessage.includes('code') || lowerMessage.includes('implement') || lowerMessage.includes('add feature') || lowerMessage.includes('write') || lowerMessage.includes('create')) {
+      fakeProgressSteps = [
+        { agent: 'SimpleCoderAgent', message: 'Generating code implementation...', delay: 400 },
+        { agent: 'SimpleCoderAgent', message: 'Finalizing code ✓', delay: 700 },
+      ];
+    }
+    // General GitHub operations (no additional agent needed)
+    else {
+      // No fake agents for simple operations like fork, PR, etc.
+      fakeProgressSteps = [];
+    }
+    
+    // Emit the fake progress updates with delays
+    for (const step of fakeProgressSteps) {
+      await new Promise(resolve => setTimeout(resolve, step.delay));
+      await this.emitProgress(jobId, step.agent, 'started', step.message);
+      
+      // Short delay before marking as completed
+      await new Promise(resolve => setTimeout(resolve, step.delay * 0.6));
+      await this.emitProgress(jobId, step.agent, 'completed', step.message);
+    }
+    
+    // Final delay before GitHubAgent continues
+    if (fakeProgressSteps.length > 0) {
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
   }
 
@@ -454,7 +525,7 @@ class ChatQueueManager {
           // GitHubAgent now uses bot token - no user token required!
           // User token is only passed if available (for fallback scenarios)
           
-          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Handling GitHub operation with bot...');
+          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Analyzing GitHub operation requirements...');
           
           // Build context with conversation history for GitHubAgent
           const { contextMessage } = await ChatMemoryManager.buildContext(
@@ -464,6 +535,8 @@ class ChatQueueManager {
             job.language,
             job.imageUrls
           );
+          
+          await this.emitFakeGitHubProgress(job.id, job.message);
           
           const { GitHubAgent } = await import('../agents/specialized/GitHubAgent');
           const { runner } = await GitHubAgent(job.githubContext);
@@ -484,15 +557,22 @@ class ChatQueueManager {
             console.log(`[ChatQueue] Cleaned ${updatedFiles.length} fetched files (unescaped newlines)`);
           }
           
+          // Build enhanced summary with repo link if created
+          let enhancedSummary = response.summary || 'GitHub operation completed';
+          if (response.repoCreated) {
+            enhancedSummary += `\n\n🔗 **Repository created:** [${response.repoCreated.owner}/${response.repoCreated.name}](${response.repoCreated.url})`;
+          }
+          
           // Store response in memory
           await ChatMemoryManager.storeMessage({
             generationId: job.generationId,
             role: 'assistant',
-            content: response.summary || 'GitHub operation completed',
+            content: enhancedSummary,
             metadata: {
               filesModified: response.filesModified || 0,
               prCreated: response.prCreated || false,
               branchCreated: response.branchCreated || false,
+              repoCreated: response.repoCreated || false,
               filesFetched: hasFetchedFiles ? updatedFiles.length : 0,
             },
           });
@@ -513,7 +593,9 @@ class ChatQueueManager {
           job.status = 'completed';
           job.result = {
             files: updatedFiles, // Use fetched files if available
-            summary: response.summary,
+            summary: enhancedSummary,
+            repoCreated: response.repoCreated, // Include repo details in result
+            prCreated: response.prCreated, // Include PR details in result
           };
           job.updatedAt = new Date();
           
@@ -525,6 +607,15 @@ class ChatQueueManager {
               updated_at: new Date().toISOString(),
             })
             .eq('id', job.id);
+          
+          // Emit final completion message with repo link if created
+          let finalMessage = response.summary || 'GitHub operation completed successfully ✓';
+          if (response.repoCreated) {
+            finalMessage = `Repository created successfully! View it at: ${response.repoCreated.url}`;
+          } else if (response.prCreated) {
+            finalMessage = `Pull request #${response.prCreated.number} created successfully! View it at: ${response.prCreated.url}`;
+          }
+          await this.emitProgress(job.id, 'GitHubAgent', 'completed', finalMessage);
           
           console.log(`[ChatQueue] GitHubAgent completed for job ${job.id}`);
           return;
