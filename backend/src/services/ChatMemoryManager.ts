@@ -87,8 +87,10 @@ export class ChatMemoryManager {
       }
 
       // Reverse to get chronological order (oldest first)
+      // Filter out system messages from agent context (but keep for UI display)
       return (data || [])
         .reverse()
+        .filter(msg => msg.role !== 'system') // Exclude system messages from agent conversation
         .map(msg => ({
           id: msg.id,
           generationId: msg.generation_id,

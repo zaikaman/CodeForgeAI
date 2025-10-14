@@ -46,7 +46,7 @@ interface ChatJob {
 
 class ChatQueueManager {
   private queue: ChatJob[] = [];
-  private isProcessing = false;
+  private processingJobs = new Set<string>(); // Track jobs being processed (allow concurrent processing)
 
   /**
    * Enqueue a chat request - saves to Supabase
@@ -103,10 +103,8 @@ class ChatQueueManager {
         };
         this.queue.push(job);
         
-        // Start processing if not already
-        if (!this.isProcessing) {
-          this.processQueue();
-        }
+        // Start processing immediately (non-blocking, allows concurrent jobs)
+        this.processQueue();
         return;
       }
       
@@ -160,10 +158,8 @@ class ChatQueueManager {
     
     console.log(`[ChatQueue] Enqueued chat job ${params.id} for generation ${params.generationId}${params.specialistAgent ? ` (force route to ${params.specialistAgent})` : ''}${params.errorContext ? ' with error context' : ''}`);
 
-    // Start processing if not already
-    if (!this.isProcessing) {
-      this.processQueue();
-    }
+    // Start processing immediately (allows concurrent jobs)
+    this.processQueue();
   }
 
   /**
@@ -197,23 +193,36 @@ class ChatQueueManager {
   }
 
   /**
-   * Process queue
+   * Process queue - now supports concurrent job processing
    */
   private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
+    if (this.queue.length === 0) {
       return;
     }
 
-    this.isProcessing = true;
-
+    // Process all pending jobs concurrently
     while (this.queue.length > 0) {
       const job = this.queue.shift();
       if (!job) break;
 
-      await this.processJob(job);
-    }
+      // Skip if already processing this job
+      if (this.processingJobs.has(job.id)) {
+        console.log(`[ChatQueue] Job ${job.id} already being processed, skipping`);
+        continue;
+      }
 
-    this.isProcessing = false;
+      // Process job in background (non-blocking)
+      this.processingJobs.add(job.id);
+      this.processJob(job)
+        .then(() => {
+          this.processingJobs.delete(job.id);
+          console.log(`[ChatQueue] Job ${job.id} completed, ${this.processingJobs.size} jobs still processing`);
+        })
+        .catch((error) => {
+          this.processingJobs.delete(job.id);
+          console.error(`[ChatQueue] Job ${job.id} failed:`, error);
+        });
+    }
   }
 
   /**

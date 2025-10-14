@@ -131,11 +131,12 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
         console.log(`✅ User message stored in background generation: ${userMessageId}`);
       }
       
-      // Store system message to show in chat history
+      // Store system message to show in chat history (but exclude from agent context)
+      // Using 'system' role so agents won't include it in conversation context
       const systemMessage = 'Your request is being processed in the background. You can continue chatting!';
       const systemMessageId = await ChatMemoryManager.storeMessage({
         generationId: backgroundGenerationId,
-        role: 'assistant',
+        role: 'system', // Changed to 'system' to avoid confusing agents
         content: systemMessage,
       });
       
