@@ -8429,7 +8429,8 @@ async function injectSessionState(template, readonlyContext) {
       if (optional) {
         return "";
       }
-      throw new Error(`Context variable not found: \`${varName}\`.`);
+      console.warn(`Context variable not found: \`${varName}\`. Returning original text.`);
+      return match[0];
     }
   }
   return await asyncReplace(/{[^{}]*}/g, replaceMatch, template);

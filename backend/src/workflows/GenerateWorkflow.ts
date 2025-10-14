@@ -1335,27 +1335,7 @@ Return the result as JSON with the following structure:
           `✅ Successfully validated ${validFiles.length} files (filtered out ${response.files.length - validFiles.length} invalid files)`
         )
 
-        // Step 2.4: Validate JSON files (skip for SimpleCoder)
-        if (!this.usedSimpleCoder) {
-          console.log('\n[JSON VALIDATION] Validating JSON files...')
-          validFiles.forEach((file: any) => {
-            if (file.path.endsWith('.json')) {
-              try {
-                JSON.parse(file.content)
-                console.log(`✅ Valid JSON: ${file.path}`)
-              } catch (error) {
-                console.error(`❌ Invalid JSON in ${file.path}:`, error)
-                throw new Error(
-                  `Generated file ${file.path} contains invalid JSON: ${error instanceof Error ? error.message : String(error)}`
-                )
-              }
-            }
-          })
-        } else {
-          console.log('⚡ SimpleCoder: Skipping JSON validation')
-        }
-
-        // Step 2.5: Auto-format code files with Prettier (skip for SimpleCoder)
+        // Step 2.4: Auto-format code files with Prettier (skip for SimpleCoder)
         let finalFiles = validFiles
         
         if (!this.usedSimpleCoder) {
@@ -2333,12 +2313,37 @@ export default {
 
     // Case 3: HTML/XML files that may have escaped quotes and newlines
     if (filePath.endsWith('.html') || filePath.endsWith('.xml') || filePath.endsWith('.svg')) {
-      // Use centralized content cleaner utility
-      if (hasEscapedCharacters(content)) {
-        console.log(`✅ Cleaning escaped characters in ${filePath}`)
-        return cleanContent(content, { normalizeLineEndings: true });
+      // CRITICAL: AI sometimes generates literal \n, \t, \", \' in HTML
+      // We need to convert these to actual characters
+      
+      // Debug mode (enable via DEBUG_CONTENT_CLEANING=true)
+      if (process.env.DEBUG_CONTENT_CLEANING === 'true') {
+        const { debugContentEscaping } = require('../utils/contentCleaner');
+        debugContentEscaping(content, `HTML file: ${filePath}`);
       }
-      return content;
+      
+      // Always clean HTML files - AI often generates literal escape sequences
+      let cleaned = content;
+      
+      // Check if content has literal escape sequences (e.g., "\\n" as text, not actual newline)
+      if (hasEscapedCharacters(content)) {
+        console.log(`✅ Cleaning literal escape sequences in ${filePath}`)
+        cleaned = cleanContent(content, { normalizeLineEndings: true });
+      }
+      
+      // Additional HTML-specific cleaning: remove literal \n \t that might remain
+      // This handles cases where AI writes: <title>Title</title>\n instead of actual newline
+      if (cleaned.includes('\\n') || cleaned.includes('\\t') || cleaned.includes("\\'") || cleaned.includes('\\"')) {
+        console.log(`✅ Post-processing HTML file ${filePath}: converting literal escape sequences`)
+        cleaned = cleaned
+          .replace(/\\n/g, '\n')      // Convert literal \n to actual newline
+          .replace(/\\t/g, '\t')      // Convert literal \t to actual tab
+          .replace(/\\'/g, "'")       // Convert literal \' to single quote
+          .replace(/\\"/g, '"')       // Convert literal \" to double quote
+          .replace(/\\r/g, '\r')      // Convert literal \r to carriage return
+      }
+      
+      return cleaned;
     }
 
     // Case 4: JSON files with single quotes or escaped characters (need to fix)

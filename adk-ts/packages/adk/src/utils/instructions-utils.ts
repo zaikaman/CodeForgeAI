@@ -110,7 +110,11 @@ export async function injectSessionState(
 			if (optional) {
 				return "";
 			}
-			throw new Error(`Context variable not found: \`${varName}\`.`);
+			
+			// If variable not found in session state, return original text instead of throwing error
+			// This prevents errors when user code contains {variable} syntax (e.g., React destructuring)
+			console.warn(`Context variable not found: \`${varName}\`. Returning original text.`);
+			return match[0];
 		}
 	}
 
