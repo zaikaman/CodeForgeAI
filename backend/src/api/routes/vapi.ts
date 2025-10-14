@@ -14,8 +14,11 @@ const vapiToolCallSchema = z.object({
     type: z.literal('tool-calls'),
     toolCallList: z.array(z.object({
       id: z.string(),
-      name: z.string(),
-      arguments: z.record(z.string(), z.any()),
+      type: z.string().optional(),
+      function: z.object({
+        name: z.string(),
+        arguments: z.record(z.string(), z.any()),
+      }),
     })),
     call: z.object({
       id: z.string(),
@@ -45,13 +48,13 @@ router.post('/tools', async (req: Request, res: Response): Promise<void> => {
     // Process each tool call
     const results = await Promise.all(
       toolCallList.map(async (toolCall) => {
-        console.log(`[VAPI Tools] Processing tool: ${toolCall.name}`);
-        console.log(`[VAPI Tools] Arguments:`, toolCall.arguments);
+        console.log(`[VAPI Tools] Processing tool: ${toolCall.function.name}`);
+        console.log(`[VAPI Tools] Arguments:`, toolCall.function.arguments);
 
         try {
           // Handle create_code_task function
-          if (toolCall.name === 'create_code_task') {
-            const args = toolCall.arguments as {
+          if (toolCall.function.name === 'create_code_task') {
+            const args = toolCall.function.arguments as {
               task_description: string;
               project_type: string;
               language?: string;
@@ -199,11 +202,11 @@ router.post('/tools', async (req: Request, res: Response): Promise<void> => {
             toolCallId: toolCall.id,
             result: JSON.stringify({
               success: false,
-              error: `Unknown tool: ${toolCall.name}`,
+              error: `Unknown tool: ${toolCall.function.name}`,
             }),
           };
         } catch (toolError: any) {
-          console.error(`[VAPI Tools] Error processing tool ${toolCall.name}:`, toolError);
+          console.error(`[VAPI Tools] Error processing tool ${toolCall.function.name}:`, toolError);
           return {
             toolCallId: toolCall.id,
             result: JSON.stringify({
