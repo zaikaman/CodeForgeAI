@@ -23,6 +23,7 @@ import downloadRouter from './routes/download';
 import deployRouter from './routes/deploy';
 import fixPreviewErrorsRouter from '../routes/fix-preview-errors';
 import cacheRouter from './cache';
+import jobsRouter from './routes/jobs';
 // import codebaseRouter from './routes/codebase'; // DISABLED - rollback to legacy mode
 
 const app = express();
@@ -92,17 +93,31 @@ app.use('/api', downloadRouter);
 app.use('/api', deployRouter);
 app.use('/api/fix-preview-errors', fixPreviewErrorsRouter);
 app.use('/api/cache', cacheRouter);
+app.use('/api/jobs', jobsRouter);
 // app.use('/api', codebaseRouter); // DISABLED - rollback to legacy mode
 
 // Socket.io connection
 io.on('connection', (socket) => {
-  console.log('a user connected');
+  console.log('✅ User connected:', socket.id);
+  
+  // Join user-specific room
+  socket.on('join:user', (userId: string) => {
+    socket.join(`user:${userId}`);
+    console.log(`👤 User ${userId} joined their room`);
+  });
+  
+  // Join session-specific room
+  socket.on('join:session', (sessionId: string) => {
+    socket.join(`session:${sessionId}`);
+    console.log(`📝 Session ${sessionId} room joined`);
+  });
+  
   socket.on('disconnect', () => {
-    console.log('user disconnected');
+    console.log('❌ User disconnected:', socket.id);
   });
 });
 
 // Error Handler Middleware
 app.use(errorHandler);
 
-export { server, app };
+export { server, app, io };

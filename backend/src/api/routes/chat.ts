@@ -5,6 +5,8 @@ import { supabase } from '../../storage/SupabaseClient';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/supabaseAuth';
+import { queueManager } from '../../jobs/QueueManager';
+import { JobType, AgentTaskJobData } from '../../jobs/types';
 
 const router = Router();
 
@@ -23,6 +25,7 @@ const chatRequestSchema = z.object({
     username: z.string(),
     email: z.string().optional(),
   }).optional(),
+  backgroundMode: z.boolean().optional(), // NEW: Enable background processing
 });
 
 // POST /chat - Start a chat request as background job (returns immediately)
@@ -41,13 +44,53 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     // Validate request body
     const validatedRequest = chatRequestSchema.parse(req.body);
     
-    const { generationId, message, currentFiles, language, imageUrls, githubContext } = validatedRequest;
+    const { generationId, message, currentFiles, language, imageUrls, githubContext, backgroundMode } = validatedRequest;
 
     console.log(`[POST /chat] Processing message for generation ${generationId}`);
     console.log(`[POST /chat] Message: ${message.substring(0, 100)}...`);
     console.log(`[POST /chat] Current files: ${currentFiles.length}`);
+    console.log(`[POST /chat] Background mode: ${backgroundMode ? 'ENABLED' : 'disabled'}`);
     if (githubContext) {
       console.log(`[POST /chat] GitHub context provided for user: ${githubContext.username}`);
+    }
+
+    // If background mode enabled, use Bull queue instead of chat queue
+    if (backgroundMode) {
+      console.log('🚀 [POST /chat] Submitting to background job queue...');
+      
+      const jobData: AgentTaskJobData = {
+        userId,
+        sessionId: generationId,
+        userMessage: message,
+        context: {
+          files: currentFiles.map(f => f.path),
+          fileContents: currentFiles,
+          language,
+          imageUrls,
+          githubContext,
+        },
+      };
+      
+      const job = await queueManager.addJob(JobType.AGENT_TASK, jobData);
+      
+      // Store user message
+      await ChatMemoryManager.storeMessage({
+        generationId,
+        role: 'user',
+        content: message,
+        imageUrls: imageUrls || [],
+      });
+      
+      res.json({
+        success: true,
+        data: {
+          jobId: job.id as string,
+          status: 'queued',
+          backgroundMode: true,
+          message: 'Your request is being processed in the background. You can continue chatting!',
+        },
+      });
+      return;
     }
 
     // Create unique job ID

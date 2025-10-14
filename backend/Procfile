@@ -1,1 +1,2 @@
 web: npm start
+worker: tsx src/jobs/worker.ts
