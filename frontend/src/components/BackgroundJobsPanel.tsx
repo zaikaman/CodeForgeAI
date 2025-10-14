@@ -251,8 +251,9 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
                     {job.status === 'completed' && job.result && (
                       <button
                         onClick={() => {
-                          // TODO: Navigate to the result or show details
-                          console.log('View result:', job.result);
+                          // Navigate to the chat session where result was posted
+                          window.location.href = `/terminal?generation=${job.session_id}`;
+                          onClose();
                         }}
                         className="text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded"
                       >

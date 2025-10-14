@@ -1,5 +1,5 @@
 import { supabase } from '../storage/SupabaseClient';
-import { ChatAgent } from '../agents/specialized/ChatAgent';
+import { chatQueue } from '../services/ChatQueue';
 
 interface BackgroundJob {
   id: string;
@@ -101,7 +101,7 @@ export class SimpleJobProcessor {
   }
   
   /**
-   * Process a single job
+   * Process a single job using ChatQueue (same logic as normal chat)
    */
   private async processJob(job: BackgroundJob) {
     const startTime = new Date();
@@ -119,67 +119,74 @@ export class SimpleJobProcessor {
       logs.push(`User: ${job.user_id}, Session: ${job.session_id}`);
       logs.push(`Message: ${job.user_message}`);
       
-      // Initialize ChatAgent
+      // Use ChatQueue to process (same as normal chat)
+      // This ensures full routing through ChatAgent → GitHubAgent/SimpleCoder/etc.
       await this.updateJob(job.id, { progress: 20, logs });
-      logs.push(`[${new Date().toISOString()}] Initializing ChatAgent...`);
+      logs.push(`[${new Date().toISOString()}] Submitting to ChatQueue...`);
       
-      const githubContext = job.context?.githubContext;
-      const chatAgent = await ChatAgent(githubContext);
-      const { runner } = chatAgent;
+      const chatJobId = job.id; // Use same ID for chat job
       
-      // Prepare context
-      await this.updateJob(job.id, { progress: 30, logs });
-      logs.push(`[${new Date().toISOString()}] Processing request with ChatAgent...`);
-      
-      const contextParts: string[] = [];
-      
-      if (job.context?.fileContents?.length > 0) {
-        contextParts.push(`\n=== CURRENT CODEBASE ===`);
-        job.context.fileContents.forEach((file: any) => {
-          contextParts.push(`\nFile: ${file.path}`);
-          contextParts.push(`\`\`\`\n${file.content}\n\`\`\``);
-        });
-        contextParts.push(`\n=== END CODEBASE ===\n`);
-      }
-      
-      if (job.context?.githubContext) {
-        contextParts.push(`\n=== GITHUB CONTEXT ===`);
-        contextParts.push(`Username: ${job.context.githubContext.username}`);
-        contextParts.push(`Token: Available`);
-        if (job.context.githubContext.email) {
-          contextParts.push(`Email: ${job.context.githubContext.email}`);
-        }
-        contextParts.push(`=== END GITHUB CONTEXT ===\n`);
-      }
-      
-      const fullMessage = job.user_message + (contextParts.length > 0 ? '\n' + contextParts.join('\n') : '');
-      
-      // Execute ChatAgent
-      await this.updateJob(job.id, { progress: 50, logs });
-      logs.push(`[${new Date().toISOString()}] Executing ChatAgent...`);
-      
-      const response = await runner.ask(fullMessage);
-      
-      await this.updateJob(job.id, { progress: 90, logs });
-      logs.push(`[${new Date().toISOString()}] ChatAgent execution completed`);
-      
-      // Complete job
-      const endTime = new Date();
-      const duration = endTime.getTime() - startTime.getTime();
-      
-      logs.push(`[${new Date().toISOString()}] Task completed successfully`);
-      logs.push(`Duration: ${(duration / 1000).toFixed(2)}s`);
-      
-      await this.updateJob(job.id, {
-        status: 'completed',
-        progress: 100,
-        result: response,
-        logs,
-        completed_at: endTime.toISOString(),
+      await chatQueue.enqueue({
+        id: chatJobId,
+        generationId: job.session_id,
+        userId: job.user_id,
+        message: job.user_message,
+        currentFiles: job.context?.fileContents || [],
+        language: job.context?.language || 'typescript',
+        imageUrls: job.context?.imageUrls || [],
+        githubContext: job.context?.githubContext,
       });
       
-      console.log(`✅ Job ${job.id} completed successfully`);
-      console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
+      await this.updateJob(job.id, { progress: 30, logs });
+      logs.push(`[${new Date().toISOString()}] Chat job ${chatJobId} created, waiting for completion...`);
+      
+      // Poll chat job status until completed
+      let chatJobCompleted = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 60 attempts x 2s = 2 minutes max
+      
+      while (!chatJobCompleted && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s
+        attempts++;
+        
+        const chatJob = await chatQueue.getJob(chatJobId);
+        
+        if (chatJob) {
+          // Update progress based on chat job progress
+          const progress = Math.min(90, 30 + (attempts * 2)); // 30% → 90%
+          await this.updateJob(job.id, { progress, logs });
+          
+          if (chatJob.status === 'completed') {
+            chatJobCompleted = true;
+            logs.push(`[${new Date().toISOString()}] Chat job completed successfully`);
+            
+            // Complete background job
+            const endTime = new Date();
+            const duration = endTime.getTime() - startTime.getTime();
+            
+            logs.push(`[${new Date().toISOString()}] Task completed successfully`);
+            logs.push(`Duration: ${(duration / 1000).toFixed(2)}s`);
+            
+            await this.updateJob(job.id, {
+              status: 'completed',
+              progress: 100,
+              result: chatJob.result,
+              logs,
+              completed_at: endTime.toISOString(),
+            });
+            
+            console.log(`✅ Job ${job.id} completed successfully`);
+            console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
+            
+          } else if (chatJob.status === 'error') {
+            throw new Error(chatJob.error || 'Chat job failed');
+          }
+        }
+      }
+      
+      if (!chatJobCompleted) {
+        throw new Error('Chat job timeout after 2 minutes');
+      }
       
     } catch (error: any) {
       const endTime = new Date();
