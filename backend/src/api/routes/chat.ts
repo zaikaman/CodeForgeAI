@@ -56,61 +56,41 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     if (backgroundMode) {
       console.log('🚀 [POST /chat] Creating background job in database...');
       
-      // IMPORTANT: Ensure generation exists in DB before storing chat messages
-      const { data: existingGeneration } = await supabase
+      // Create NEW generation ID for background job (isolated from current chat)
+      const backgroundGenerationId = randomUUID();
+      console.log(`📦 Background job will use separate generation: ${backgroundGenerationId}`);
+      
+      // Create a generation record for the background job
+      const { error: createError } = await supabase
         .from('generations')
-        .select('id, user_id')
-        .eq('id', generationId)
-        .single();
+        .insert({
+          id: backgroundGenerationId,
+          user_id: userId,
+          prompt: message.slice(0, 500), // Store first part of message as prompt
+          target_language: language,
+          complexity: 'moderate',
+          status: 'processing',
+          files: currentFiles,
+          created_at: new Date().toISOString(),
+        });
 
-      if (!existingGeneration) {
-        console.warn(`⚠ Generation ${generationId} not found in DB, creating...`);
-        
-        // Create a generation record
-        const { error: createError } = await supabase
-          .from('generations')
-          .insert({
-            id: generationId,
-            user_id: userId,
-            prompt: message.slice(0, 500), // Store first part of first message as prompt
-            target_language: language,
-            complexity: 'moderate',
-            status: 'processing',
-            files: currentFiles,
-            created_at: new Date().toISOString(),
-          });
-
-        if (createError) {
-          console.error('Failed to create generation:', createError);
-          res.status(500).json({
-            success: false,
-            error: 'Failed to create chat session',
-          });
-          return;
-        } else {
-          console.log(`✅ Created generation ${generationId} with user_id: ${userId}`);
-        }
-      } else if (!existingGeneration.user_id || existingGeneration.user_id !== userId) {
-        // Update user_id if it's missing or different
-        console.log(`🔄 Updating generation ${generationId} with user_id: ${userId}`);
-        const { error: updateError } = await supabase
-          .from('generations')
-          .update({ user_id: userId })
-          .eq('id', generationId);
-        
-        if (updateError) {
-          console.error('Failed to update generation user_id:', updateError);
-        }
-      } else {
-        console.log(`✅ Generation ${generationId} exists in DB with correct user_id`);
+      if (createError) {
+        console.error('Failed to create background generation:', createError);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to create background job session',
+        });
+        return;
       }
       
-      // Create background job in database
+      console.log(`✅ Created background generation ${backgroundGenerationId}`);
+      
+      // Create background job in database (using NEW generation ID)
       const { data: job, error: jobError } = await supabase
         .from('background_jobs')
         .insert({
           user_id: userId,
-          session_id: generationId,
+          session_id: backgroundGenerationId, // Use NEW generation ID
           type: 'agent_task',
           status: 'pending',
           user_message: message,
@@ -135,11 +115,11 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
         return;
       }
       
-      console.log(`📋 Job created in database: ${job.id}`);
+      console.log(`📋 Background job created: ${job.id} → generation: ${backgroundGenerationId}`);
       
-      // Store user message
+      // Store user message in the BACKGROUND generation (not current chat)
       const userMessageId = await ChatMemoryManager.storeMessage({
-        generationId,
+        generationId: backgroundGenerationId, // Use background generation ID
         role: 'user',
         content: message,
         imageUrls: imageUrls || [],
@@ -148,13 +128,14 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       if (!userMessageId) {
         console.error('❌ Failed to store user message in background mode');
       } else {
-        console.log(`✅ User message stored in background mode: ${userMessageId}`);
+        console.log(`✅ User message stored in background generation: ${userMessageId}`);
       }
       
       res.json({
         success: true,
         data: {
           jobId: job.id,
+          generationId: backgroundGenerationId, // Return background generation ID
           status: 'pending',
           backgroundMode: true,
           message: 'Your request is being processed in the background. You can continue chatting!',
