@@ -58,6 +58,55 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
     if (backgroundMode) {
       console.log('🚀 [POST /chat] Submitting to background job queue...');
       
+      // IMPORTANT: Ensure generation exists in DB before storing chat messages
+      const { data: existingGeneration } = await supabase
+        .from('generations')
+        .select('id, user_id')
+        .eq('id', generationId)
+        .single();
+
+      if (!existingGeneration) {
+        console.warn(`⚠ Generation ${generationId} not found in DB, creating...`);
+        
+        // Create a generation record
+        const { error: createError } = await supabase
+          .from('generations')
+          .insert({
+            id: generationId,
+            user_id: userId,
+            prompt: message.slice(0, 500), // Store first part of first message as prompt
+            target_language: language,
+            complexity: 'moderate',
+            status: 'processing',
+            files: currentFiles,
+            created_at: new Date().toISOString(),
+          });
+
+        if (createError) {
+          console.error('Failed to create generation:', createError);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to create chat session',
+          });
+          return;
+        } else {
+          console.log(`✅ Created generation ${generationId} with user_id: ${userId}`);
+        }
+      } else if (!existingGeneration.user_id || existingGeneration.user_id !== userId) {
+        // Update user_id if it's missing or different
+        console.log(`🔄 Updating generation ${generationId} with user_id: ${userId}`);
+        const { error: updateError } = await supabase
+          .from('generations')
+          .update({ user_id: userId })
+          .eq('id', generationId);
+        
+        if (updateError) {
+          console.error('Failed to update generation user_id:', updateError);
+        }
+      } else {
+        console.log(`✅ Generation ${generationId} exists in DB with correct user_id`);
+      }
+      
       const jobData: AgentTaskJobData = {
         userId,
         sessionId: generationId,
@@ -74,12 +123,18 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       const job = await queueManager.addJob(JobType.AGENT_TASK, jobData);
       
       // Store user message
-      await ChatMemoryManager.storeMessage({
+      const userMessageId = await ChatMemoryManager.storeMessage({
         generationId,
         role: 'user',
         content: message,
         imageUrls: imageUrls || [],
       });
+
+      if (!userMessageId) {
+        console.error('❌ Failed to store user message in background mode');
+      } else {
+        console.log(`✅ User message stored in background mode: ${userMessageId}`);
+      }
       
       res.json({
         success: true,
