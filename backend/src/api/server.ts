@@ -6,6 +6,7 @@ import cors from 'cors';
 import { errorHandler } from './middleware/errorHandler';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { ensureJsonResponse } from './middleware/jsonResponse';
+import { startJobProcessor } from '../jobs/SimpleJobProcessor';
 
 // Import routes
 import onboardRouter from './routes/onboard';
@@ -23,7 +24,7 @@ import downloadRouter from './routes/download';
 import deployRouter from './routes/deploy';
 import fixPreviewErrorsRouter from '../routes/fix-preview-errors';
 import cacheRouter from './cache';
-import jobsRouter from './routes/jobs';
+import jobsRouter from './routes/jobs-simple';
 // import codebaseRouter from './routes/codebase'; // DISABLED - rollback to legacy mode
 
 const app = express();
@@ -116,6 +117,9 @@ io.on('connection', (socket) => {
     console.log('❌ User disconnected:', socket.id);
   });
 });
+
+// Start simple job processor (polls database every 2 seconds)
+startJobProcessor();
 
 // Error Handler Middleware
 app.use(errorHandler);

@@ -5,8 +5,6 @@ import { supabase } from '../../storage/SupabaseClient';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/supabaseAuth';
-import { queueManager } from '../../jobs/QueueManager';
-import { JobType, AgentTaskJobData } from '../../jobs/types';
 
 const router = Router();
 
@@ -54,9 +52,9 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       console.log(`[POST /chat] GitHub context provided for user: ${githubContext.username}`);
     }
 
-    // If background mode enabled, use Bull queue instead of chat queue
+    // If background mode enabled, create job in database
     if (backgroundMode) {
-      console.log('🚀 [POST /chat] Submitting to background job queue...');
+      console.log('🚀 [POST /chat] Creating background job in database...');
       
       // IMPORTANT: Ensure generation exists in DB before storing chat messages
       const { data: existingGeneration } = await supabase
@@ -107,20 +105,37 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
         console.log(`✅ Generation ${generationId} exists in DB with correct user_id`);
       }
       
-      const jobData: AgentTaskJobData = {
-        userId,
-        sessionId: generationId,
-        userMessage: message,
-        context: {
-          files: currentFiles.map(f => f.path),
-          fileContents: currentFiles,
-          language,
-          imageUrls,
-          githubContext,
-        },
-      };
+      // Create background job in database
+      const { data: job, error: jobError } = await supabase
+        .from('background_jobs')
+        .insert({
+          user_id: userId,
+          session_id: generationId,
+          type: 'agent_task',
+          status: 'pending',
+          user_message: message,
+          context: {
+            files: currentFiles.map(f => f.path),
+            fileContents: currentFiles,
+            language,
+            imageUrls,
+            githubContext,
+          },
+          progress: 0,
+        })
+        .select()
+        .single();
       
-      const job = await queueManager.addJob(JobType.AGENT_TASK, jobData);
+      if (jobError || !job) {
+        console.error('❌ Failed to create background job:', jobError);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to create background job',
+        });
+        return;
+      }
+      
+      console.log(`📋 Job created in database: ${job.id}`);
       
       // Store user message
       const userMessageId = await ChatMemoryManager.storeMessage({
@@ -139,8 +154,8 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       res.json({
         success: true,
         data: {
-          jobId: job.id as string,
-          status: 'queued',
+          jobId: job.id,
+          status: 'pending',
           backgroundMode: true,
           message: 'Your request is being processed in the background. You can continue chatting!',
         },

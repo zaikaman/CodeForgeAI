@@ -96,16 +96,11 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
     logs.push(`[${new Date().toISOString()}] ERROR: ${error.message}`);
     logs.push(`Stack: ${error.stack}`);
     
-    const jobResult: JobResult = {
-      success: false,
-      error: error.message,
-      logs,
-      startTime,
-      endTime,
-      duration,
-    };
+    // Log error details
+    console.error(`❌ Job processing failed: ${error.message}`);
+    console.error(`   Duration: ${(duration / 1000).toFixed(2)}s`);
     
-    throw error; // Re-throw to let Bull handle retry logic
+    throw error; // Re-throw to let processor handle it
   }
 }
 
