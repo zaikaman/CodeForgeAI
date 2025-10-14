@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AgentMessage } from '../components/AgentChat';
 import { CodeEditor } from '../components/CodeEditor';
 import { FileTree } from '../components/FileTree';
@@ -25,7 +25,9 @@ interface ChatSession {
 }
 
 export const TerminalPage: React.FC = () => {
-  const { id } = useParams<{ id?: string }>();
+  const { id: routeId } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
+  const id = searchParams.get('generation') || routeId; // Support both query param and route param
   const navigate = useNavigate();
   const { user, session } = useAuthContext();
   const chatEndRef = useRef<HTMLDivElement>(null);
