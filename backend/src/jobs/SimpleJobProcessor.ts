@@ -1,5 +1,6 @@
 import { supabase } from '../storage/SupabaseClient';
 import { chatQueue } from '../services/ChatQueue';
+import { randomUUID } from 'crypto';
 
 interface BackgroundJob {
   id: string;
@@ -124,7 +125,8 @@ export class SimpleJobProcessor {
       await this.updateJob(job.id, { progress: 20, logs });
       logs.push(`[${new Date().toISOString()}] Submitting to ChatQueue...`);
       
-      const chatJobId = job.id; // Use same ID for chat job
+      // Create a NEW chat job ID (can't reuse background job ID due to unique constraint)
+      const chatJobId = randomUUID();
       
       await chatQueue.enqueue({
         id: chatJobId,
