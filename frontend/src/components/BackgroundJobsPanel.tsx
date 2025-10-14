@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
+import { useUIStore } from '../stores/uiStore';
 import './BackgroundJobsPanel.css';
 
 interface Job {
@@ -23,13 +24,16 @@ interface Job {
 
 interface BackgroundJobsPanelProps {
   onClose: () => void;
+  onActiveJobsCountChange?: (count: number) => void;
 }
 
-export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClose }) => {
+export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClose, onActiveJobsCountChange }) => {
   const { user } = useAuthContext();
+  const { showToast } = useUIStore();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const previousJobStatusesRef = useRef<Record<string, string>>({});
 
   // Fetch user's jobs
   const fetchJobs = async () => {
@@ -40,7 +44,38 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
       const response = await apiClient.getUserJobs(user.id);
       
       if (response.success && response.data) {
-        setJobs(response.data.jobs as Job[]);
+        const newJobs = response.data.jobs as Job[];
+        
+        // Check for status changes and show notifications
+        newJobs.forEach(job => {
+          const previousStatus = previousJobStatusesRef.current[job.id];
+          
+          // New job started processing
+          if (previousStatus === 'pending' && job.status === 'processing') {
+            showToast('info', `🚀 Background job started: ${job.user_message.substring(0, 50)}...`, 4000);
+          }
+          
+          // Job completed successfully
+          if ((previousStatus === 'processing' || previousStatus === 'pending') && job.status === 'completed') {
+            showToast('success', `✅ Background job completed: ${job.user_message.substring(0, 50)}...`, 6000);
+          }
+          
+          // Job failed
+          if ((previousStatus === 'processing' || previousStatus === 'pending') && job.status === 'failed') {
+            showToast('error', `❌ Background job failed: ${job.user_message.substring(0, 50)}...`, 6000);
+          }
+          
+          // Update previous status
+          previousJobStatusesRef.current[job.id] = job.status;
+        });
+        
+        setJobs(newJobs);
+        
+        // Notify parent of active jobs count
+        const activeCount = newJobs.filter(j => j.status === 'processing' || j.status === 'pending').length;
+        if (onActiveJobsCountChange) {
+          onActiveJobsCountChange(activeCount);
+        }
       } else {
         console.error('Failed to fetch jobs:', response.error);
       }

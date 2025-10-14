@@ -9,6 +9,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { BackgroundJobsPanel } from '../components/BackgroundJobsPanel';
 import { VapiCallAgent } from '../components/VapiCallAgent';
 import { useGenerationStore } from '../stores/generationStore';
+import { useUIStore } from '../stores/uiStore';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useChatJobPolling } from '../hooks/useChatJobPolling';
@@ -31,6 +32,7 @@ export const TerminalPage: React.FC = () => {
   const id = searchParams.get('generation') || routeId; // Support both query param and route param
   const navigate = useNavigate();
   const { user, session } = useAuthContext();
+  const { showToast } = useUIStore();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -39,6 +41,7 @@ export const TerminalPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showBackgroundJobs, setShowBackgroundJobs] = useState(false);
+  const [activeJobsCount, setActiveJobsCount] = useState(0);
   
   // UI State
   const [chatInput, setChatInput] = useState('');
@@ -96,6 +99,34 @@ export const TerminalPage: React.FC = () => {
     });
     return gen;
   }, [id, currentGeneration, getGenerationById, history]);
+
+  // Poll active jobs count (even when panel is closed)
+  useEffect(() => {
+    if (!user) return;
+
+    const pollActiveJobs = async () => {
+      try {
+        const response = await apiClient.getUserJobs(user.id);
+        if (response.success && response.data) {
+          const jobs = response.data.jobs;
+          const activeCount = jobs.filter((job: any) => 
+            job.status === 'processing' || job.status === 'pending'
+          ).length;
+          setActiveJobsCount(activeCount);
+        }
+      } catch (error) {
+        console.error('Error polling active jobs count:', error);
+      }
+    };
+
+    // Initial fetch
+    pollActiveJobs();
+
+    // Poll every 5 seconds
+    const interval = setInterval(pollActiveJobs, 5000);
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Load chat sessions - reload when ID changes (NOT on every message)
   useEffect(() => {
@@ -585,6 +616,9 @@ export const TerminalPage: React.FC = () => {
       if (chatResponse.data.backgroundMode) {
         console.log(`🚀 Background job ${jobId} submitted, will be tracked via Socket.IO`);
         
+        // Show toast notification for background job
+        showToast('info', `🔧 Background job started: ${userMessage.substring(0, 60)}...`, 5000);
+        
         // Add immediate response message
         const backgroundResponseMessage: AgentMessage = {
           id: `msg_${Date.now()}_bg_response`,
@@ -849,6 +883,9 @@ export const TerminalPage: React.FC = () => {
           }}>
             <span className="icon">🔧</span>
             <span className="text">JOBS</span>
+            {activeJobsCount > 0 && (
+              <span className="badge-count">{activeJobsCount}</span>
+            )}
           </button>
           <button className="btn-settings" onClick={() => {
             playClick();
@@ -877,7 +914,10 @@ export const TerminalPage: React.FC = () => {
       
       {/* Background Jobs Panel */}
       {showBackgroundJobs && (
-        <BackgroundJobsPanel onClose={() => setShowBackgroundJobs(false)} />
+        <BackgroundJobsPanel 
+          onClose={() => setShowBackgroundJobs(false)} 
+          onActiveJobsCountChange={setActiveJobsCount}
+        />
       )}
 
       {/* Main Content Area */}
