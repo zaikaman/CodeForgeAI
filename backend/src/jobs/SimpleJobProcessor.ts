@@ -145,7 +145,7 @@ export class SimpleJobProcessor {
       // Poll chat job status until completed
       let chatJobCompleted = false;
       let attempts = 0;
-      const maxAttempts = 60; // 60 attempts x 2s = 2 minutes max
+      const maxAttempts = 300; // 300 attempts x 2s = 10 minutes max
       
       while (!chatJobCompleted && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s
@@ -187,7 +187,7 @@ export class SimpleJobProcessor {
       }
       
       if (!chatJobCompleted) {
-        throw new Error('Chat job timeout after 2 minutes');
+        throw new Error('Chat job timeout after 10 minutes');
       }
       
     } catch (error: any) {
