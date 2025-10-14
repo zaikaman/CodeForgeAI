@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
 import './BackgroundJobsPanel.css';
@@ -24,15 +23,6 @@ interface Job {
   failedReason?: string;
 }
 
-interface JobUpdate {
-  jobId: string;
-  status: string;
-  progress: number;
-  logs: string[];
-  result?: any;
-  timestamp: string;
-}
-
 interface BackgroundJobsPanelProps {
   onClose: () => void;
 }
@@ -41,44 +31,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
   const { user } = useAuthContext();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Connect to Socket.IO for real-time updates
-  useEffect(() => {
-    if (!user) return;
-
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    const newSocket = io(backendUrl);
-
-    newSocket.on('connect', () => {
-      console.log('✅ Connected to background jobs socket');
-      // Join user-specific room
-      newSocket.emit('join:user', user.id);
-    });
-
-    newSocket.on('job:update', (update: JobUpdate) => {
-      console.log('📊 Job update received:', update);
-      
-      // Update job in list
-      setJobs(prev => {
-        const existingIndex = prev.findIndex(j => j.id === update.jobId);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            status: update.status as any,
-            progress: update.progress,
-            result: update.result,
-          };
-          return updated;
-        }
-        return prev;
-      });
-    });
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [user]);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch user's jobs
   const fetchJobs = async () => {
@@ -105,6 +58,32 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
       fetchJobs();
     }
   }, [user]);
+
+  // Auto-refresh when there are active jobs
+  useEffect(() => {
+    const hasActiveJobs = jobs.some(j => j.status === 'active' || j.status === 'waiting');
+    
+    if (hasActiveJobs && user) {
+      // Poll every 2 seconds when there are active jobs
+      pollingIntervalRef.current = setInterval(() => {
+        console.log('🔄 Auto-refreshing jobs (active jobs detected)');
+        fetchJobs();
+      }, 2000);
+    } else {
+      // Clear interval when no active jobs
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [jobs, user]);
 
   // Cancel a job
   const handleCancelJob = async (jobId: string) => {

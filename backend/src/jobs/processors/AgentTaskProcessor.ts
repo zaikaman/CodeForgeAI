@@ -1,10 +1,11 @@
 import { Job } from 'bull';
 import { AgentTaskJobData, JobResult } from '../types';
-import { io } from '../../api/server';
 import { ChatAgent } from '../../agents/specialized/ChatAgent';
 
 /**
  * Process agent tasks in the background using ChatAgent
+ * Note: Socket.IO events cannot be emitted from worker dyno (separate process)
+ * Frontend should poll /api/jobs/:jobId or use Redis pub/sub for real-time updates
  */
 export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobResult> {
   const startTime = new Date();
@@ -19,12 +20,10 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
     
     // Update progress: 10%
     await job.progress(10);
-    emitJobUpdate(job, 'active', 10, logs);
     
     // Step 1: Initialize ChatAgent with GitHub context if available
     logs.push(`[${new Date().toISOString()}] Initializing ChatAgent...`);
     await job.progress(20);
-    emitJobUpdate(job, 'active', 20, logs);
     
     const githubContext = context?.githubContext;
     const chatAgent = await ChatAgent(githubContext);
@@ -33,7 +32,6 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
     // Step 2: Prepare context for ChatAgent
     logs.push(`[${new Date().toISOString()}] Processing request with ChatAgent...`);
     await job.progress(30);
-    emitJobUpdate(job, 'active', 30, logs);
     
     // Build context string
     const contextParts: string[] = [];
@@ -62,13 +60,11 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
     // Step 3: Call ChatAgent
     logs.push(`[${new Date().toISOString()}] Executing ChatAgent...`);
     await job.progress(50);
-    emitJobUpdate(job, 'active', 50, logs);
     
     const response = await runner.ask(fullMessage);
     
     logs.push(`[${new Date().toISOString()}] ChatAgent execution completed`);
     await job.progress(90);
-    emitJobUpdate(job, 'active', 90, logs);
     
     // Step 4: Format and return result
     const endTime = new Date();
@@ -88,8 +84,8 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
       duration,
     };
     
-    // Emit completion event
-    emitJobUpdate(job, 'completed', 100, logs, jobResult);
+    // Note: Cannot emit Socket.IO events from worker dyno
+    // Frontend should poll /api/jobs/:jobId for status
     
     return jobResult;
     
@@ -109,45 +105,8 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
       duration,
     };
     
-    // Emit failure event
-    emitJobUpdate(job, 'failed', job.progress() as number, logs, jobResult);
-    
     throw error; // Re-throw to let Bull handle retry logic
   }
-}
-
-/**
- * Emit job status update via Socket.IO
- */
-function emitJobUpdate(
-  job: Job<AgentTaskJobData>,
-  status: string,
-  progress: number,
-  logs: string[],
-  result?: JobResult
-) {
-  const { userId, sessionId } = job.data;
-  
-  // Emit to user's room
-  io.to(`user:${userId}`).emit('job:update', {
-    jobId: job.id,
-    sessionId,
-    status,
-    progress,
-    logs: logs.slice(-10), // Only send last 10 log entries
-    result,
-    timestamp: new Date().toISOString(),
-  });
-  
-  // Also emit to session room
-  io.to(`session:${sessionId}`).emit('job:update', {
-    jobId: job.id,
-    status,
-    progress,
-    logs: logs.slice(-10),
-    result,
-    timestamp: new Date().toISOString(),
-  });
 }
 
 /**
