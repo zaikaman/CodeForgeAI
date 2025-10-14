@@ -94,16 +94,8 @@ router.post('/deploy', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Load files from snapshot if not provided
-    if (!files && generation.snapshot_id) {
-      console.log(`[POST /deploy] Loading files from snapshot ${generation.snapshot_id}`);
-      const { codebaseStorage } = await import('../../services/CodebaseStorageService');
-      const manifest = await codebaseStorage.getManifest(generation.snapshot_id, userId);
-      const filePaths = manifest.files.map((f: any) => f.path);
-      files = await codebaseStorage.readFiles(generation.snapshot_id, userId, filePaths);
-      console.log(`[POST /deploy] Loaded ${files.length} files from snapshot`);
-    } else if (!files && generation.files) {
-      // Fallback to files in database
+    // Load files from database if not provided
+    if (!files && generation.files) {
       console.log(`[POST /deploy] Using files from database (${generation.files.length} files)`);
       files = generation.files;
     }

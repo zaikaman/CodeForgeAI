@@ -105,12 +105,21 @@ export class SimpleJobProcessor {
     const logs: string[] = [];
     
     try {
-      // Update to processing
+      // Update background job to processing
       await this.updateJob(job.id, {
         status: 'processing',
         started_at: startTime.toISOString(),
         progress: 10,
       });
+      
+      // Update generation to processing
+      await supabase
+        .from('generations')
+        .update({
+          status: 'processing',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.session_id);
       
       logs.push(`[${new Date().toISOString()}] Starting agent task`);
       logs.push(`User: ${job.user_id}, Session: ${job.session_id}`);
@@ -158,6 +167,23 @@ export class SimpleJobProcessor {
             chatJobCompleted = true;
             logs.push(`[${new Date().toISOString()}] Chat job completed successfully`);
             
+            // Update generation status to completed
+            const generationUpdateResult = await supabase
+              .from('generations')
+              .update({
+                status: 'completed',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', job.session_id);
+            
+            if (generationUpdateResult.error) {
+              console.error(`⚠️ Warning: Failed to update generation status:`, generationUpdateResult.error);
+              logs.push(`[${new Date().toISOString()}] Warning: Failed to update generation status`);
+            } else {
+              logs.push(`[${new Date().toISOString()}] Generation ${job.session_id} marked as completed`);
+              console.log(`✅ Generation ${job.session_id} marked as completed`);
+            }
+            
             // Complete background job
             const endTime = new Date();
             const duration = endTime.getTime() - startTime.getTime();
@@ -192,6 +218,23 @@ export class SimpleJobProcessor {
       
       logs.push(`[${new Date().toISOString()}] ERROR: ${error.message}`);
       logs.push(`Stack: ${error.stack}`);
+      
+      // Update generation status to failed
+      const generationUpdateResult = await supabase
+        .from('generations')
+        .update({
+          status: 'failed',
+          error: error.message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.session_id);
+      
+      if (generationUpdateResult.error) {
+        console.error(`⚠️ Warning: Failed to update generation status:`, generationUpdateResult.error);
+      } else {
+        logs.push(`[${new Date().toISOString()}] Generation ${job.session_id} marked as failed`);
+        console.log(`❌ Generation ${job.session_id} marked as failed`);
+      }
       
       await this.updateJob(job.id, {
         status: 'failed',
