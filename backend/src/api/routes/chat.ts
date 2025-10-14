@@ -131,6 +131,20 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
         console.log(`✅ User message stored in background generation: ${userMessageId}`);
       }
       
+      // Store system message to show in chat history
+      const systemMessage = 'Your request is being processed in the background. You can continue chatting!';
+      const systemMessageId = await ChatMemoryManager.storeMessage({
+        generationId: backgroundGenerationId,
+        role: 'assistant',
+        content: systemMessage,
+      });
+      
+      if (!systemMessageId) {
+        console.error('❌ Failed to store system message in background mode');
+      } else {
+        console.log(`✅ System message stored in background generation: ${systemMessageId}`);
+      }
+      
       res.json({
         success: true,
         data: {
@@ -138,7 +152,7 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
           generationId: backgroundGenerationId, // Return background generation ID
           status: 'pending',
           backgroundMode: true,
-          message: 'Your request is being processed in the background. You can continue chatting!',
+          message: systemMessage,
         },
       });
       return;
