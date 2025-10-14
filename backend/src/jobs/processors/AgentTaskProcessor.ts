@@ -1,17 +1,17 @@
 import { Job } from 'bull';
 import { AgentTaskJobData, JobResult } from '../types';
-import { agentRouter } from '../../services/AgentRouterService';
 import { io } from '../../api/server';
+import { ChatAgent } from '../../agents/specialized/ChatAgent';
 
 /**
- * Process agent tasks in the background
+ * Process agent tasks in the background using ChatAgent
  */
 export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobResult> {
   const startTime = new Date();
   const logs: string[] = [];
   
   try {
-    const { userId, sessionId, userMessage, agentType, context } = job.data;
+    const { userId, sessionId, userMessage, context } = job.data;
     
     logs.push(`[${new Date().toISOString()}] Starting agent task`);
     logs.push(`User: ${userId}, Session: ${sessionId}`);
@@ -21,40 +21,56 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
     await job.progress(10);
     emitJobUpdate(job, 'active', 10, logs);
     
-    // Step 1: Route the request to appropriate workflow
-    logs.push(`[${new Date().toISOString()}] Analyzing request and routing to agent...`);
+    // Step 1: Initialize ChatAgent with GitHub context if available
+    logs.push(`[${new Date().toISOString()}] Initializing ChatAgent...`);
     await job.progress(20);
     emitJobUpdate(job, 'active', 20, logs);
     
-    const routeRequest = {
-      message: userMessage,
-      context: context ? JSON.stringify(context) : undefined,
-      currentFiles: context?.files || [],
-    };
+    const githubContext = context?.githubContext;
+    const chatAgent = await ChatAgent(githubContext);
+    const { runner } = chatAgent;
     
-    const route = await agentRouter.route(routeRequest);
-    logs.push(`[${new Date().toISOString()}] Routed to workflow: ${route.workflow}`);
-    logs.push(`Selected agents: ${route.selectedAgents.join(', ')}`);
-    logs.push(`Reasoning: ${route.reasoning}`);
+    // Step 2: Prepare context for ChatAgent
+    logs.push(`[${new Date().toISOString()}] Processing request with ChatAgent...`);
+    await job.progress(30);
+    emitJobUpdate(job, 'active', 30, logs);
     
-    await job.progress(40);
-    emitJobUpdate(job, 'active', 40, logs);
+    // Build context string
+    const contextParts: string[] = [];
     
-    // Step 2: Execute the workflow
-    logs.push(`[${new Date().toISOString()}] Executing ${route.workflow} workflow...`);
+    if (context?.fileContents && context.fileContents.length > 0) {
+      contextParts.push(`\n=== CURRENT CODEBASE ===`);
+      context.fileContents.forEach((file: any) => {
+        contextParts.push(`\nFile: ${file.path}`);
+        contextParts.push(`\`\`\`\n${file.content}\n\`\`\``);
+      });
+      contextParts.push(`\n=== END CODEBASE ===\n`);
+    }
+    
+    if (context?.githubContext) {
+      contextParts.push(`\n=== GITHUB CONTEXT ===`);
+      contextParts.push(`Username: ${context.githubContext.username}`);
+      contextParts.push(`Token: Available`);
+      if (context.githubContext.email) {
+        contextParts.push(`Email: ${context.githubContext.email}`);
+      }
+      contextParts.push(`=== END GITHUB CONTEXT ===\n`);
+    }
+    
+    const fullMessage = userMessage + (contextParts.length > 0 ? '\n' + contextParts.join('\n') : '');
+    
+    // Step 3: Call ChatAgent
+    logs.push(`[${new Date().toISOString()}] Executing ChatAgent...`);
     await job.progress(50);
     emitJobUpdate(job, 'active', 50, logs);
     
-    const result = await agentRouter.executeWorkflow(route, routeRequest, {
-      agentType,
-      ...context,
-    });
+    const response = await runner.ask(fullMessage);
     
-    logs.push(`[${new Date().toISOString()}] Workflow execution completed`);
+    logs.push(`[${new Date().toISOString()}] ChatAgent execution completed`);
     await job.progress(90);
     emitJobUpdate(job, 'active', 90, logs);
     
-    // Step 3: Format and return result
+    // Step 4: Format and return result
     const endTime = new Date();
     const duration = endTime.getTime() - startTime.getTime();
     
@@ -65,12 +81,7 @@ export async function processAgentTask(job: Job<AgentTaskJobData>): Promise<JobR
     
     const jobResult: JobResult = {
       success: true,
-      result: {
-        workflow: route.workflow,
-        agents: route.selectedAgents,
-        output: result,
-        suggestions: route.suggestions,
-      },
+      result: response,
       logs,
       startTime,
       endTime,
