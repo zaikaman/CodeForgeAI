@@ -14,6 +14,9 @@ const configSchema = z.object({
   supabaseAnonKey: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
   supabaseServiceKey: z.string().min(1, 'SUPABASE_SERVICE_KEY is required'),
   githubToken: z.string().optional(),
+  // CodeForge Bot GitHub Token - Used for public repo operations (PRs, issues, etc.)
+  codeforgebotGithubToken: z.string().optional(),
+  codeforgebotGithubUsername: z.string().optional().default('codeforge-ai-bot'),
   sonarqubeUrl: z.string().url().optional().or(z.literal('')),
   sonarqubeToken: z.string().optional(),
 })
@@ -35,6 +38,8 @@ export function loadConfig(): Config {
       supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
       supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
       githubToken: process.env.GITHUB_TOKEN,
+      codeforgebotGithubToken: process.env.CODEFORGE_BOT_GITHUB_TOKEN,
+      codeforgebotGithubUsername: process.env.CODEFORGE_BOT_GITHUB_USERNAME,
       sonarqubeUrl: process.env.SONARQUBE_URL,
       sonarqubeToken: process.env.SONARQUBE_TOKEN,
     })

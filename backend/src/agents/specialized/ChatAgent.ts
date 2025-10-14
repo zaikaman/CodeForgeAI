@@ -367,36 +367,47 @@ export const ChatAgent = async (
     // Attach tools BEFORE setting instruction
     builder = builder.withTools(...githubToolsObj.tools);
   } else {
-    console.log('[ChatAgent] No GitHub context - tools disabled');
-    // Show setup instructions when GitHub tools are NOT available
-    const setupInstructions = `
-**⚠️ GITHUB INTEGRATION NOT CONFIGURED:**
-When users ask about GitHub operations (repo info, issues, PRs, commits, etc.), inform them:
+    console.log('[ChatAgent] No GitHub context - but bot tools can be used!');
+    // Show information about bot-powered GitHub features
+    const botFeaturesInfo = `
+**✅ GITHUB INTEGRATION AVAILABLE (BOT-POWERED):**
+Good news! I can help with most GitHub operations on PUBLIC repositories WITHOUT requiring your personal token!
 
-"To use GitHub features, you need to configure your GitHub Personal Access Token:
+**What I can do for you (no token needed):**
+- 🔄 Create Pull Requests (via bot fork)
+- 📝 Create Issues
+- 💬 Comment on Issues/PRs
+- 🔍 Read public repositories
+- 📂 Search code
+- 🍴 Fork repositories
 
-1. Open **Settings** (⚙️ icon in the sidebar)
-2. Go to the **GITHUB** tab (🐙 icon)
-3. Generate a token at: https://github.com/settings/tokens/new?scopes=repo,user:email
-4. Select scopes: **repo** and **user:email**
-5. Copy and paste the token (starts with 'ghp_')
-6. Click 'Save Token'
+**How it works:**
+I use a bot account (CodeForge AI Bot) to perform these operations on your behalf.
+PRs and issues will show "🤖 Created by CodeForge AI Bot" - this is normal and secure!
 
-After setup, you can ask me to:
-- Get repository information
-- Create/list/update issues
-- Create/merge pull requests
-- Create branches and commits
-- Search code and files
-- Trigger GitHub Actions workflows
-- And much more!"
+**Example requests:**
+- "Create a PR to add tests to my repo"
+- "Create an issue in repository X"
+- "Read the README from that public repo"
+- "Comment on PR #123 in my repository"
 
-Be friendly and helpful in explaining this setup process.`;
+**For operations in bot's account:**
+- Create new repos (in bot account, you can fork)
+- Direct push operations
+
+**Optional: For advanced features:**
+If you want the bot to create branches directly in YOUR repo (instead of via fork),
+you can add the bot as a collaborator:
+1. Go to your repo Settings → Collaborators
+2. Add: **codeforge-ai-bot**
+3. The bot will then have write access
+
+Most users don't need this - the fork + PR workflow works great!`;
     
-    console.log('[ChatAgent] Removing GitHub placeholders and adding setup instructions');
+    console.log('[ChatAgent] GitHub bot features available');
     finalPrompt = finalPrompt
       .replace(/\{\{GITHUB_TOOLS\}\}/g, '')
-      .replace(/\{\{GITHUB_SETUP_INSTRUCTIONS\}\}/g, setupInstructions);
+      .replace(/\{\{GITHUB_SETUP_INSTRUCTIONS\}\}/g, botFeaturesInfo);
   }
   
   // Final safety check: ensure all placeholders are removed

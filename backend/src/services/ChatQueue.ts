@@ -451,11 +451,10 @@ class ChatQueueManager {
         
         // Handle GitHubAgent separately (doesn't use workflows)
         if (specialistAgent === 'GitHubAgent') {
-          if (!job.githubContext) {
-            throw new Error('GitHub operations require GitHub authentication. Please configure your GitHub token in Settings.');
-          }
+          // GitHubAgent now uses bot token - no user token required!
+          // User token is only passed if available (for fallback scenarios)
           
-          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Handling GitHub operation...');
+          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Handling GitHub operation with bot...');
           
           // Build context with conversation history for GitHubAgent
           const { contextMessage } = await ChatMemoryManager.buildContext(

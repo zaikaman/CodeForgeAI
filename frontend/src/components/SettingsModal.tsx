@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useUIStore } from '../stores/uiStore';
 import apiClient from '../services/apiClient';
-import { GitHubTokenSettings } from './GitHubTokenSettings';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -24,7 +23,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     loadPreferences
   } = useUIStore();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'github' | 'preferences' | 'danger'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'preferences' | 'danger'>('account');
 
   useEffect(() => {
     if (isOpen) {
@@ -209,13 +208,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <span className="tab-label">THEME</span>
               </button>
               <button
-                className={`settings-tab ${activeTab === 'github' ? 'active' : ''}`}
-                onClick={() => setActiveTab('github')}
-              >
-                <span className="tab-icon">🐙</span>
-                <span className="tab-label">GITHUB</span>
-              </button>
-              <button
                 className={`settings-tab ${activeTab === 'preferences' ? 'active' : ''}`}
                 onClick={() => setActiveTab('preferences')}
               >
@@ -299,15 +291,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       <div className="setting-hint text-muted mt-lg">
                         &gt; Theme changes apply immediately across all sessions
                       </div>
-                    </div>
-                  )}
-
-                  {/* GitHub Tab */}
-                  {activeTab === 'github' && (
-                    <div className="settings-tab-content">
-                      <h2 className="settings-content-title phosphor-glow">◆ GITHUB INTEGRATION</h2>
-                      
-                      <GitHubTokenSettings />
                     </div>
                   )}
 
