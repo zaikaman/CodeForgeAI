@@ -7,6 +7,7 @@ import { ProjectWorkspace } from '../components/ProjectWorkspace';
 import { DeployButton } from '../components/DeployButton';
 import { SettingsModal } from '../components/SettingsModal';
 import { BackgroundJobsPanel } from '../components/BackgroundJobsPanel';
+import { VapiCallAgent } from '../components/VapiCallAgent';
 import { useGenerationStore } from '../stores/generationStore';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -1043,6 +1044,57 @@ export const TerminalPage: React.FC = () => {
             )}
             
             <form onSubmit={handleSendMessage} className="chat-input-form">
+              {/* Toolbar - Above input */}
+              <div className="chat-input-toolbar">
+                <div className="toolbar-left">
+                  <button 
+                    type="button"
+                    className={`toolbar-btn ${backgroundMode ? 'active' : ''}`}
+                    onClick={() => {
+                      setBackgroundMode(!backgroundMode);
+                      playToggle();
+                    }}
+                    disabled={isProcessing}
+                    title="Run in background - you can continue chatting while this processes"
+                  >
+                    <span className="btn-icon">🔧</span>
+                    <span className="btn-text">Background</span>
+                    {backgroundMode && <span className="active-indicator">●</span>}
+                  </button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <button 
+                    type="button"
+                    className="toolbar-btn"
+                    onClick={() => {
+                      playClick();
+                      handleImageButtonClick();
+                    }}
+                    disabled={isProcessing || uploadingImages}
+                    title="Attach images to your message"
+                  >
+                    <span className="btn-icon">📎</span>
+                    <span className="btn-text">Attach</span>
+                    {selectedImages.length > 0 && (
+                      <span className="badge-count">{selectedImages.length}</span>
+                    )}
+                  </button>
+                </div>
+
+                <div className="toolbar-right">
+                  {/* VAPI Voice Call Button */}
+                  <VapiCallAgent compact={true} />
+                </div>
+              </div>
+
+              {/* Main Input */}
               <div className="input-wrapper">
                 <span className="input-prefix">&gt;&gt;</span>
                 <input
@@ -1067,45 +1119,14 @@ export const TerminalPage: React.FC = () => {
                   placeholder="Describe what you need: generate, review, refactor, optimize..."
                   disabled={isProcessing || uploadingImages}
                 />
-                <label className="background-mode-toggle" title="Run in background - you can continue chatting while this processes">
-                  <input
-                    type="checkbox"
-                    checked={backgroundMode}
-                    onChange={(e) => {
-                      setBackgroundMode(e.target.checked);
-                      playToggle();
-                    }}
-                    disabled={isProcessing}
-                  />
-                  <span className="toggle-label">🔧 Background</span>
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageSelect}
-                  style={{ display: 'none' }}
-                />
-                <button 
-                  type="button"
-                  className="btn btn-secondary btn-image"
-                  onClick={() => {
-                    playClick();
-                    handleImageButtonClick();
-                  }}
-                  disabled={isProcessing || uploadingImages}
-                  title="Attach images"
-                >
-                  📎
-                </button>
                 <button 
                   type="submit" 
                   className="btn btn-primary btn-send"
                   disabled={isProcessing || uploadingImages || !chatInput.trim()}
                   onClick={() => playClick()}
+                  title="Send message (Enter)"
                 >
-                  ►
+                  <span className="send-icon">►</span>
                 </button>
               </div>
             </form>

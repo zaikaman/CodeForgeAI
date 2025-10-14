@@ -25,6 +25,7 @@ import deployRouter from './routes/deploy';
 import fixPreviewErrorsRouter from '../routes/fix-preview-errors';
 import cacheRouter from './cache';
 import jobsRouter from './routes/jobs-simple';
+import vapiRouter from './routes/vapi';
 // import codebaseRouter from './routes/codebase'; // DISABLED - rollback to legacy mode
 
 const app = express();
@@ -95,6 +96,7 @@ app.use('/api', deployRouter);
 app.use('/api/fix-preview-errors', fixPreviewErrorsRouter);
 app.use('/api/cache', cacheRouter);
 app.use('/api/jobs', jobsRouter);
+app.use('/api/vapi', vapiRouter);
 // app.use('/api', codebaseRouter); // DISABLED - rollback to legacy mode
 
 // Socket.io connection
