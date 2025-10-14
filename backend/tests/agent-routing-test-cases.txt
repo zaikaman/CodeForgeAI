@@ -1,0 +1,245 @@
+Tôi sẽ đưa ra các test cases để kiểm tra khả năng của hệ thống từ cơ bản đến nâng cao:
+
+## 🧪 Test Cases để Kiểm Tra Hệ Thống
+
+### **Level 1: Basic Understanding** 🟢
+
+#### Test 1.1: Conversational
+```
+"Hello! What can you help me with?"
+```
+**Expected**: ChatAgent trả lời trực tiếp, không route.
+
+#### Test 1.2: Simple Code Generation
+```
+"create a simple calculator HTML page"
+```
+**Expected**: ChatAgent → SimpleCoder → 3 files (HTML/CSS/JS)
+
+#### Test 1.3: Complex Code Generation
+```
+"build a React TypeScript todo app with local storage"
+```
+**Expected**: ChatAgent → ComplexCoder → React project structure
+
+---
+
+### **Level 2: GitHub Integration** 🔵
+
+#### Test 2.1: List Repositories
+```
+"show me all my GitHub repositories"
+```
+**Expected**: ChatAgent → GitHubAgent → List repos with names and descriptions
+
+#### Test 2.2: Create New Repo + Push Code
+```
+"create a new repo called 'test-landing' and push a simple landing page to it"
+```
+**Expected**: 
+- GitHubAgent creates repo
+- Generates HTML/CSS/JS
+- Pushes to GitHub
+- Returns repo URL
+
+#### Test 2.3: Create PR
+```
+"create a PR to add dark mode to my test-landing repo"
+```
+**Expected**:
+- GitHubAgent fetches existing code
+- Generates dark mode CSS/JS
+- Creates branch
+- Opens PR
+
+---
+
+### **Level 3: Pull & Preview (Your New Feature)** 🟡
+
+#### Test 3.1: Pull Existing Repo
+```
+"pull the code from my test-landing repo and show me a preview"
+```
+**Expected**:
+- ChatAgent → GitHubAgent
+- Fetches all files (index.html, styles.css, scripts.js)
+- **Content cleaned** (no `\\n`)
+- Files saved to generation
+- Live preview available
+
+#### Test 3.2: Copy Specific Repo
+```
+"copy the mr-versace codebase here so I can preview it"
+```
+**Expected**:
+- Fetches from mr-versace repo
+- All files cleaned and imported
+- Preview shows correctly formatted code
+
+#### Test 3.3: Import and Modify
+```
+"pull the test-landing repo, then add a contact form"
+```
+**Expected**:
+- Fetches existing code
+- CodeModificationAgent adds contact form
+- Preview shows updated version
+
+---
+
+### **Level 4: Complex Multi-Step Workflows** 🟠
+
+#### Test 4.1: Translate & PR
+```
+"create a PR to translate the README in my test-landing repo to Vietnamese"
+```
+**Expected**:
+- GitHubAgent fetches README.md
+- Translates to Vietnamese
+- Creates branch `docs/vietnamese-readme`
+- Opens PR
+
+#### Test 4.2: Fix Bugs
+```
+"find and fix bugs in my test-landing repo via PR"
+```
+**Expected**:
+- GitHubAgent fetches code
+- BugHunter analyzes
+- Fixes applied
+- PR created
+
+#### Test 4.3: Add Tests
+```
+"add unit tests to my test-landing repo and create a PR"
+```
+**Expected**:
+- Fetches code
+- TestCrafter generates tests
+- Creates test files
+- Opens PR
+
+---
+
+### **Level 5: Edge Cases & Error Handling** 🔴
+
+#### Test 5.1: Non-existent Repo
+```
+"pull code from my fake-repo-12345"
+```
+**Expected**: Clear error message explaining repo doesn't exist
+
+#### Test 5.2: Empty Repo
+```
+"pull code from an empty repo"
+```
+**Expected**: Graceful handling, message saying repo is empty
+
+#### Test 5.3: Malformed Request
+```
+"do something with that thing over there"
+```
+**Expected**: ChatAgent asks for clarification
+
+#### Test 5.4: Mixed Context
+```
+"create a calculator, then push it to test-calc repo, then pull it back and add dark mode"
+```
+**Expected**: Handles multi-step workflow correctly
+
+---
+
+### **Level 6: Content Cleaning Validation** 🔧
+
+#### Test 6.1: HTML with Special Characters
+```
+"pull the repo with HTML that has <script> tags and quotes"
+```
+**Expected**: 
+- HTML displays correctly
+- No escaped quotes (`\"`)
+- No escaped newlines (`\\n`)
+- Preview renders properly
+
+#### Test 6.2: JavaScript with String Literals
+```
+"pull the repo with JavaScript that has console.log('Hello\\nWorld')"
+```
+**Expected**:
+- String literals preserved correctly
+- Function formatting intact
+- No double-escaping
+
+#### Test 6.3: CSS with Custom Properties
+```
+"pull the repo with CSS variables like --primary-color"
+```
+**Expected**:
+- CSS variables not escaped
+- Formatting preserved
+- Preview styles work
+
+---
+
+### **Level 7: Performance & Robustness** ⚡
+
+#### Test 7.1: Large Repo
+```
+"pull code from a repo with 20+ files"
+```
+**Expected**: Handles gracefully, may take time but completes
+
+#### Test 7.2: Binary Files
+```
+"pull repo with images"
+```
+**Expected**: Skips binary files or handles appropriately
+
+#### Test 7.3: Concurrent Requests
+Send 3 requests simultaneously:
+- "create calculator"
+- "pull mr-versace"  
+- "list repositories"
+
+**Expected**: Queue processes all correctly
+
+---
+
+## 🎯 Testing Strategy Recommendations:
+
+### **Smoke Tests** (Run these first):
+1. Test 1.1 (Conversational)
+2. Test 1.2 (Simple generation)
+3. Test 2.1 (List repos)
+4. Test 3.1 (Pull & preview - YOUR NEW FEATURE)
+
+### **Core Feature Tests**:
+5. Test 2.2 (Create repo + push)
+6. Test 3.2 (Copy specific repo)
+7. Test 4.1 (Translate & PR)
+
+### **Edge Case Tests**:
+8. Test 5.1 (Non-existent repo)
+9. Test 5.3 (Malformed request)
+10. Test 6.1 (HTML special chars)
+
+### **Stress Tests**:
+11. Test 7.1 (Large repo)
+12. Test 7.3 (Concurrent requests)
+
+---
+
+## 📊 Success Criteria:
+
+| Test Level | Pass Rate | Notes |
+|------------|-----------|-------|
+| Level 1-2  | 100%      | Basic functionality must work |
+| Level 3    | 100%      | Your new feature - critical |
+| Level 4    | 90%+      | Complex workflows |
+| Level 5    | 80%+      | Error handling |
+| Level 6    | 100%      | Content cleaning - critical |
+| Level 7    | 70%+      | Performance edge cases |
+
+---
+
+Bạn muốn tôi viết automated test scripts cho các cases này không? Hoặc bạn muốn thử từng cái một theo thứ tự nào?

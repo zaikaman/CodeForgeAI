@@ -205,6 +205,27 @@ export const TerminalPage: React.FC = () => {
       else if (!result.files && id) {
         console.log('ℹ️ No files in result, they will be loaded by loadSession effect');
       }
+
+      // 🔄 Check if this is a code generation completion (SimpleCoder, ComplexCoder, or CodeModification)
+      const codingAgents = ['SimpleCoder', 'ComplexCoder', 'CodeModification', 'SimpleCoderAgent', 'ComplexCoderAgent', 'CodeModificationAgent'];
+      if (result.agent && codingAgents.includes(result.agent) && result.files && result.files.length > 0) {
+        console.log(`🔄 ${result.agent} finished coding - performing soft refresh in 2 seconds...`);
+        
+        // Show notification message
+        const refreshNotification: AgentMessage = {
+          id: `msg_${Date.now()}_refresh`,
+          agent: 'System',
+          role: 'system',
+          content: '✨ Code generation complete! Starting new session in 2 seconds...',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, refreshNotification]);
+        
+        // Wait 2 seconds to let user see the result, then refresh page
+        setTimeout(() => {
+          handlePageRefresh();
+        }, 100);
+      }
     },
     onError: (error) => {
       console.error('❌ Chat job failed:', error);
@@ -413,6 +434,12 @@ export const TerminalPage: React.FC = () => {
     setSelectedFile(null);
     // 🔧 FIX: Clear current generation state to prevent file leakage
     clearCurrent();
+  };
+
+  // Page refresh: Reload the entire page
+  const handlePageRefresh = () => {
+    console.log('🔄 Performing page refresh...');
+    window.location.reload();
   };
 
   const handleSelectChat = (chatId: string) => {

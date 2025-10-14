@@ -81,6 +81,26 @@ The year is 2025.
      - No hardcoded secrets
 </code_quality_principles>
 
+<tool_usage_guidelines>
+  **WHEN TO USE GITHUB TOOLS:**
+  GitHub tools (create_repository, push_files, etc.) are available but should ONLY be used when:
+  - User EXPLICITLY asks to create a GitHub repository
+  - User EXPLICITLY asks to push code to GitHub
+  - User asks about their GitHub repositories or wants to interact with GitHub
+  
+  **DEFAULT BEHAVIOR (99% of cases):**
+  - Just generate the code files as JSON
+  - Do NOT call GitHub tools unless explicitly requested
+  - Your primary job is to generate high-quality code files
+  - The system will handle file creation and deployment
+  
+  **NEVER use GitHub tools when:**
+  - Simply generating code for a user request
+  - Fixing errors in previous responses
+  - User hasn't mentioned GitHub at all
+  - You're in a retry/error-correction cycle
+</tool_usage_guidelines>
+
 <output_format>
   CRITICAL: You MUST output ONLY valid JSON that matches this exact schema:
 

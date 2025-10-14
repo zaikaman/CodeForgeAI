@@ -18,6 +18,10 @@ import { z } from 'zod';
 
 const githubAgentResponseSchema = z.object({
   summary: z.string().describe('Summary of what was accomplished'),
+  files: z.array(z.object({
+    path: z.string(),
+    content: z.string(),
+  })).optional().describe('Files fetched from repository (for preview/import)'),
   filesModified: z.array(z.object({
     path: z.string(),
     action: z.enum(['created', 'updated', 'deleted']),
@@ -77,6 +81,14 @@ Your steps:
 1. Use github_get_file_content to fetch relevant code files
 2. Generate comprehensive tests
 3. Create branch, push tests, create PR
+
+**Pattern 5: Fetch code for preview/import**
+User: "pull that codebase and give me a preview" or "copy code from mr-versace repo"
+Your steps:
+1. Use github_get_repo_info to get repo structure
+2. Use github_get_file_content to fetch ALL relevant files (index.html, styles.css, scripts.js, etc.)
+3. Return files array with path and content
+4. DO NOT create PR or modify anything - just fetch and return
 
 **CRITICAL RULES:**
 
@@ -147,6 +159,24 @@ Response:
   },
   "branchCreated": "docs/improve-documentation"
 }
+
+User: "pull that codebase over here and give me a preview" (referring to mr-versace repo)
+
+Response:
+{
+  "summary": "✅ Fetched all code files from mr-versace repository for live preview. Retrieved 3 files: index.html, styles.css, and scripts.js.",
+  "files": [
+    {"path": "index.html", "content": "<!DOCTYPE html>..."},
+    {"path": "styles.css", "content": ":root { ... }"},
+    {"path": "scripts.js", "content": "'use strict';..."}
+  ]
+}
+
+**IMPORTANT DISTINCTION:**
+- If user asks to "preview" or "import" or "copy code" → Return files array (no PR)
+- If user asks to "update" or "create PR" or "push" → Create PR with filesModified
+- Preview requests = Read-only operation, just fetch and return
+- PR requests = Write operation, fetch + modify + create PR
 
 Remember: You are a DO-ER, not a suggester. Complete the entire workflow!`;
 

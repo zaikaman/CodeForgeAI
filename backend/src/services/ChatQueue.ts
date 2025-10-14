@@ -7,6 +7,7 @@ import { ChatAgent } from '../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from './ChatMemoryManager';
 import { supabase } from '../storage/SupabaseClient';
 import { safeAgentCall } from '../utils/agentHelpers';
+import { cleanFiles } from '../utils/contentCleaner';
 
 interface ChatJob {
   id: string;
@@ -474,6 +475,16 @@ class ChatQueueManager {
             context: 'ChatQueue/GitHubAgent'
           }) as any;
           
+          // Check if GitHubAgent fetched files (for preview/import)
+          const hasFetchedFiles = response.files && response.files.length > 0;
+          
+          // Post-process fetched files: unescape newlines and clean content
+          let updatedFiles = hasFetchedFiles ? cleanFiles(response.files) : job.currentFiles;
+          
+          if (hasFetchedFiles) {
+            console.log(`[ChatQueue] Cleaned ${updatedFiles.length} fetched files (unescaped newlines)`);
+          }
+          
           // Store response in memory
           await ChatMemoryManager.storeMessage({
             generationId: job.generationId,
@@ -483,13 +494,26 @@ class ChatQueueManager {
               filesModified: response.filesModified || 0,
               prCreated: response.prCreated || false,
               branchCreated: response.branchCreated || false,
+              filesFetched: hasFetchedFiles ? updatedFiles.length : 0,
             },
           });
+          
+          // Update generation files if GitHubAgent fetched new files
+          if (hasFetchedFiles) {
+            console.log(`[ChatQueue] Updating generation with ${updatedFiles.length} cleaned files`);
+            await supabase
+              .from('generations')
+              .update({
+                files: updatedFiles, // Use cleaned files
+                deployment_status: 'pending', // Allow preview to be generated
+              })
+              .eq('id', job.generationId);
+          }
           
           // Update job as completed
           job.status = 'completed';
           job.result = {
-            files: job.currentFiles, // GitHub operations don't change local files
+            files: updatedFiles, // Use fetched files if available
             summary: response.summary,
           };
           job.updatedAt = new Date();

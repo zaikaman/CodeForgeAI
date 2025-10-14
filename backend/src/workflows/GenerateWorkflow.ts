@@ -15,9 +15,7 @@ import { createQualityAssuranceAgent } from '../agents/specialized/QualityAssura
 import { formatCodeFiles, shouldFormatFile } from '../utils/prettier-formatter'
 import { supabase } from '../storage/SupabaseClient'
 import { escapeAdkTemplateVariables } from '../utils/adkEscaping'
-
-// Simple languages that use SimpleCoderAgent
-const SIMPLE_LANGUAGES = ['html', 'vanilla', 'css'];
+import { cleanContent, hasEscapedCharacters } from '../utils/contentCleaner'
 
 export class GenerateWorkflow {
   private readonly VALIDATION_ENABLED = true // Enable fast validation (< 2s overhead)
@@ -1163,14 +1161,23 @@ Return the result as JSON with the following structure:
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        // Detect language to determine which agent to use
-        const { detectLanguage } = await import('../prompts/webcontainer-templates')
-        const detectedLanguage = request.prompt ? detectLanguage(request.prompt) : null
-        const targetLanguage = detectedLanguage || request.targetLanguage || 'typescript'
+        // Determine agent based on ChatAgent's decision (from request.agents array)
+        // ChatAgent is smarter - it understands context and user intent better than keyword matching
+        let agentName = 'ComplexCoderAgent'; // Default to complex
+        let targetLanguage = request.targetLanguage || 'typescript';
         
-        // Route to appropriate agent
-        const isSimple = SIMPLE_LANGUAGES.includes(targetLanguage.toLowerCase())
-        const agentName = isSimple ? 'SimpleCoderAgent' : 'ComplexCoderAgent'
+        // Check if ChatAgent explicitly requested SimpleCoder
+        if (request.agents && Array.isArray(request.agents)) {
+          if (request.agents.includes('SimpleCoder')) {
+            agentName = 'SimpleCoderAgent';
+            targetLanguage = 'html';
+          } else if (request.agents.includes('ComplexCoder')) {
+            agentName = 'ComplexCoderAgent';
+            targetLanguage = 'typescript';
+          }
+        }
+        
+        const isSimple = agentName === 'SimpleCoderAgent';
         
         // Set flag to skip validation for SimpleCoder
         if (isSimple) {
@@ -1179,6 +1186,7 @@ Return the result as JSON with the following structure:
         }
         
         console.log(`\n[STEP 2] ${agentName} - Attempt ${attempt}/${MAX_RETRIES}`)
+        console.log(`  Agent choice: ${request.agents ? request.agents.join(', ') : 'auto (ComplexCoder default)'}`)
         console.log(`  Language: ${targetLanguage} (${isSimple ? 'simple' : 'complex'})`)
 
         // Use the appropriate agent
@@ -1225,16 +1233,17 @@ Return the result as JSON with the following structure:
           const validImageParts = imageParts.filter(part => part !== null)
 
           // Build message with text and images
+          // Keep it simple - agents have their own system prompts
           const textPart = {
-            text: this.buildCodeGenerationPrompt(request, lastError, attempt),
+            text: this.buildUserMessage(request, lastError, attempt),
           }
 
           message = {
             parts: [textPart, ...validImageParts],
           }
         } else {
-          // Text-only message
-          message = this.buildCodeGenerationPrompt(request, lastError, attempt)
+          // Text-only message - lightweight user request
+          message = this.buildUserMessage(request, lastError, attempt)
         }
 
         console.log(`Calling ${agentName} with message`)
@@ -1647,88 +1656,53 @@ Return the complete updated codebase as JSON:
     throw new Error('Unexpected: Exited retry loop without return')
   }
 
-  private buildCodeGenerationPrompt(
+  /**
+   * Build lightweight user message for agents
+   * Agents have their own system prompts with detailed instructions
+   * Just provide the user request and any error feedback
+   */
+  private buildUserMessage(
     request: any,
     previousError?: string | null,
     attempt?: number
   ): string {
-    const language = request.targetLanguage || 'html' // Fallback to vanilla HTML for simple projects
-
-    // If this is a retry with error feedback, include the error
     const errorFeedback =
       previousError && attempt && attempt > 1
-        ? `
+        ? `\n\n🚨 CRITICAL ERROR IN PREVIOUS RESPONSE 🚨
+Your previous JSON output had errors: ${previousError}
 
-⚠️ IMPORTANT: Previous attempt failed with this error:
-${previousError}
+REQUIRED FIXES:
+1. Review the JSON structure carefully
+2. Ensure all JSON files have valid syntax (proper quotes, no trailing commas)
+3. Use \\n for newlines in content strings (NOT \\\\n)
+4. Use \\" for quotes inside content strings
+5. Output the COMPLETE, CORRECTED JSON response
+6. Do NOT call any tools - just fix the JSON and respond
 
-Please fix this error and generate valid output. Ensure your JSON is properly formatted with:
-- No trailing commas
-- Properly escaped quotes inside strings
-- Valid JSON structure that matches the schema: { "files": [{ "path": "...", "content": "..." }] }
-- Content field must be a valid string (escape special characters properly)
+Please generate the COMPLETE project again with all files, ensuring valid JSON format.\n\n`
+        : '';
 
-`
-        : ''
+    return `${errorFeedback}
 
-    // For SIMPLE projects (HTML/CSS/JS), use ultra-minimal prompt for speed
-    const isSimple = SIMPLE_LANGUAGES.includes(language.toLowerCase())
-    
-    if (isSimple) {
-      // ULTRA-MINIMAL prompt for simple apps - just the user request
-      return `Generate a complete, production-ready HTML application.
+=== RECENT CONVERSATION ===
+${request.conversationHistory || ''}
+=== END HISTORY ===
 
-User Request: ${request.prompt}
+USER REQUEST: ${request.prompt}
 
-${request.requirements?.domain ? `Domain: ${request.requirements.domain}` : ''}
-${request.requirements?.complexity ? `Complexity: ${request.requirements.complexity}` : ''}
-${errorFeedback}
-Generate a complete, functional codebase. Return JSON:
-{
-  "files": [
-    {
-      "path": "path/to/file",
-      "content": "... code here ..."
-    }
-  ]
-}`
-    }
+${request.projectContext ? `\nPROJECT CONTEXT:\n${request.projectContext}` : ''}
 
-    // For COMPLEX projects, include detailed requirements
-    return `Generate a complete, production-ready ${language.toUpperCase()} application.
-
-User Request: ${request.prompt}
-
-${request.requirements?.domain ? `Domain: ${request.requirements.domain}` : ''}
-${request.requirements?.complexity ? `Complexity: ${request.requirements.complexity}` : ''}
-
+CURRENT CODEBASE (${request.currentFiles?.length || 0} files):
 ${
-  request.requirements?.requirements
-    ? 'Requirements:\n- ' + request.requirements.requirements.join('\n- ')
-    : ''
-}
-
-${
-  request.requirements?.nonFunctionalRequirements
-    ? 'Non-functional:\n- ' + request.requirements.nonFunctionalRequirements.join('\n- ')
-    : ''
-}
-
-${
-  request.requirements?.technicalConstraints
-    ? 'Constraints:\n- ' + request.requirements.technicalConstraints.join('\n- ')
-    : ''
-}
-${errorFeedback}
-Generate a complete, functional codebase with multiple files. Return JSON:
-{
-  "files": [
-    {
-      "path": "path/to/file",
-      "content": "... code here ..."
-    }
-  ]
-}`
+  request.currentFiles && request.currentFiles.length > 0
+    ? request.currentFiles
+        .map(
+          (file: any) =>
+            `File: ${file.path}\n\`\`\`\n${file.content.substring(0, 500)}${file.content.length > 500 ? '...' : ''}\n\`\`\``
+        )
+        .join('\n\n')
+    : 'No existing code'
+}`;
   }
 
   private async generateTests(request: any): Promise<any> {
@@ -2359,31 +2333,22 @@ export default {
 
     // Case 3: HTML/XML files that may have escaped quotes and newlines
     if (filePath.endsWith('.html') || filePath.endsWith('.xml') || filePath.endsWith('.svg')) {
-      let fixed = content;
-      
-      // Check if content has escaped quotes that shouldn't be escaped
-      if (content.includes('\\"')) {
-        console.log(`✅ Unescaping quotes in ${filePath}`)
-        fixed = fixed.replace(/\\"/g, '"');
+      // Use centralized content cleaner utility
+      if (hasEscapedCharacters(content)) {
+        console.log(`✅ Cleaning escaped characters in ${filePath}`)
+        return cleanContent(content, { normalizeLineEndings: true });
       }
-      
-      // Check if content has literal \n that should be actual newlines
-      if (content.includes('\\n') && !content.includes('\\\\n')) {
-        console.log(`✅ Unescaping newlines in ${filePath}`)
-        fixed = fixed.replace(/\\n/g, '\n');
-      }
-      
-      // Also unescape \t (tabs) if present
-      if (content.includes('\\t')) {
-        console.log(`✅ Unescaping tabs in ${filePath}`)
-        fixed = fixed.replace(/\\t/g, '\t');
-      }
-      
-      return fixed;
+      return content;
     }
 
-    // Case 4: JSON files with single quotes (need to convert to double quotes)
+    // Case 4: JSON files with single quotes or escaped characters (need to fix)
     if (filePath.endsWith('.json')) {
+      // First, check if content has escaped characters
+      if (hasEscapedCharacters(content)) {
+        console.log(`✅ Cleaning escaped characters in ${filePath}`)
+        content = cleanContent(content, { normalizeLineEndings: true });
+      }
+      
       try {
         // Try to parse as-is first
         JSON.parse(content)
@@ -2418,24 +2383,14 @@ export default {
       }
     }
 
-    // Case 6: CSS/JS files with literal escape sequences
+    // Case 6: CSS/JS/TS files with literal escape sequences
     if (filePath.endsWith('.css') || filePath.endsWith('.js') || filePath.endsWith('.ts')) {
-      let fixed = content;
-      
-      
-      // Check if content has literal \n that should be actual newlines
-      if (content.includes('\\n') && !content.includes('\\\\n')) {
-        console.log(`✅ Unescaping newlines in ${filePath}`)
-        fixed = fixed.replace(/\\n/g, '\n');
+      // Use centralized content cleaner utility
+      if (hasEscapedCharacters(content)) {
+        console.log(`✅ Cleaning escaped characters in ${filePath}`)
+        return cleanContent(content, { normalizeLineEndings: true });
       }
-      
-      // Also unescape \t (tabs) if present
-      if (content.includes('\\t')) {
-        console.log(`✅ Unescaping tabs in ${filePath}`)
-        fixed = fixed.replace(/\\t/g, '\t');
-      }
-      
-      return fixed;
+      return content;
     }
 
     // Return as-is if no normalization needed
