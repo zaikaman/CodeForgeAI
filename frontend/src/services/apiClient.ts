@@ -802,15 +802,20 @@ class ApiClient {
   async getUserJobs(userId: string): Promise<ApiResponse<{
     jobs: Array<{
       id: string
+      user_id: string
+      session_id: string
       type: string
-      status: string
-      data: any
+      status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+      user_message: string
+      context?: any
       result?: any
-      progress?: number
-      createdAt: string
-      startedAt?: string
-      completedAt?: string
-      failedReason?: string
+      error?: string
+      logs?: string[]
+      progress: number
+      created_at: string
+      started_at?: string
+      completed_at?: string
+      updated_at: string
     }>
     count: number
   }>> {

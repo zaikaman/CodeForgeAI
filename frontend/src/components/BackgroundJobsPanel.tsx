@@ -5,22 +5,20 @@ import './BackgroundJobsPanel.css';
 
 interface Job {
   id: string;
+  user_id: string;
+  session_id: string;
   type: string;
-  status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed';
-  data: {
-    userMessage: string;
-    sessionId: string;
-  };
-  result?: {
-    success: boolean;
-    result?: any;
-    error?: string;
-  };
-  progress?: number;
-  createdAt: string;
-  startedAt?: string;
-  completedAt?: string;
-  failedReason?: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  user_message: string;
+  context?: any;
+  result?: any;
+  error?: string;
+  logs?: string[];
+  progress: number;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  updated_at: string;
 }
 
 interface BackgroundJobsPanelProps {
@@ -61,7 +59,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
 
   // Auto-refresh when there are active jobs
   useEffect(() => {
-    const hasActiveJobs = jobs.some(j => j.status === 'active' || j.status === 'waiting');
+    const hasActiveJobs = jobs.some(j => j.status === 'processing' || j.status === 'pending');
     
     if (hasActiveJobs && user) {
       // Poll every 2 seconds when there are active jobs
@@ -119,27 +117,27 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'waiting': return 'bg-yellow-500';
-      case 'active': return 'bg-blue-500';
+      case 'pending': return 'bg-yellow-500';
+      case 'processing': return 'bg-blue-500';
       case 'completed': return 'bg-green-500';
       case 'failed': return 'bg-red-500';
-      case 'delayed': return 'bg-gray-500';
+      case 'cancelled': return 'bg-gray-500';
       default: return 'bg-gray-400';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'waiting': return '⏳';
-      case 'active': return '⚙️';
+      case 'pending': return '⏳';
+      case 'processing': return '⚙️';
       case 'completed': return '✅';
       case 'failed': return '❌';
-      case 'delayed': return '⏸️';
+      case 'cancelled': return '⏸️';
       default: return '❓';
     }
   };
 
-  const activeJobs = jobs.filter(j => j.status === 'active' || j.status === 'waiting');
+  const activeJobs = jobs.filter(j => j.status === 'processing' || j.status === 'pending');
   const hasActiveJobs = activeJobs.length > 0;
 
   if (!user) return null;
@@ -197,10 +195,10 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
                       <span className="text-xl">{getStatusIcon(job.status)}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-200 truncate">
-                          {job.data.userMessage}
+                          {job.user_message}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {new Date(job.createdAt).toLocaleString()}
+                          {new Date(job.created_at).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -213,7 +211,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
                   </div>
 
                   {/* Progress Bar */}
-                  {(job.status === 'active' || job.status === 'waiting') && (
+                  {(job.status === 'processing' || job.status === 'pending') && (
                     <div className="mb-2">
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
@@ -226,15 +224,15 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
                   )}
 
                   {/* Error Message */}
-                  {job.status === 'failed' && job.failedReason && (
+                  {job.status === 'failed' && job.error && (
                     <div className="mb-2 p-2 bg-red-900/20 border border-red-700 rounded text-xs text-red-400">
-                      {job.failedReason}
+                      {job.error}
                     </div>
                   )}
 
                   {/* Actions */}
                   <div className="flex gap-2">
-                    {(job.status === 'active' || job.status === 'waiting') && (
+                    {(job.status === 'processing' || job.status === 'pending') && (
                       <button
                         onClick={() => handleCancelJob(job.id)}
                         className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
@@ -250,7 +248,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
                         Retry
                       </button>
                     )}
-                    {job.status === 'completed' && job.result?.result && (
+                    {job.status === 'completed' && job.result && (
                       <button
                         onClick={() => {
                           // TODO: Navigate to the result or show details
