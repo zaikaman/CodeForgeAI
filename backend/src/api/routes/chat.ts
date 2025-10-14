@@ -198,7 +198,6 @@ router.post('/chat', optionalAuth, async (req, res): Promise<void> => {
       console.log(`✅ Generation ${generationId} exists in DB with correct user_id`);
     }
 
-    // Store user message via ChatMemoryManager
     console.log('💾 Storing user message via ChatMemoryManager...');
     const userMessageId = await ChatMemoryManager.storeMessage({
       generationId,
