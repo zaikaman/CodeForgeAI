@@ -131,6 +131,48 @@ With $300 credits:
 
 ## 🔧 Usage Examples
 
+### Frontend: Enable Background Mode
+
+**Option 1: Via Chat Interface (Easiest)**
+
+1. Open the chat interface at `/terminal`
+2. Type your message (e.g., "Update my readme to Vietnamese version in versace-landing repo")
+3. ✅ **Check the "🔧 Background" checkbox** before sending
+4. Click Send (►)
+5. You'll see: "Your request is being processed in the background. You can continue chatting!"
+6. Click "Background Jobs" button in the left sidebar to view progress
+
+**Option 2: Direct API Call**
+
+```typescript
+// Frontend code
+const response = await fetch('/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    generationId: 'your-session-id',
+    message: 'Update my readme to Vietnamese version',
+    backgroundMode: true,  // 🔧 Enable background processing
+    githubContext: {
+      token: 'ghp_xxx',
+      username: 'zaikaman'
+    }
+  })
+});
+
+const data = await response.json();
+// Response:
+{
+  "success": true,
+  "data": {
+    "jobId": "job-456",
+    "status": "queued",
+    "backgroundMode": true,
+    "message": "Your request is being processed in the background. You can continue chatting!"
+  }
+}
+```
+
 ### Backend: Submit Background Job
 
 ```typescript

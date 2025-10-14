@@ -46,6 +46,7 @@ export const TerminalPage: React.FC = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [isPreviewPanelVisible, setIsPreviewPanelVisible] = useState(true);
+  const [backgroundMode, setBackgroundMode] = useState(false);
   
   // Chat State
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -563,9 +564,11 @@ export const TerminalPage: React.FC = () => {
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         githubContext,
         currentFiles: files, // Empty array for new sessions, existing files for current session
+        backgroundMode, // Include background mode flag
       };
 
       console.log(`📦 Sending ${files.length} files inline with chat request`);
+      console.log(`🔧 Background mode: ${backgroundMode ? 'ENABLED' : 'disabled'}`);
 
       const chatResponse = await apiClient.chat(chatRequest);
 
@@ -1037,6 +1040,18 @@ export const TerminalPage: React.FC = () => {
                   placeholder="Describe what you need: generate, review, refactor, optimize..."
                   disabled={isProcessing || uploadingImages}
                 />
+                <label className="background-mode-toggle" title="Run in background - you can continue chatting while this processes">
+                  <input
+                    type="checkbox"
+                    checked={backgroundMode}
+                    onChange={(e) => {
+                      setBackgroundMode(e.target.checked);
+                      playToggle();
+                    }}
+                    disabled={isProcessing}
+                  />
+                  <span className="toggle-label">🔧 Background</span>
+                </label>
                 <input
                   ref={fileInputRef}
                   type="file"
