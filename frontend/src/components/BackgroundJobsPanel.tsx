@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import { useAuthContext } from '../contexts/AuthContext';
+import './BackgroundJobsPanel.css';
 
 interface Job {
   id: string;
@@ -31,11 +32,13 @@ interface JobUpdate {
   timestamp: string;
 }
 
-export const BackgroundJobsPanel: React.FC = () => {
+interface BackgroundJobsPanelProps {
+  onClose: () => void;
+}
+
+export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClose }) => {
   const { user } = useAuthContext();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [_socket, setSocket] = useState<Socket | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Connect to Socket.IO for real-time updates
@@ -71,8 +74,6 @@ export const BackgroundJobsPanel: React.FC = () => {
       });
     });
 
-    setSocket(newSocket);
-
     return () => {
       newSocket.disconnect();
     };
@@ -99,10 +100,10 @@ export const BackgroundJobsPanel: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isExpanded && user) {
+    if (user) {
       fetchJobs();
     }
-  }, [isExpanded, user]);
+  }, [user]);
 
   // Cancel a job
   const handleCancelJob = async (jobId: string) => {
@@ -168,52 +169,52 @@ export const BackgroundJobsPanel: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={`
-          flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg
-          transition-all duration-200 font-medium
-          ${hasActiveJobs 
-            ? 'bg-blue-600 hover:bg-blue-700 text-white animate-pulse' 
-            : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
-          }
-        `}
+    <div className="modal-overlay" onClick={onClose}>
+      <div 
+        className="modal-content bg-gray-900 rounded-lg shadow-2xl border border-gray-700 max-w-2xl w-full max-h-[80vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
-        <span className="text-xl">🔧</span>
-        <span>Background Jobs</span>
-        {hasActiveJobs && (
-          <span className="bg-white text-blue-600 px-2 py-0.5 rounded-full text-xs font-bold">
-            {activeJobs.length}
-          </span>
-        )}
-      </button>
-
-      {/* Expanded Panel */}
-      {isExpanded && (
-        <div className="absolute bottom-16 right-0 w-96 max-h-96 overflow-y-auto bg-gray-900 rounded-lg shadow-2xl border border-gray-700">
-          {/* Header */}
-          <div className="sticky top-0 bg-gray-800 px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-            <h3 className="font-semibold text-white">Background Jobs</h3>
+        {/* Header */}
+        <div className="sticky top-0 bg-gray-800 px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔧</span>
+            <h2 className="text-xl font-semibold text-white">Background Jobs</h2>
+            {hasActiveJobs && (
+              <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+                {activeJobs.length} active
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
             <button
               onClick={fetchJobs}
               disabled={loading}
-              className="text-blue-400 hover:text-blue-300 text-sm"
+              className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
             >
               {loading ? '⟳ Loading...' : '↻ Refresh'}
             </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white text-2xl transition-colors"
+              title="Close"
+            >
+              ×
+            </button>
           </div>
+        </div>
 
-          {/* Jobs List */}
-          <div className="divide-y divide-gray-700">
-            {jobs.length === 0 ? (
-              <div className="px-4 py-8 text-center text-gray-400">
-                No background jobs yet
-              </div>
-            ) : (
-              jobs.map(job => (
-                <div key={job.id} className="px-4 py-3 hover:bg-gray-800 transition-colors">
+        {/* Jobs List */}
+        <div className="overflow-y-auto max-h-[calc(80vh-80px)]">
+          {jobs.length === 0 ? (
+            <div className="px-6 py-16 text-center text-gray-400">
+              <div className="text-6xl mb-4">📋</div>
+              <p className="text-lg">No background jobs yet</p>
+              <p className="text-sm mt-2">Submit tasks with "background mode" enabled to see them here</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-700">
+              {jobs.map(job => (
+                <div key={job.id} className="px-6 py-4 hover:bg-gray-800 transition-colors">
                   {/* Job Header */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -286,11 +287,11 @@ export const BackgroundJobsPanel: React.FC = () => {
                     )}
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

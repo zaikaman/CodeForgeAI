@@ -6,6 +6,7 @@ import { FileTree } from '../components/FileTree';
 import { ProjectWorkspace } from '../components/ProjectWorkspace';
 import { DeployButton } from '../components/DeployButton';
 import { SettingsModal } from '../components/SettingsModal';
+import { BackgroundJobsPanel } from '../components/BackgroundJobsPanel';
 import { useGenerationStore } from '../stores/generationStore';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -34,6 +35,7 @@ export const TerminalPage: React.FC = () => {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showBackgroundJobs, setShowBackgroundJobs] = useState(false);
   
   // UI State
   const [chatInput, setChatInput] = useState('');
@@ -810,6 +812,13 @@ export const TerminalPage: React.FC = () => {
         </div>
 
         <div className="sidebar-footer">
+          <button className="btn-jobs" onClick={() => {
+            playClick();
+            setShowBackgroundJobs(!showBackgroundJobs);
+          }}>
+            <span className="icon">🔧</span>
+            <span className="text">JOBS</span>
+          </button>
           <button className="btn-settings" onClick={() => {
             playClick();
             setShowSettings(!showSettings);
@@ -834,6 +843,11 @@ export const TerminalPage: React.FC = () => {
 
       {/* Settings Modal */}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      
+      {/* Background Jobs Panel */}
+      {showBackgroundJobs && (
+        <BackgroundJobsPanel onClose={() => setShowBackgroundJobs(false)} />
+      )}
 
       {/* Main Content Area */}
       <div className="terminal-main-content">

@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useUIStore } from './stores/uiStore'
-import { BackgroundJobsPanel } from './components/BackgroundJobsPanel'
 
 // Pages
 import { HomePage } from './pages/HomePage'
@@ -110,9 +109,6 @@ function App() {
 
           {/* Global Toast Notifications */}
           <ToastContainer />
-          
-          {/* Background Jobs Panel */}
-          <BackgroundJobsPanel />
         </div>
       </AuthProvider>
     </Router>
