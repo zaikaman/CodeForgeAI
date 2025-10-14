@@ -330,11 +330,18 @@ class ChatQueueManager {
           maxRetries: 3,
           retryDelay: 1000,
           context: 'ChatQueue'
-        });
+        }) as any; // Cast to any to access githubOperation field
         
         // Check if ChatAgent determined a specialist is needed
         needsSpecialist = response.needsSpecialist || false;
         specialistAgent = response.specialistAgent || '';
+        
+        // Debug: Log the full response to see what ChatAgent returned
+        console.log(`[ChatQueue] ChatAgent response:`, JSON.stringify({
+          needsSpecialist: response.needsSpecialist,
+          specialistAgent: response.specialistAgent,
+          summary: response.summary?.substring(0, 100)
+        }, null, 2));
         
         // If no specialist needed, handle as conversational response or simple code generation
         if (!needsSpecialist) {
@@ -441,9 +448,79 @@ class ChatQueueManager {
         console.log(`[ChatQueue] Routing to specialist: ${specialistAgent}`);
         await this.emitProgress(job.id, 'ChatAgent', 'completed', `Routing your request to ${specialistAgent}...`);
         
+        // Handle GitHubAgent separately (doesn't use workflows)
+        if (specialistAgent === 'GitHubAgent') {
+          if (!job.githubContext) {
+            throw new Error('GitHub operations require GitHub authentication. Please configure your GitHub token in Settings.');
+          }
+          
+          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Handling GitHub operation...');
+          
+          // Build context with conversation history for GitHubAgent
+          const { contextMessage } = await ChatMemoryManager.buildContext(
+            job.generationId,
+            job.message,
+            job.currentFiles,
+            job.language,
+            job.imageUrls
+          );
+          
+          const { GitHubAgent } = await import('../agents/specialized/GitHubAgent');
+          const { runner } = await GitHubAgent(job.githubContext);
+          
+          const response = await safeAgentCall(runner, contextMessage, {
+            maxRetries: 3,
+            retryDelay: 1000,
+            context: 'ChatQueue/GitHubAgent'
+          }) as any;
+          
+          // Store response in memory
+          await ChatMemoryManager.storeMessage({
+            generationId: job.generationId,
+            role: 'assistant',
+            content: response.summary || 'GitHub operation completed',
+            metadata: {
+              filesModified: response.filesModified || 0,
+              prCreated: response.prCreated || false,
+              branchCreated: response.branchCreated || false,
+            },
+          });
+          
+          // Update job as completed
+          job.status = 'completed';
+          job.result = {
+            files: job.currentFiles, // GitHub operations don't change local files
+            summary: response.summary,
+          };
+          job.updatedAt = new Date();
+          
+          await supabase
+            .from('chat_jobs')
+            .update({
+              status: 'completed',
+              result: job.result,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', job.id);
+          
+          console.log(`[ChatQueue] GitHubAgent completed for job ${job.id}`);
+          return;
+        }
+        
         // Determine which workflow to use based on the agent
         const reviewAgents = ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler'];
         const isReviewWorkflow = reviewAgents.includes(specialistAgent);
+        
+        // Build context with conversation history for specialist agents
+        const { contextMessage } = await ChatMemoryManager.buildContext(
+          job.generationId,
+          job.message,
+          job.currentFiles,
+          job.language,
+          job.imageUrls
+        );
+        
+        console.log(`[ChatQueue] Built conversation context for ${specialistAgent}`);
         
         let workflowResult: any;
         
@@ -452,7 +529,9 @@ class ChatQueueManager {
           await this.emitProgress(job.id, specialistAgent, 'started', `Starting code review process...`);
           
           const { ReviewWorkflow } = await import('../workflows/ReviewWorkflow');
-          const workflow = new ReviewWorkflow();
+          const workflow = new ReviewWorkflow({
+            githubContext: job.githubContext, // Pass GitHub context to ReviewWorkflow
+          });
           
           // Map specialist agent to review options
           const reviewOptions = {
@@ -476,7 +555,7 @@ class ChatQueueManager {
           });
           
           workflowResult = await workflow.run({
-            prompt: job.message,
+            prompt: contextMessage, // Use context message instead of raw message
             projectContext: '',
             ...(job.language && { targetLanguage: job.language }), // Only include if provided, let workflow auto-detect otherwise
             complexity: 'moderate',

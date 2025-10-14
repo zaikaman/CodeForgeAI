@@ -1,4 +1,6 @@
 import { AgentBuilder } from '@iqai/adk';
+import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import type { GitHubToolsContext } from '../../utils/githubTools';
 
 const systemPrompt = `You are a Bug Hunter Agent. Your mission is to find bugs and security vulnerabilities in code. You will be given a piece of code and must analyze it for potential issues.
 
@@ -11,11 +13,29 @@ Focus on:
 - Performance bottlenecks
 - Code smell patterns
 
-Provide specific recommendations for fixes.`;
+Provide specific recommendations for fixes.
 
-export const BugHunterAgent = async () => {
-  return AgentBuilder.create('BugHunterAgent')
+{{GITHUB_TOOLS}}`;
+
+interface BugHunterOptions {
+  githubContext?: GitHubToolsContext | null;
+}
+
+export const BugHunterAgent = async (options?: BugHunterOptions) => {
+  const githubContext = options?.githubContext || null;
+  
+  // Enhance system prompt with GitHub tools info
+  const enhancedPrompt = enhancePromptWithGitHub(systemPrompt, githubContext);
+  
+  let builder = AgentBuilder.create('BugHunterAgent')
     .withModel('gpt-5-nano')
-    .withInstruction(systemPrompt)
-    .build();
+    .withInstruction(enhancedPrompt);
+  
+  // Add GitHub tools if context is available
+  builder = withGitHubIntegration(builder, {
+    githubContext,
+    agentName: 'BugHunterAgent'
+  });
+  
+  return builder.build();
 };

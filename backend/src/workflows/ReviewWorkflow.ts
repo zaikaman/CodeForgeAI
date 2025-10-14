@@ -37,6 +37,17 @@ export interface ReviewResult {
 export class ReviewWorkflow {
   private agents: Map<string, any> = new Map();
   private initialized = false;
+  private githubContext: any = null;
+
+  constructor(options?: { githubContext?: any }) {
+    this.githubContext = options?.githubContext || null;
+    
+    if (this.githubContext) {
+      console.log('[ReviewWorkflow] GitHub context available:', this.githubContext.username);
+    } else {
+      console.log('[ReviewWorkflow] No GitHub context provided');
+    }
+  }
 
   /**
    * Initialize all review agents
@@ -47,11 +58,11 @@ export class ReviewWorkflow {
     console.log('[ReviewWorkflow] Initializing review agents...');
 
     try {
-      // Initialize all agents in parallel
+      // Initialize all agents in parallel with GitHub context
       const [bugHunter, securitySentinel, performanceProfiler] = await Promise.all([
-        BugHunterAgent(),
-        SecuritySentinelAgent(),
-        PerformanceProfilerAgent(),
+        BugHunterAgent({ githubContext: this.githubContext }),
+        SecuritySentinelAgent({ githubContext: this.githubContext }),
+        PerformanceProfilerAgent({ githubContext: this.githubContext }),
       ]);
 
       this.agents.set('BugHunter', bugHunter);

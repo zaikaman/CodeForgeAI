@@ -616,7 +616,7 @@ export class GenerateWorkflow {
         summary = `✅ Generated ${finalLanguage} code with ${codeResult.files?.length || 0} files`
       }
 
-      return {
+      const result = {
         files: codeResult.files,
         tests,
         documentation,
@@ -629,6 +629,20 @@ export class GenerateWorkflow {
         agentThoughts,
         requirements,
       }
+
+      // Step 10: Handle GitHub operations if requested
+      if (request.githubOperation && this.githubContext) {
+        console.log('\n[STEP 10] Handling GitHub operation...')
+        try {
+          await this.handleGitHubOperation(request.githubOperation, result.files)
+          result.summary += `\n\n✅ ${this.getGitHubOperationSummary(request.githubOperation)}`
+        } catch (error: any) {
+          console.error('[GitHub Operation] Failed:', error)
+          result.summary += `\n\n⚠️ GitHub operation failed: ${error.message}`
+        }
+      }
+
+      return result
     } catch (error: any) {
       console.error('Generation workflow error:', error)
       agentThoughts.push({
@@ -2110,6 +2124,34 @@ Return the result as JSON with the following structure:
     try {
       console.log('Calling DocWeaverAgent to generate documentation')
 
+      // Check if this is a GitHub README translation task
+      const isGitHubReadmeTask = request.githubOperation && 
+                                  request.githubOperation.targetFile === 'README.md' &&
+                                  this.githubContext;
+      
+      // If GitHub README task, fetch current README first
+      let currentReadme = '';
+      if (isGitHubReadmeTask) {
+        console.log(`[DocWeaver] Fetching current README from ${request.githubOperation.repository}...`);
+        try {
+          const { createGitHubTools } = await import('../utils/githubTools');
+          const githubTools = createGitHubTools(this.githubContext);
+          const getFileTool = githubTools.tools.find((t: any) => t.name === 'github_get_file_content');
+          
+          if (getFileTool) {
+            const fileResult = await (getFileTool as any).fn({
+              repo: request.githubOperation.repository,
+              path: 'README.md'
+            });
+            currentReadme = fileResult.content || '';
+            console.log(`[DocWeaver] Fetched README (${currentReadme.length} chars)`);
+          }
+        } catch (error) {
+          console.error('[DocWeaver] Failed to fetch current README:', error);
+          // Continue anyway, will generate new README
+        }
+      }
+
       // Pass GitHub context to DocWeaverAgent
       const { runner } = await DocWeaverAgent({
         githubContext: this.githubContext,
@@ -2119,7 +2161,33 @@ Return the result as JSON with the following structure:
 
       let docsPrompt: string
 
-      if (hasCode) {
+      if (isGitHubReadmeTask && currentReadme) {
+        // Special case: Translate existing README
+        docsPrompt = `TASK: Translate the following README from English to Vietnamese.
+
+CURRENT README (English):
+\`\`\`markdown
+${currentReadme}
+\`\`\`
+
+INSTRUCTIONS:
+- Translate ALL text content to Vietnamese
+- Preserve ALL markdown formatting (headings, lists, code blocks, links, tables)
+- DO NOT translate code blocks or code snippets
+- DO NOT translate URLs or technical terms that should remain in English
+- Keep the same structure and sections
+- Use appropriate Vietnamese terminology
+
+CRITICAL: Return ONLY JSON in this exact format (no tool calls):
+{
+  "documentation": "# Vietnamese README title\\n\\nFull Vietnamese markdown here...",
+  "metadata": {
+    "sectionCount": (count sections),
+    "hasExamples": true,
+    "hasAPI": false
+  }
+}`
+      } else if (hasCode) {
         // Generate documentation for existing code
         const codeToDocument = request.files
           .map((f: any) => `// File: ${f.path}\n${f.content}`)
@@ -2354,6 +2422,7 @@ export default {
     if (filePath.endsWith('.css') || filePath.endsWith('.js') || filePath.endsWith('.ts')) {
       let fixed = content;
       
+      
       // Check if content has literal \n that should be actual newlines
       if (content.includes('\\n') && !content.includes('\\\\n')) {
         console.log(`✅ Unescaping newlines in ${filePath}`)
@@ -2372,4 +2441,162 @@ export default {
     // Return as-is if no normalization needed
     return content
   }
+
+  /**
+   * Handle GitHub operations (create PR, push to repo, etc.)
+   */
+  private async handleGitHubOperation(
+    githubOperation: any,
+    files: Array<{ path: string; content: string }>
+  ): Promise<void> {
+    if (!this.githubContext) {
+      throw new Error('GitHub context not available')
+    }
+
+    console.log(`[GitHub Operation] Type: ${githubOperation.type}`)
+    console.log(`[GitHub Operation] Repository: ${githubOperation.repository || 'not specified'}`)
+
+    // Import GitHub tools
+    const { createGitHubTools } = await import('../utils/githubTools')
+    const githubTools = createGitHubTools(this.githubContext)
+
+    // Helper to execute GitHub tool
+    const executeTool = async (toolName: string, args: any) => {
+      const tool = githubTools.tools.find((t: any) => t.name === toolName)
+      if (!tool) {
+        throw new Error(`GitHub tool ${toolName} not found`)
+      }
+      console.log(`[GitHub] Executing ${toolName} with args:`, JSON.stringify(args, null, 2))
+      const result = await (tool as any).fn(args) // Call tool's fn property
+      return result
+    }
+
+    switch (githubOperation.type) {
+      case 'create_pr': {
+        console.log('[GitHub] Creating pull request...')
+        
+        // Step 1: Get current file (if updating existing file)
+        if (githubOperation.targetFile) {
+          console.log(`[GitHub] Fetching current ${githubOperation.targetFile}...`)
+          try {
+            await executeTool('github_get_file_content', {
+              repo: githubOperation.repository,
+              path: githubOperation.targetFile
+            })
+          } catch (error) {
+            console.log(`[GitHub] File ${githubOperation.targetFile} not found, will create new`)
+          }
+        }
+
+        // Step 2: Create branch
+        console.log(`[GitHub] Creating branch ${githubOperation.branch}...`)
+        await executeTool('github_create_branch', {
+          repo: githubOperation.repository,
+          branchName: githubOperation.branch
+        })
+
+        // Step 3: Update/create files
+        for (const file of files) {
+          // Only push the target file if specified, otherwise push all
+          if (githubOperation.targetFile && file.path !== githubOperation.targetFile) {
+            continue
+          }
+
+          console.log(`[GitHub] Updating file ${file.path}...`)
+          await executeTool('github_create_or_update_file', {
+            repo: githubOperation.repository,
+            path: file.path,
+            content: file.content,
+            message: githubOperation.commitMessage || `Update ${file.path}`,
+            branch: githubOperation.branch
+          })
+        }
+
+        // Step 4: Create PR
+        console.log('[GitHub] Creating pull request...')
+        const prResult = await executeTool('github_create_pull_request', {
+          repo: githubOperation.repository,
+          title: githubOperation.prTitle,
+          body: githubOperation.prBody,
+          head: githubOperation.branch,
+          base: 'main' // TODO: make this configurable
+        })
+
+        console.log(`[GitHub] Pull request created: #${prResult.number}`)
+        break
+      }
+
+      case 'push_to_repo': {
+        console.log('[GitHub] Pushing files to repository...')
+        await executeTool('github_push_files', {
+          repo: githubOperation.repository,
+          files: files.map(f => ({ path: f.path, content: f.content })),
+          message: githubOperation.commitMessage || 'Update files'
+        })
+        console.log('[GitHub] Files pushed successfully')
+        break
+      }
+
+      case 'create_repo_and_push': {
+        console.log('[GitHub] Creating repository and pushing files...')
+        
+        // Step 1: Create repo
+        await executeTool('github_create_repository', {
+          name: githubOperation.repository,
+          description: githubOperation.description || 'Created by CodeForge AI',
+          private: false
+        })
+
+        // Step 2: Push files
+        await executeTool('github_push_files', {
+          repo: githubOperation.repository,
+          files: files.map(f => ({ path: f.path, content: f.content })),
+          message: githubOperation.commitMessage || 'Initial commit'
+        })
+
+        console.log('[GitHub] Repository created and files pushed')
+        break
+      }
+
+      case 'update_file': {
+        console.log('[GitHub] Updating file...')
+        const targetFile = files.find(f => f.path === githubOperation.targetFile)
+        if (!targetFile) {
+          throw new Error(`Target file ${githubOperation.targetFile} not found in generated files`)
+        }
+
+        await executeTool('github_create_or_update_file', {
+          repo: githubOperation.repository,
+          path: targetFile.path,
+          content: targetFile.content,
+          message: githubOperation.commitMessage || `Update ${targetFile.path}`
+        })
+
+        console.log('[GitHub] File updated successfully')
+        break
+      }
+
+      default:
+        console.log('[GitHub] No operation specified or operation type "none"')
+    }
+  }
+
+  /**
+   * Get summary message for GitHub operation
+   */
+  private getGitHubOperationSummary(githubOperation: any): string {
+    switch (githubOperation.type) {
+      case 'create_pr':
+        return `Created pull request "${githubOperation.prTitle}" on ${githubOperation.repository}`
+      case 'push_to_repo':
+        return `Pushed files to ${githubOperation.repository}`
+      case 'create_repo_and_push':
+        return `Created repository ${githubOperation.repository} and pushed files`
+      case 'update_file':
+        return `Updated ${githubOperation.targetFile} on ${githubOperation.repository}`
+      default:
+        return 'GitHub operation completed'
+    }
+  }
 }
+

@@ -7,6 +7,7 @@ export { SimpleCoderAgent } from './SimpleCoderAgent';
 export { ComplexCoderAgent } from './ComplexCoderAgent';
 export { CodeModificationAgent } from './CodeModificationAgent';
 export { ChatAgent } from './ChatAgent';
+export { GitHubAgent } from './GitHubAgent';
 export { BugHunterAgent } from './BugHunterAgent';
 export { SecuritySentinelAgent } from './SecuritySentinelAgent';
 export { PerformanceProfilerAgent } from './PerformanceProfilerAgent';
