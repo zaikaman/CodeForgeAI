@@ -68,25 +68,21 @@ export class SimpleJobProcessor {
     try {
       this.isProcessing = true;
       
-      // Get oldest pending job
-      const { data: jobs, error } = await supabase
-        .from('background_jobs')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: true })
-        .limit(1);
+      // Use atomic claim operation with PostgreSQL row-level locking
+      // This ensures only ONE dyno can claim a job at a time
+      const { data: claimedJobs, error } = await supabase.rpc('claim_pending_job');
       
       if (error) {
-        console.error('❌ Error fetching jobs:', error);
+        console.error('❌ Error claiming job:', error);
         return;
       }
       
-      if (!jobs || jobs.length === 0) {
-        // No pending jobs
+      if (!claimedJobs || claimedJobs.length === 0) {
+        // No pending jobs or another dyno claimed it first
         return;
       }
       
-      const job = jobs[0] as BackgroundJob;
+      const job = claimedJobs[0] as BackgroundJob;
       
       console.log(`\n🚀 Processing job ${job.id}...`);
       console.log(`   User: ${job.user_id}`);
