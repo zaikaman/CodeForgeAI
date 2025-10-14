@@ -61,7 +61,7 @@ export interface ChatRequest {
 
 export interface ChatResponse {
   jobId?: string
-  status?: 'pending' | 'processing' | 'completed' | 'error'
+  status?: 'pending' | 'processing' | 'completed' | 'error' | 'queued'
   message?: string
   generationId?: string
   files?: Array<{
@@ -75,6 +75,7 @@ export interface ChatResponse {
   error?: string
   createdAt?: string
   updatedAt?: string
+  backgroundMode?: boolean // NEW: Indicates if job is running in background
 }
 
 export interface UserSettings {
@@ -793,6 +794,64 @@ class ApiClient {
   async delete<T = any>(url: string): Promise<ApiResponse<T>> {
     const response = await this.client.delete<ApiResponse<T>>(url)
     return response.data
+  }
+
+  // ========== Background Jobs APIs ==========
+  
+  // Get user's background jobs
+  async getUserJobs(userId: string): Promise<ApiResponse<{
+    jobs: Array<{
+      id: string
+      type: string
+      status: string
+      data: any
+      result?: any
+      progress?: number
+      createdAt: string
+      startedAt?: string
+      completedAt?: string
+      failedReason?: string
+    }>
+    count: number
+  }>> {
+    try {
+      const response = await this.client.get(`/api/jobs/user/${userId}`)
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] getUserJobs error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch jobs',
+      }
+    }
+  }
+
+  // Cancel a background job
+  async cancelJob(jobId: string, type = 'agent_task'): Promise<ApiResponse<{ message: string }>> {
+    try {
+      const response = await this.client.delete(`/api/jobs/${jobId}?type=${type}`)
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] cancelJob error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to cancel job',
+      }
+    }
+  }
+
+  // Retry a failed job
+  async retryJob(jobId: string, type = 'agent_task'): Promise<ApiResponse<{ message: string }>> {
+    try {
+      const response = await this.client.post(`/api/jobs/${jobId}/retry?type=${type}`)
+      return response.data
+    } catch (error: any) {
+      console.error('❌ [apiClient] retryJob error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to retry job',
+      }
+    }
   }
 }
 

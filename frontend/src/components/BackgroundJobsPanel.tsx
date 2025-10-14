@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuthContext } from '../contexts/AuthContext';
+import apiClient from '../services/apiClient';
 import './BackgroundJobsPanel.css';
 
 interface Job {
@@ -45,7 +46,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
   useEffect(() => {
     if (!user) return;
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
     const newSocket = io(backendUrl);
 
     newSocket.on('connect', () => {
@@ -85,12 +86,12 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
     
     setLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      const response = await fetch(`${backendUrl}/api/jobs/user/${user.id}`);
-      const data = await response.json();
+      const response = await apiClient.getUserJobs(user.id);
       
-      if (data.success) {
-        setJobs(data.jobs);
+      if (response.success && response.data) {
+        setJobs(response.data.jobs as Job[]);
+      } else {
+        console.error('Failed to fetch jobs:', response.error);
       }
     } catch (error) {
       console.error('Error fetching jobs:', error);
@@ -108,15 +109,13 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
   // Cancel a job
   const handleCancelJob = async (jobId: string) => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      const response = await fetch(`${backendUrl}/api/jobs/${jobId}?type=agent_task`, {
-        method: 'DELETE',
-      });
+      const response = await apiClient.cancelJob(jobId);
       
-      const data = await response.json();
-      if (data.success) {
+      if (response.success) {
         // Refresh jobs
         fetchJobs();
+      } else {
+        console.error('Failed to cancel job:', response.error);
       }
     } catch (error) {
       console.error('Error cancelling job:', error);
@@ -126,15 +125,13 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
   // Retry a failed job
   const handleRetryJob = async (jobId: string) => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-      const response = await fetch(`${backendUrl}/api/jobs/${jobId}/retry?type=agent_task`, {
-        method: 'POST',
-      });
+      const response = await apiClient.retryJob(jobId);
       
-      const data = await response.json();
-      if (data.success) {
+      if (response.success) {
         // Refresh jobs
         fetchJobs();
+      } else {
+        console.error('Failed to retry job:', response.error);
       }
     } catch (error) {
       console.error('Error retrying job:', error);

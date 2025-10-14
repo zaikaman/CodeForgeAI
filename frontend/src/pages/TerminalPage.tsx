@@ -577,6 +577,31 @@ export const TerminalPage: React.FC = () => {
       }
 
       const jobId = chatResponse.data.jobId;
+      
+      // Check if this is a background job
+      if (chatResponse.data.backgroundMode) {
+        console.log(`🚀 Background job ${jobId} submitted, will be tracked via Socket.IO`);
+        
+        // Add immediate response message
+        const backgroundResponseMessage: AgentMessage = {
+          id: `msg_${Date.now()}_bg_response`,
+          agent: 'ChatAgent',
+          role: 'agent',
+          content: chatResponse.data.message || 'Your request is being processed in the background. You can continue chatting!',
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, backgroundResponseMessage]);
+        setIsProcessing(false);
+        setChatInput('');
+        setBackgroundMode(false); // Reset checkbox
+        
+        // Job updates will come via Socket.IO to BackgroundJobsPanel
+        // No need to poll
+        return;
+      }
+      
+      // Normal (non-background) job - use polling
       console.log(`🔄 Chat job ${jobId} started, will be polled via useChatJobPolling hook`);
       
       // Set current job ID to trigger the useChatJobPolling hook
