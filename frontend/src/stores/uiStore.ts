@@ -79,7 +79,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   toasts: [],
   modals: [],
   sidebarOpen: true,
-  theme: 'blue',
+  theme: 'green',
   crtEffects: false,
   phosphorGlow: true,
   autoScrollChat: true,
@@ -275,10 +275,10 @@ if (typeof window !== 'undefined') {
     useUIStore.getState().setTheme(savedTheme)
     console.log('[UIStore] Loaded theme from localStorage:', savedTheme)
   } else {
-    // Default to blue if no valid theme found
-    useUIStore.getState().setTheme('blue')
-    localStorage.setItem('codeforge-theme', 'blue')
-    console.log('[UIStore] Initialized default theme: blue')
+    // Default to green if no valid theme found
+    useUIStore.getState().setTheme('green')
+    localStorage.setItem('codeforge-theme', 'green')
+    console.log('[UIStore] Initialized default theme: green')
   }
 
   // Load preferences from localStorage

@@ -24,7 +24,7 @@ router.get('/settings', requireAuth, async (req: any, res, next): Promise<void> 
       // Return default settings if none exist
       res.json({
         userId,
-        theme: 'blue',
+        theme: 'green',
         crtEffects: false,
         phosphorGlow: true,
         autoScrollChat: true,
