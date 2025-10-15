@@ -54,6 +54,8 @@ export const TerminalPage: React.FC = () => {
   const [autoScroll, setAutoScroll] = useState(true);
   const [isPreviewPanelVisible, setIsPreviewPanelVisible] = useState(true);
   const [backgroundMode, setBackgroundMode] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Chat State
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -141,6 +143,21 @@ export const TerminalPage: React.FC = () => {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, autoScroll]);
+
+  // Keyboard shortcut for saving (Ctrl+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (hasUnsavedChanges && !isSaving && selectedFile) {
+          handleSaveFile();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasUnsavedChanges, isSaving, selectedFile]);
 
   // Use realtime WebSocket updates (no polling!)
   useRealtimeJob({
@@ -454,6 +471,54 @@ export const TerminalPage: React.FC = () => {
 
   const handleImageButtonClick = () => {
     fileInputRef.current?.click();
+  };
+
+  // Handle code editor content change
+  const handleCodeChange = (newContent: string) => {
+    if (selectedFile && newContent !== selectedFile.content) {
+      setSelectedFile({ ...selectedFile, content: newContent });
+      setHasUnsavedChanges(true);
+    }
+  };
+
+  // Save file changes
+  const handleSaveFile = async () => {
+    if (!selectedFile || !id || !generation || !generation.response?.files) {
+      showToast('error', 'No file selected or generation not found');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Update the file in the files array
+      const updatedFiles = generation.response.files.map((file: any) => {
+        if (file.path === selectedFile.path) {
+          return { ...file, content: selectedFile.content };
+        }
+        return file;
+      });
+
+      // Update in store
+      updateGenerationFiles(id, updatedFiles);
+
+      // Update in database via API
+      await apiClient.post(`/api/generations/${id}/update-files`, {
+        files: updatedFiles
+      });
+
+      setHasUnsavedChanges(false);
+      showToast('success', 'File saved successfully!');
+      
+      // Refresh the page after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    } catch (error) {
+      console.error('Error saving file:', error);
+      showToast('error', 'Failed to save file');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleNewChat = () => {
@@ -1258,14 +1323,23 @@ export const TerminalPage: React.FC = () => {
                   <div className="active-file-tab">
                     <span className="file-icon">📄</span>
                     <span className="file-name">{selectedFile.path}</span>
+                    {hasUnsavedChanges && <span className="unsaved-indicator">●</span>}
+                    <button 
+                      className="save-file-button"
+                      onClick={handleSaveFile}
+                      disabled={!hasUnsavedChanges || isSaving}
+                      title={isSaving ? 'Saving...' : 'Save changes (Ctrl+S)'}
+                    >
+                      {isSaving ? '💾 Saving...' : '💾 Save'}
+                    </button>
                   </div>
                 )}
                 <div className="code-editor-container">
                   <CodeEditor
                     value={selectedFile?.content || '// Select a file from the sidebar'}
-                    onChange={() => {}}
+                    onChange={handleCodeChange}
                     language={selectedFile?.path.split('.').pop() || 'typescript'}
-                    readOnly={true}
+                    readOnly={false}
                     title={selectedFile?.path || 'CODEFORGE EDITOR'}
                     height="100%"
                   />

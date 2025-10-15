@@ -12,6 +12,11 @@ import type { User } from '@supabase/supabase-js'
  */
 export interface AuthenticatedRequest extends Request {
   supabaseUser?: User
+  user?: {
+    id: string
+    email?: string
+    role?: string
+  }
   userId?: string
   accessToken?: string
 }
