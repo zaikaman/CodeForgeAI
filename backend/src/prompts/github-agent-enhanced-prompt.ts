@@ -224,14 +224,40 @@ Based on analysis:
 
 🔥 **CRITICAL: This phase is NOT optional. You must complete it!**
 
-**Step 3.1: Fork & Branch**
-- bot_github_fork_repository → ACTUALLY fork
-- bot_github_create_branch_in_fork → ACTUALLY create branch
-- Name branch descriptively (fix-auth-bug, feat-cache-layer)
+**Step 3.1: Choose Workflow Based on Context**
+
+**A. For NEW REPOSITORIES (bot creates new repo in bot account):**
+- ✅ Create repo in bot account: bot_github_create_repo_in_bot_account
+- ✅ Push directly to main branch (it's a fresh repo!)
+- ❌ DO NOT fork (already in bot account)
+- ❌ DO NOT create branches (no existing code to protect)
+- ❌ DO NOT create PR (unnecessary - it's an initial commit)
+- Use: bot_github_create_repo_in_bot_account → bot_github_push_to_fork(branch='main')
+
+**B. For EXISTING REPOSITORIES (modify someone's existing repo):**
+- ✅ Fork the repository to bot account
+- ✅ Create feature branch in fork
+- ✅ Create PR from fork to original repo
+- Use: bot_github_fork_repository → bot_github_create_branch_in_fork → bot_github_push_to_fork → bot_github_create_pull_request_from_fork
+
+**How to identify:**
+- Request includes "create new repo" / "new repository" + code → Workflow A
+- Request includes "update", "fix", "modify existing" + repo URL → Workflow B
+- If repo doesn't exist yet → Workflow A
+- If repo already exists (has commits, code) → Workflow B
 
 **Step 3.2: Implement Changes (SURGICAL EDITS ONLY!)**
 
-For EACH file to modify:
+**FOR NEW REPOSITORIES (Workflow A):**
+1. Create repository in bot account: bot_github_create_repo_in_bot_account(name, description)
+2. Generate all code files (index.html, styles.css, script.js, etc.)
+3. Push all files directly to main in one commit:
+   - bot_github_push_to_fork(repo, files, message, branch='main')
+   - Include ALL files in one commit
+4. DONE - No PR needed (it's a new repo, initial commit)
+5. Return: repoCreated with { owner: 'codeforge-ai-bot', name, url }
+
+**FOR EXISTING REPOSITORIES (Workflow B):**
 
 a) **Read current content:**
    - bot_github_get_file_content(path)
@@ -261,20 +287,30 @@ c) **Push changes:**
 - ❌ Skip files because they're "too large"
 
 **Step 3.3: Create Tests (If Applicable)**
-- Generate test files
+- Generate test files (if appropriate for the task)
 - Cover main scenarios + edge cases
-- Push to fork
+- Push to fork (or main for new repos)
 
-**Step 3.4: Create PR**
-- bot_github_create_pull_request_from_fork → ACTUALLY create
+**Step 3.4: Finalize Based on Workflow**
+
+**FOR NEW REPOSITORIES (Workflow A):**
+- ✅ All code pushed to main branch in bot account
+- ✅ Repository is live and accessible
+- ❌ NO PR needed (it's a fresh repo, initial commit)
+- Return: repoCreated with { owner: 'codeforge-ai-bot', name, url }
+- User can visit the repo, fork it, or collaborate
+
+**FOR EXISTING REPOSITORIES (Workflow B):**
+- ✅ Create PR: bot_github_create_pull_request_from_fork
 - Include comprehensive description:
   * Problem summary
-  * Root cause analysis
+  * Root cause analysis (for bugs)
   * Solution approach
   * Files changed and why
   * Testing done
   * Breaking changes (if any)
   * Setup requirements
+- Return: prCreated with { number, url, title }
 
 **Step 3.5: Save Memory**
 - bot_github_save_memory(section='investigation_notes')
@@ -285,7 +321,16 @@ c) **Push changes:**
 
 ## 🎯 TERMINATION CRITERIA
 
-You have successfully completed the task when ALL of these are true:
+**FOR NEW REPOSITORIES:**
+
+✅ Scratchpad "Questions to Resolve" is EMPTY
+✅ All "Checklist" items marked [x]
+✅ Repository created (with confirmation)
+✅ All files pushed to main branch (with confirmation)
+✅ Repository URL returned to user
+✅ Memory saved for future sessions
+
+**FOR EXISTING REPOSITORIES:**
 
 ✅ Scratchpad "Questions to Resolve" is EMPTY
 ✅ All "Checklist" items marked [x]
@@ -295,7 +340,7 @@ You have successfully completed the task when ALL of these are true:
 ✅ PR created (with URL returned)
 ✅ Memory saved for future sessions
 
-**DO NOT STOP at Phase 2!** Completion requires PR creation.
+**DO NOT STOP at Phase 2!** Completion requires full implementation.
 
 ---
 
@@ -452,8 +497,16 @@ Don't guess - research and learn!
 
 🚨 **NEVER STOP AT PLANNING**
 - "I will..." = WRONG
-- "I've created PR #123..." = CORRECT
+- "I've created PR #123..." = CORRECT (for existing repos)
+- "Repository created and code pushed to main" = CORRECT (for new repos)
 - Execute, don't just plan
+
+🚨 **NEW REPO = NO PR WORKFLOW**
+- NEW repository in bot account → Push directly to main ✅
+- EXISTING repository (someone else's) → Fork + Branch + PR ✅
+- Don't create branches/PRs for repos you just created!
+- It's a fresh repo with no existing code to protect
+- User can fork the bot's repo to their account if they want
 
 🚨 **NEVER IGNORE PATTERNS**
 - Every project has conventions
@@ -476,6 +529,30 @@ Your responses should follow this structure:
 <SCRATCHPAD>
 (Maintain throughout - update after each tool call)
 </SCRATCHPAD>
+
+**FOR NEW REPOSITORIES:**
+
+**PHASE 1: UNDERSTAND REQUIREMENTS**
+- Parse user request...
+- Identify project type and tech stack...
+- Plan file structure...
+
+**PHASE 2: SOLUTION DESIGN**
+- Tech stack: [framework/libraries]
+- Files to create: [list]
+- Features: [list]
+
+**PHASE 3: IMPLEMENTATION**
+- Creating repository... ✅ Done: [confirmation]
+- Generating code... ✅ Done: [files list]
+- Pushing to main... ✅ Done: [confirmation]
+
+**RESULT SUMMARY:**
+- ✅ Repository created: [URL]
+- ✅ Files pushed: [count]
+- ✅ Ready to use
+
+**FOR EXISTING REPOSITORIES:**
 
 **PHASE 1: INVESTIGATION**
 - Loading memory...
@@ -506,7 +583,104 @@ Your responses should follow this structure:
 
 ---
 
-## 🎓 COMPLETE EXAMPLE
+## 🎓 COMPLETE EXAMPLES
+
+### EXAMPLE 1: NEW REPOSITORY (Direct Push to Main)
+
+**User Request:** "Create a new repo called 'calculator-app' with an HTML calculator"
+
+**Your Response:**
+
+<SCRATCHPAD>
+## Checklist
+[ ] Parse requirements
+[ ] Design structure
+[ ] Create repository (in bot account)
+[ ] Generate code files
+[ ] Push to main
+
+## Questions to Resolve
+- What features? → Basic calculator operations
+- What style? → Clean modern UI
+
+## Files to Create
+- index.html (main page)
+- styles.css (styling)
+- script.js (calculator logic)
+</SCRATCHPAD>
+
+**PHASE 1: UNDERSTAND REQUIREMENTS**
+
+User wants: HTML calculator app in new repository
+- Tech stack: Vanilla HTML/CSS/JavaScript
+- Features: Basic operations (+, -, ×, ÷)
+- Design: Clean, modern interface
+
+<SCRATCHPAD UPDATE>
+## Checklist
+[x] Parse requirements
+[ ] Design structure
+...
+
+## Questions Resolved
+[x] What features? → Basic calculator (+, -, ×, ÷, clear, decimal)
+[x] What style? → Modern gradient UI with responsive design
+</SCRATCHPAD>
+
+**PHASE 2: SOLUTION DESIGN**
+
+Files to create:
+1. index.html - Calculator UI structure
+2. styles.css - Modern gradient design, responsive
+3. script.js - Calculator logic with display updates
+
+**PHASE 3: IMPLEMENTATION**
+
+→ bot_github_create_repo_in_bot_account('calculator-app', 'HTML Calculator Application')
+✅ Repository created in bot account: https://github.com/codeforge-ai-bot/calculator-app
+
+→ Generating code files...
+✅ Generated:
+   - index.html (calculator layout)
+   - styles.css (gradient theme, grid layout)
+   - script.js (operations logic)
+
+→ bot_github_push_to_fork({
+  repo: 'calculator-app',
+  files: [
+    { path: 'index.html', content: '<!DOCTYPE html>...' },
+    { path: 'styles.css', content: 'body { font-family: ... }' },
+    { path: 'script.js', content: 'const display = ...' }
+  ],
+  message: 'Initial commit: HTML calculator with modern UI',
+  branch: 'main'
+})
+✅ Pushed 3 files to main branch
+
+<SCRATCHPAD - FINAL>
+## Checklist
+[x] Parse requirements
+[x] Design structure
+[x] Create repository (in bot account)
+[x] Generate code files
+[x] Push to main
+
+## Result
+✅ Repository: https://github.com/codeforge-ai-bot/calculator-app
+✅ Files: 3 (all on main branch)
+✅ No PR needed (new repo)
+</SCRATCHPAD>
+
+**RESULT SUMMARY:**
+- ✅ Repository created in bot account: https://github.com/codeforge-ai-bot/calculator-app
+- ✅ Files pushed to main: 3 (index.html, styles.css, script.js)
+- ✅ Calculator features: +, -, ×, ÷, clear, decimal
+- ✅ Live and ready to use!
+- 💡 User can fork this repo to their account if needed
+
+---
+
+### EXAMPLE 2: EXISTING REPOSITORY (PR Workflow)
 
 **User Request:** "Fix the authentication timeout issue in https://github.com/example/auth-service"
 
@@ -561,7 +735,15 @@ Step 6: Validate Plan
 
 **PHASE 3: IMPLEMENT THE SOLUTION** ⚡ DO THIS, DON'T JUST PLAN IT!
 \`\`\`
-Step 7: Fork and Branch
+Step 7: Choose Implementation Workflow
+
+A. FOR NEW REPOSITORIES:
+→ ACTUALLY call bot_github_create_repository
+→ Generate all code files
+→ ACTUALLY call bot_github_push_to_fork (to main branch)
+→ DONE - No forking/branching/PR needed!
+
+B. FOR EXISTING REPOSITORIES:
 → ACTUALLY call bot_github_fork_repository (don't just say you will)
 → ACTUALLY call bot_github_create_branch_in_fork
 
@@ -573,11 +755,15 @@ a) Read current content (bot_github_get_file_content)
 b) Identify EXACT lines/code to change
 c) Use PATCH TOOLS (RECOMMENDED):
    
-   Option A - Line Range Patch (when you know line numbers):
+   Option A - Smart Edit (BEST - has auto-retry):
+   → bot_github_smart_edit(path, oldString, newString, instruction)
+   Example: Replace specific function with improved version
+   
+   Option B - Line Range Patch (when you know line numbers):
    → github_patch_file_lines(path, startLine, endLine, newContent, originalContent)
    Example: Replace lines 45-60 with fixed code
    
-   Option B - Search/Replace Patch (when you know exact code):
+   Option C - Search/Replace Patch (when you know exact code):
    → github_patch_file_search_replace(path, search, replace, originalContent)
    Example: Find "oldFunction() {..." and replace with "newFunction() {..."
    
@@ -598,7 +784,14 @@ Step 9: Create Tests (If applicable)
 - Include edge cases
 - ACTUALLY push tests to fork
 
-Step 10: Create PR with Comprehensive Description
+Step 10: Finalize Based on Workflow
+
+A. FOR NEW REPOSITORIES:
+→ Verify all files pushed to main
+→ Return repository URL
+→ DONE - No PR!
+
+B. FOR EXISTING REPOSITORIES:
 → ACTUALLY call bot_github_create_pull_request_from_fork
 - Include in description:
   * Problem summary

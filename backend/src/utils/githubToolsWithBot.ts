@@ -181,7 +181,7 @@ https://github.com/${args.owner}/${args.repo}/compare/${args.base_branch}...${bo
 
     createTool({
       name: 'bot_github_push_to_fork',
-      description: 'Push file changes to bot fork',
+      description: 'Push file changes to a repository (fork or bot-owned repo). Use this for: 1) Pushing to forked repos (any branch) 2) Pushing to bot-owned repos created via bot_github_create_repository (typically to main branch)',
       schema: z.object({
         repo: z.string().describe('Repository name (in bot account)'),
         files: z.array(z.object({
@@ -189,7 +189,7 @@ https://github.com/${args.owner}/${args.repo}/compare/${args.base_branch}...${bo
           content: z.string(),
         })).describe('Files to push'),
         message: z.string().describe('Commit message'),
-        branch: z.string().describe('Target branch'),
+        branch: z.string().describe('Target branch (e.g., "main" for new repos, feature branch for forks)'),
       }),
       fn: async (args) => {
         return await server.executeTool('push_files', {
@@ -667,10 +667,15 @@ The bot can perform most GitHub operations on PUBLIC repositories without requir
 - bot_github_search_repositories - Search repos by name, language, stars, etc.
 - bot_github_search_code - Search code across repositories
 
-**Pull Request Workflow:**
+**New Repository Workflow (Direct Push):**
+1. bot_github_create_repo_in_bot_account - Create new repo in bot account (no user token needed!)
+2. bot_github_push_to_fork - Push all code files directly to main branch
+3. DONE - No forking/branching/PR needed for initial commit!
+
+**Pull Request Workflow (Existing Repos):**
 1. bot_github_fork_repository - Fork target repo to bot account
 2. bot_github_create_branch_in_fork - Create feature branch in fork
-3. bot_github_push_to_fork - Push your changes to fork
+3. bot_github_push_to_fork - Push your changes to fork branch
 4. bot_github_create_pull_request_from_fork - Create PR from fork to original repo
 
 **Issues & Communication:**
@@ -704,16 +709,32 @@ The bot can perform most GitHub operations on PUBLIC repositories without requir
 3. **Deleting user's repos:** Only user can delete their repos
 4. **Creating repos in user's account:** Use bot account, user can fork
 
-**Recommended Workflow for PRs:**
+**Recommended Workflows:**
 
+**Scenario A: Create NEW Repository (in Bot Account)**
 \`\`\`
-User: "Create PR to add tests to my repo myapp"
+User: "Create a new repo 'calculator-app' with HTML calculator"
 
 Bot Actions:
-1. Fork user's repo → bot/myapp
-2. Create branch in fork → bot/myapp:add-tests
-3. Push test files to fork branch
-4. Create PR from bot/myapp:add-tests → user/myapp:main
+1. Create repo in bot account → bot_github_create_repo_in_bot_account('calculator-app')
+2. Generate code files (index.html, styles.css, script.js)
+3. Push to main → bot_github_push_to_fork(repo, files, message, branch='main')
+4. Return repo URL: https://github.com/codeforge-ai-bot/calculator-app
+
+Result: ✅ Repository created in bot account with code live on main branch!
+Note: No forking/branching/PR needed for new repos
+User can fork the bot's repo to their account if they want
+\`\`\`
+
+**Scenario B: Modify EXISTING Repository**
+\`\`\`
+User: "Add dark mode to my myapp repo"
+
+Bot Actions:
+1. Fork user's repo → codeforge-ai-bot/myapp
+2. Create branch in fork → codeforge-ai-bot/myapp:add-dark-mode
+3. Push dark mode files to fork branch
+4. Create PR from codeforge-ai-bot/myapp:add-dark-mode → user/myapp:main
 5. Return PR link to user
 
 Result: ✅ PR created without user's personal token!

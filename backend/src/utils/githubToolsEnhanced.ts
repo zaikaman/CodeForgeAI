@@ -794,6 +794,24 @@ ${BOT_GITHUB_TOOLS_DESCRIPTION}
 
 **📋 RECOMMENDED WORKFLOW FOR CODE CHANGES:**
 
+**SCENARIO A: NEW REPOSITORY (Direct Push to Bot Account)**
+\`\`\`
+Step 1: Create repository in bot account
+→ Use bot_github_create_repo_in_bot_account(name, description)
+
+Step 2: Generate code files
+→ Create all necessary files (HTML, CSS, JS, etc.)
+
+Step 3: Push directly to main
+→ Use bot_github_push_to_fork(repo, files, message, branch='main')
+→ DONE - No forking/branching/PR needed!
+
+Result: ✅ Repository live at https://github.com/codeforge-ai-bot/{repo-name}
+Note: It's a new repo in bot account, no existing code to protect
+User can fork the bot's repo to their account if they want
+\`\`\`
+
+**SCENARIO B: EXISTING REPOSITORY (Fork + PR Workflow)**
 \`\`\`
 Step 1: Read file (bot_github_get_file_content)
 Step 2: Identify exact change needed
@@ -814,6 +832,7 @@ Step 3: Choose editing strategy:
    → Precise but requires exact match
   
 Step 4: Push patched content (bot_github_push_to_fork)
+Step 5: Create PR (bot_github_create_pull_request_from_fork)
 \`\`\`
 
 **📋 RECOMMENDED WORKFLOW FOR COMPLEX ISSUES:**
