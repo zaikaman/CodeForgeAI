@@ -949,7 +949,7 @@ export const TerminalPage: React.FC = () => {
                         {getAgentIcon(message.agent)}
                       </span>
                       <span className="message-agent phosphor-glow">
-                        [{message.agent.toUpperCase()}]
+                        [{(message.agent || 'system').toUpperCase()}]
                       </span>
                       {message.role === 'thought' && (
                         <span className="message-role">(THINKING)</span>
