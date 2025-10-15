@@ -33,6 +33,17 @@ export const useRealtimeJob = ({
   const hasCompletedRef = useRef(false);
   const hasErroredRef = useRef(false);
 
+  // Stabilize callbacks with refs to prevent useEffect re-runs
+  const onProgressRef = useRef(onProgress);
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+    onCompleteRef.current = onComplete;
+    onErrorRef.current = onError;
+  }, [onProgress, onComplete, onError]);
+
   // Reset completion flags when jobId changes
   useEffect(() => {
     hasCompletedRef.current = false;
@@ -92,7 +103,7 @@ export const useRealtimeJob = ({
       if (data.jobId === jobId) {
         console.log(`📊 Job progress update:`, data);
         setJobData(data);
-        onProgress?.(data);
+        onProgressRef.current?.(data); // Use ref
       }
     });
 
@@ -106,11 +117,11 @@ export const useRealtimeJob = ({
         setJobData(data);
         
         if (data.success) {
-          onComplete?.(data.result);
+          onCompleteRef.current?.(data.result); // Use ref
         } else {
           if (!hasErroredRef.current) {
             hasErroredRef.current = true;
-            onError?.(data.error || 'Job failed');
+            onErrorRef.current?.(data.error || 'Job failed'); // Use ref
           }
         }
       }
@@ -132,7 +143,7 @@ export const useRealtimeJob = ({
       
       if (data.jobId === jobId) {
         console.log(`💬 Chat progress:`, data);
-        onProgress?.(data);
+        onProgressRef.current?.(data); // Use ref
       }
     });
 
@@ -142,7 +153,7 @@ export const useRealtimeJob = ({
       unsubAgentMsg();
       unsubChatProgress();
     };
-  }, [enabled, jobId, isConnected, onProgress, onComplete, onError]);
+  }, [enabled, jobId, isConnected]); // Remove callback dependencies
 
   // Fallback to polling if WebSocket fails
   const pollingHook = useChatJobPolling({
@@ -150,9 +161,9 @@ export const useRealtimeJob = ({
     enabled: usePollingFallback && enabled,
     pollInterval: 500,
     maxAttempts: 1000,
-    onProgressUpdate: onProgress,
-    onComplete,
-    onError,
+    onProgressUpdate: onProgressRef.current, // Use ref for consistency
+    onComplete: onCompleteRef.current, // Use ref for consistency
+    onError: onErrorRef.current, // Use ref for consistency
   });
 
   return {
