@@ -283,11 +283,11 @@ export const TerminalPage: React.FC = () => {
     // Check if generation already exists in memory (newly created)
     const existingGeneration = getGenerationById(id);
     if (existingGeneration) {
-      console.log(`📂 Session ${id} already loaded in memory, skipping DB load`);
-      return;
+      console.log(`📂 Session ${id} already loaded in memory, but still loading messages from DB...`);
+      // Don't return here! We still need to load messages from DB
     }
 
-    // Only load from DB if not in memory (user refreshed page or navigated to old session)
+    // Load session from DB (always load messages, even if generation exists)
     const loadSession = async () => {
       try {
         console.log(`📂 Loading session ${id} from database...`);
@@ -306,7 +306,7 @@ export const TerminalPage: React.FC = () => {
         console.log('✅ Loaded session from database:', generationData.id);
         console.log('Session has files:', !!generationData.files, 'Count:', generationData.files?.length || 0);
         
-        if (!generation) {
+        if (!generation && !existingGeneration) {
           startGenerationWithId(id, {
             prompt: generationData.prompt || '',
             targetLanguage: generationData.target_language || 'html', // Fallback to vanilla HTML
@@ -324,6 +324,7 @@ export const TerminalPage: React.FC = () => {
           setIsPreviewPanelVisible(true);
         }
         
+        // ✅ ALWAYS load chat messages from DB (even if generation exists in memory)
         const { data: chatData, error: chatError } = await supabase
           .from('chat_messages')
           .select('*')
@@ -343,6 +344,9 @@ export const TerminalPage: React.FC = () => {
           // Set messages from history
           setMessages(historyMessages);
           console.log(`✅ Loaded ${historyMessages.length} chat messages from database`);
+        } else if (chatError) {
+          console.error('❌ Error loading chat messages:', chatError);
+          setMessages([]);
         } else {
           console.log('📭 No chat messages found for this session');
           setMessages([]);
