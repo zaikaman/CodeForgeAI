@@ -318,8 +318,12 @@ Use /background to enable background mode for the next request. This is useful f
     const currentBackgroundMode = settings?.background_mode ?? false;
     const newBackgroundMode = !currentBackgroundMode;
     
-    // Upsert settings
-    await supabase
+    console.log(`[Telegram] Toggle background mode for user ${telegramUser.user_id}:`);
+    console.log(`  Current: ${currentBackgroundMode}`);
+    console.log(`  New: ${newBackgroundMode}`);
+    
+    // Upsert settings and verify the result
+    const { error: upsertError } = await supabase
       .from('telegram_settings')
       .upsert({
         telegram_user_id: telegramUser.id,
@@ -327,11 +331,19 @@ Use /background to enable background mode for the next request. This is useful f
         updated_at: new Date().toISOString(),
       });
     
+    if (upsertError) {
+      console.error('[Telegram] Failed to update background mode:', upsertError);
+      await this.bot.sendMessage(chatId, '❌ Failed to update settings. Please try again.');
+      return;
+    }
+    
     const emoji = newBackgroundMode ? '🔄' : '⚡';
     const mode = newBackgroundMode ? 'BACKGROUND' : 'REAL-TIME';
     const description = newBackgroundMode
       ? 'Your requests will now run in the background. You\'ll get a notification when they\'re done!'
       : 'Your requests will now run in real-time (faster for small tasks).';
+    
+    console.log(`[Telegram] Sending message: ${mode} mode activated`);
     
     await this.bot.sendMessage(
       chatId,
@@ -369,7 +381,11 @@ Use /background to enable background mode for the next request. This is useful f
       .eq('telegram_user_id', telegramUser.id)
       .single();
     
-    const backgroundMode = settings?.background_mode || false;
+    const backgroundMode = settings?.background_mode ?? false;
+    
+    console.log(`[Telegram] Processing message from ${telegramUser.user_id}`);
+    console.log(`[Telegram] Message: ${messageText.substring(0, 100)}...`);
+    console.log(`[Telegram] Background mode: ${backgroundMode} (from settings: ${JSON.stringify(settings)})`);
     
     // Send "typing" indicator
     await this.bot.sendChatAction(chatId, 'typing');
@@ -377,10 +393,6 @@ Use /background to enable background mode for the next request. This is useful f
     try {
       // Create a new generation for this request
       const generationId = randomUUID();
-      
-      console.log(`[Telegram] Processing message from ${telegramUser.user_id}`);
-      console.log(`[Telegram] Message: ${messageText.substring(0, 100)}...`);
-      console.log(`[Telegram] Background mode: ${backgroundMode}`);
       
       // Create generation record
       const { error: createError } = await supabase
