@@ -769,7 +769,7 @@ export const TerminalPage: React.FC = () => {
       {/* Left Sidebar - Chat History */}
       <div className="chat-history-sidebar">
         <div className="sidebar-header">
-          <div className="logo-section">
+          <div className="logo-section" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <span className="logo-icon phosphor-glow">⬡</span>
             <span className="logo-text">CODEFORGE</span>
           </div>
