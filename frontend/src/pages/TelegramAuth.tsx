@@ -199,8 +199,7 @@ export default function TelegramAuth() {
               <div className="error-section">
                 <div className="ascii-error text-error phosphor-glow mb-md">
                   <pre>
-{`    ╔═══════════════════════════════════════╗
-    ║         ✗  LINK FAILED               ║
+{`    ╔═══════════════════════════════════════╗                                         
     ║                                       ║
     ║    Authentication could not be        ║
     ║    completed. Please try again.       ║
