@@ -141,8 +141,12 @@ export const useRealtimeJob = ({
     const unsubChatProgress = wsClient.on('chat:progress', (message) => {
       const data = message.data;
       
+      console.log(`💬 Chat progress received:`, message);
+      console.log(`💬 Chat progress data:`, data);
+      console.log(`💬 Progress messages:`, data.progressMessages);
+      
       if (data.jobId === jobId) {
-        console.log(`💬 Chat progress:`, data);
+        console.log(`💬 Chat progress for current job:`, data);
         onProgressRef.current?.(data); // Use ref
       }
     });
