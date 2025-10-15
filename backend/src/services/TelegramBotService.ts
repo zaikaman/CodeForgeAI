@@ -323,12 +323,15 @@ Use /background to enable background mode for the next request. This is useful f
     console.log(`  New: ${newBackgroundMode}`);
     
     // Upsert settings and verify the result
+    // Use onConflict to specify which column to use for the upsert (telegram_user_id has UNIQUE constraint)
     const { error: upsertError } = await supabase
       .from('telegram_settings')
       .upsert({
         telegram_user_id: telegramUser.id,
         background_mode: newBackgroundMode,
         updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'telegram_user_id'
       });
     
     if (upsertError) {
