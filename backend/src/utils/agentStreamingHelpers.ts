@@ -1,0 +1,468 @@
+/**
+ * Streaming helper utilities for ADK agents with real-time progress updates
+ * Captures function calls, responses, and agent thoughts for detailed visibility
+ */
+
+interface StreamingOptions {
+  maxRetries?: number;
+  retryDelay?: number;
+  context?: string;
+  onProgress?: (update: ProgressUpdate) => void | Promise<void>;
+}
+
+export interface ProgressUpdate {
+  type: 'thought' | 'tool_call' | 'tool_result' | 'error';
+  content: string;
+  toolName?: string;
+  toolArgs?: any;
+  toolResult?: any;
+  timestamp: number;
+}
+
+export interface StreamingAgentResponse {
+  files?: Array<{ path: string; content: string }>;
+  summary: string;
+  needsSpecialist?: boolean;
+  specialistAgent?: string;
+  [key: string]: any; // Allow additional fields from GitHubAgent
+}
+
+/**
+ * Safely call an agent with streaming progress updates
+ * Captures and reports ALL intermediate events: thoughts, tool calls, tool results
+ * 
+ * IMPORTANT: This requires the NEW ADK runner API returned from AgentBuilder.build()
+ * which includes { agent, runner, session, sessionService }
+ */
+export async function safeAgentCallWithStreaming(
+  builtAgent: any, // Should be BuiltAgent from AgentBuilder.build()
+  message: any,
+  options: StreamingOptions = {}
+): Promise<StreamingAgentResponse> {
+  const {
+    maxRetries = 3,
+    retryDelay = 1000,
+    context = 'Agent',
+    onProgress,
+  } = options;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[${context}] Streaming attempt ${attempt}/${maxRetries}...`);
+      
+      const startTime = Date.now();
+      let finalResponse: any = null;
+      let eventCount = 0;
+
+      // Extract runner and session from built agent
+      const runner = builtAgent.runner || builtAgent;
+      const session = builtAgent.session;
+
+      // Check what methods are available
+      const hasAskMethod = typeof runner.ask === 'function';
+      const hasRunAsyncMethod = typeof runner.runAsync === 'function';
+
+      if (!hasAskMethod && !hasRunAsyncMethod) {
+        throw new Error('Runner must have either ask() or runAsync() method');
+      }
+
+      console.log(`[${context}] Using ${hasAskMethod ? 'ask()' : 'runAsync()'} method`);
+
+      // Prefer ask() for simplicity (already handles sessions internally)
+      if (hasAskMethod) {
+        // Simple API: runner.ask() - handles sessions automatically
+        // Note: This doesn't support mid-stream progress, only tool call logging
+        console.log(`[${context}] Using simplified ask() API`);
+        
+        if (onProgress) {
+          await onProgress({
+            type: 'thought',
+            content: '🤔 Processing request...',
+            timestamp: Date.now(),
+          });
+        }
+
+        const response = await runner.ask(message);
+        
+        // Response is already the final structured output (Zod schema validated)
+        console.log(`[${context}] Got response from ask():`, typeof response);
+        
+        const duration = Date.now() - startTime;
+        console.log(`[${context}] Completed in ${duration}ms`);
+        
+        return response as StreamingAgentResponse;
+        
+      } else if (hasRunAsyncMethod && session) {
+        // Full API: runner.runAsync() - supports true streaming
+        console.log(`[${context}] Using full runAsync() API with session streaming`);
+        
+        // Ensure message has correct format
+        const newMessage = typeof message === 'string' 
+          ? { role: 'user', parts: [{ text: message }] }
+          : message.parts 
+            ? message 
+            : { role: 'user', parts: [{ text: String(message) }] };
+
+        // Stream events from the runner using the existing session
+        for await (const event of runner.runAsync({
+          userId: session.userId,
+          sessionId: session.id,
+          newMessage,
+          runConfig: { maxTurns: 20 }, // Allow multiple turns for complex operations
+        })) {
+          eventCount++;
+          
+          // Process each event type
+          await processEvent(event, context, onProgress);
+          
+          // Check if this is the final response
+          if (event.isFinalResponse?.()) {
+            console.log(`[${context}] Final response received (event #${eventCount})`);
+            finalResponse = event;
+          }
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`[${context}] Streaming completed in ${duration}ms (${eventCount} events)`);
+
+        if (!finalResponse) {
+          throw new Error('No final response received from agent');
+        }
+
+        // Extract response from final event
+        const normalized = await extractResponse(finalResponse, context);
+        
+        console.log(`[${context}] Response validated successfully`);
+        return normalized;
+      } else {
+        throw new Error('runAsync() requires session from AgentBuilder.build()');
+      }
+
+    } catch (error: any) {
+      lastError = error;
+      
+      console.error(`[${context}] Streaming attempt ${attempt} failed:`, error.message);
+      
+      // Check if it's a recoverable error
+      const isRecoverable = isRecoverableError(error);
+      
+      if (!isRecoverable || attempt >= maxRetries) {
+        console.error(`[${context}] Error is not recoverable or max retries reached`);
+        break;
+      }
+
+      // Wait before retrying (exponential backoff)
+      const delay = retryDelay * Math.pow(2, attempt - 1);
+      console.log(`[${context}] Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  // All retries failed
+  throw new Error(
+    `${context} failed after ${maxRetries} attempts. Last error: ${lastError?.message || 'Unknown error'}`
+  );
+}
+
+/**
+ * Process a single event and emit progress updates
+ */
+async function processEvent(
+  event: any,
+  context: string,
+  onProgress?: (update: ProgressUpdate) => void | Promise<void>
+): Promise<void> {
+  if (!event || !event.content || !event.content.parts) {
+    return;
+  }
+
+  const parts = event.content.parts;
+  
+  for (const part of parts) {
+    // Handle text (agent thoughts/reasoning)
+    if (part.text) {
+      console.log(`[${context}] 💭 Thought:`, part.text.substring(0, 200));
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'thought',
+          content: part.text,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Handle function calls (tool invocations)
+    if (part.functionCall) {
+      const toolName = part.functionCall.name;
+      const toolArgs = part.functionCall.args || {};
+      
+      console.log(`[${context}] 🔧 Tool Call: ${toolName}`);
+      console.log(`[${context}]    Args:`, JSON.stringify(toolArgs, null, 2).substring(0, 300));
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'tool_call',
+          content: formatToolCall(toolName, toolArgs),
+          toolName,
+          toolArgs,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Handle function responses (tool results)
+    if (part.functionResponse) {
+      const toolName = part.functionResponse.name;
+      const toolResult = part.functionResponse.response;
+      
+      console.log(`[${context}] ✅ Tool Result: ${toolName}`);
+      console.log(`[${context}]    Result:`, JSON.stringify(toolResult, null, 2).substring(0, 300));
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'tool_result',
+          content: formatToolResult(toolName, toolResult),
+          toolName,
+          toolResult,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Handle code execution results
+    if (part.codeExecutionResult) {
+      console.log(`[${context}] 🖥️ Code Execution:`, part.codeExecutionResult.output?.substring(0, 200));
+      
+      if (onProgress) {
+        await onProgress({
+          type: 'tool_result',
+          content: `Code executed:\n${part.codeExecutionResult.output || 'No output'}`,
+          toolName: 'code_execution',
+          toolResult: part.codeExecutionResult,
+          timestamp: Date.now(),
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Format tool call for display
+ */
+function formatToolCall(toolName: string, args: any): string {
+  const formattedArgs = formatArgs(args);
+  return `🔧 Calling ${toolName}${formattedArgs}`;
+}
+
+/**
+ * Format tool result for display
+ */
+function formatToolResult(toolName: string, result: any): string {
+  if (!result) {
+    return `✅ ${toolName} completed (no result)`;
+  }
+
+  // Handle string results
+  if (typeof result === 'string') {
+    const preview = result.length > 200 ? result.substring(0, 200) + '...' : result;
+    return `✅ ${toolName} result:\n${preview}`;
+  }
+
+  // Handle object results with useful info
+  if (typeof result === 'object') {
+    const summary = extractSummary(result);
+    return `✅ ${toolName} ${summary}`;
+  }
+
+  return `✅ ${toolName} completed`;
+}
+
+/**
+ * Format arguments for display
+ */
+function formatArgs(args: any): string {
+  if (!args || Object.keys(args).length === 0) {
+    return '';
+  }
+
+  const entries = Object.entries(args);
+  if (entries.length === 1) {
+    const [key, value] = entries[0];
+    return ` (${key}: ${formatValue(value)})`;
+  }
+
+  const formatted = entries
+    .map(([key, value]) => `${key}: ${formatValue(value)}`)
+    .join(', ');
+  
+  return ` (${formatted})`;
+}
+
+/**
+ * Format a single value for display
+ */
+function formatValue(value: any): string {
+  if (value === null || value === undefined) {
+    return String(value);
+  }
+
+  if (typeof value === 'string') {
+    return value.length > 50 ? `"${value.substring(0, 50)}..."` : `"${value}"`;
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.length} items]`;
+  }
+
+  if (typeof value === 'object') {
+    return `{${Object.keys(value).length} keys}`;
+  }
+
+  return String(value);
+}
+
+/**
+ * Extract useful summary from result object
+ */
+function extractSummary(result: any): string {
+  // Check for common result patterns
+  if (result.success !== undefined) {
+    return result.success ? 'succeeded' : 'failed';
+  }
+
+  if (result.count !== undefined) {
+    return `returned ${result.count} items`;
+  }
+
+  if (result.matches !== undefined) {
+    return `found ${result.matches} matches`;
+  }
+
+  if (result.files !== undefined) {
+    const count = Array.isArray(result.files) ? result.files.length : result.files;
+    return `returned ${count} files`;
+  }
+
+  if (result.content !== undefined) {
+    const length = result.content.length;
+    return `returned ${length} bytes`;
+  }
+
+  if (result.url !== undefined) {
+    return `URL: ${result.url}`;
+  }
+
+  if (result.number !== undefined) {
+    return `#${result.number}`;
+  }
+
+  // Default: show keys
+  const keys = Object.keys(result);
+  if (keys.length <= 3) {
+    return `returned: ${keys.join(', ')}`;
+  }
+
+  return `returned ${keys.length} properties`;
+}
+
+/**
+ * Extract final response from event
+ */
+async function extractResponse(event: any, context: string): Promise<StreamingAgentResponse> {
+  console.log(`[${context}] Extracting response from final event...`);
+
+  if (!event.content || !event.content.parts) {
+    throw new Error('Final event has no content or parts');
+  }
+
+  // Look for text response (structured JSON output from agent)
+  let responseText = '';
+  for (const part of event.content.parts) {
+    if (part.text) {
+      responseText += part.text;
+    }
+  }
+
+  if (!responseText) {
+    throw new Error('No text response in final event');
+  }
+
+  console.log(`[${context}] Response text (${responseText.length} chars):`, responseText.substring(0, 300));
+
+  // Try to parse as JSON
+  let response: any;
+  try {
+    // Remove markdown code fences if present
+    let jsonStr = responseText.trim();
+    if (jsonStr.startsWith('```')) {
+      const lines = jsonStr.split('\n');
+      lines.shift(); // Remove first ```json or ```
+      if (lines[lines.length - 1].trim() === '```') {
+        lines.pop(); // Remove last ```
+      }
+      jsonStr = lines.join('\n');
+    }
+
+    response = JSON.parse(jsonStr);
+    console.log(`[${context}] Successfully parsed response as JSON`);
+  } catch (parseError: any) {
+    console.error(`[${context}] JSON parse failed:`, parseError.message);
+    console.error(`[${context}] First 500 chars:`, responseText.substring(0, 500));
+    throw new Error(`Invalid JSON response: ${parseError.message}`);
+  }
+
+  // Validate it's an object
+  if (!response || typeof response !== 'object') {
+    throw new Error(`Response is not an object (type: ${typeof response})`);
+  }
+
+  // Ensure summary exists
+  if (!response.summary || typeof response.summary !== 'string') {
+    console.error(`[${context}] Response keys:`, Object.keys(response));
+    throw new Error('Response missing required "summary" property');
+  }
+
+  return response;
+}
+
+/**
+ * Check if an error is recoverable (worth retrying)
+ */
+function isRecoverableError(error: any): boolean {
+  const message = error.message?.toLowerCase() || '';
+  
+  // Schema validation errors might be recoverable
+  if (message.includes('schema validation') || 
+      message.includes('zod validation') ||
+      message.includes('json parse')) {
+    return true;
+  }
+
+  // Network errors are recoverable
+  if (message.includes('timeout') ||
+      message.includes('network') ||
+      message.includes('econnreset') ||
+      message.includes('enotfound')) {
+    return true;
+  }
+
+  // Rate limit errors are recoverable
+  if (message.includes('rate limit') ||
+      message.includes('429')) {
+    return true;
+  }
+
+  // Server errors might be temporary
+  if (message.includes('500') ||
+      message.includes('502') ||
+      message.includes('503') ||
+      message.includes('504')) {
+    return true;
+  }
+
+  // Other errors are probably not recoverable
+  return false;
+}

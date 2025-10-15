@@ -7,6 +7,7 @@ import { ChatAgent } from '../agents/specialized/ChatAgent';
 import { ChatMemoryManager } from './ChatMemoryManager';
 import { supabase } from '../storage/SupabaseClient';
 import { safeAgentCall } from '../utils/agentHelpers';
+import { safeAgentCallWithStreaming, type ProgressUpdate } from '../utils/agentStreamingHelpers';
 import { cleanFiles } from '../utils/contentCleaner';
 import { fetchMultipleFilesAsBase64 } from '../utils/fileProcessing';
 import JobEventEmitter from './JobEventEmitter';
@@ -230,7 +231,7 @@ class ChatQueueManager {
   /**
    * Emit progress update for realtime frontend tracking
    */
-  private async emitProgress(jobId: string, agent: string, status: 'started' | 'completed' | 'error', message: string): Promise<void> {
+  private async emitProgress(jobId: string, agent: string, status: 'started' | 'processing' | 'completed' | 'error', message: string): Promise<void> {
     try {
       const progressMessage = {
         timestamp: new Date().toISOString(),
@@ -271,62 +272,6 @@ class ChatQueueManager {
    * Makes the UI look like GitHubAgent is orchestrating multiple agents
    * Keep it simple: ChatAgent → GitHubAgent → 1 specialist agent
    */
-  private async emitFakeGitHubProgress(jobId: string, message: string): Promise<void> {
-    const lowerMessage = message.toLowerCase();
-    
-    // Determine which fake agent to show based on the task (keep it simple - just 1 agent)
-    let fakeProgressSteps: Array<{ agent: string; message: string; delay: number }> = [];
-    
-    // Documentation-related tasks: ChatAgent → GitHubAgent → DocWeaver
-    if (lowerMessage.includes('doc') || lowerMessage.includes('readme') || lowerMessage.includes('translate')) {
-      fakeProgressSteps = [
-        { agent: 'DocWeaverAgent', message: 'Analyzing and generating documentation...', delay: 400 },
-        { agent: 'DocWeaverAgent', message: 'Finalizing documentation content ✓', delay: 800 },
-      ];
-    }
-    // Test-related tasks: ChatAgent → GitHubAgent → TestCrafter
-    else if (lowerMessage.includes('test') || lowerMessage.includes('testing') || lowerMessage.includes('unit test')) {
-      fakeProgressSteps = [
-        { agent: 'TestCrafterAgent', message: 'Analyzing code and creating test cases...', delay: 400 },
-        { agent: 'TestCrafterAgent', message: 'Finalizing test suite ✓', delay: 800 },
-      ];
-    }
-    // Complex code tasks: ChatAgent → GitHubAgent → ComplexCoder
-    else if (lowerMessage.includes('complex') || lowerMessage.includes('architect') || lowerMessage.includes('system') || lowerMessage.includes('framework')) {
-      fakeProgressSteps = [
-        { agent: 'ComplexCoderAgent', message: 'Designing and implementing complex logic...', delay: 500 },
-        { agent: 'ComplexCoderAgent', message: 'Finalizing code structure ✓', delay: 1000 },
-      ];
-    }
-    // Simple code tasks: ChatAgent → GitHubAgent → SimpleCoder
-    else if (lowerMessage.includes('code') || lowerMessage.includes('implement') || lowerMessage.includes('add feature') || lowerMessage.includes('write') || lowerMessage.includes('create')) {
-      fakeProgressSteps = [
-        { agent: 'SimpleCoderAgent', message: 'Generating code implementation...', delay: 400 },
-        { agent: 'SimpleCoderAgent', message: 'Finalizing code ✓', delay: 700 },
-      ];
-    }
-    // General GitHub operations (no additional agent needed)
-    else {
-      // No fake agents for simple operations like fork, PR, etc.
-      fakeProgressSteps = [];
-    }
-    
-    // Emit the fake progress updates with delays
-    for (const step of fakeProgressSteps) {
-      await new Promise(resolve => setTimeout(resolve, step.delay));
-      await this.emitProgress(jobId, step.agent, 'started', step.message);
-      
-      // Short delay before marking as completed
-      await new Promise(resolve => setTimeout(resolve, step.delay * 0.6));
-      await this.emitProgress(jobId, step.agent, 'completed', step.message);
-    }
-    
-    // Final delay before GitHubAgent continues
-    if (fakeProgressSteps.length > 0) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-  }
-
   /**
    * Process a single chat job
    */
@@ -601,15 +546,41 @@ class ChatQueueManager {
             job.imageUrls
           );
           
-          await this.emitFakeGitHubProgress(job.id, job.message);
+          // ⚠️ REMOVED FAKE PROGRESS - Now using REAL agent thoughts!
+          // await this.emitFakeGitHubProgress(job.id, job.message);
           
           const { GitHubAgent } = await import('../agents/specialized/GitHubAgent');
-          const { runner } = await GitHubAgent(job.githubContext);
+          const builtAgent = await GitHubAgent(job.githubContext);
           
-          const response = await safeAgentCall(runner, contextMessage, {
+          // Use streaming API to get real-time agent thoughts
+          const response = await safeAgentCallWithStreaming(builtAgent, contextMessage, {
             maxRetries: 3,
             retryDelay: 1000,
-            context: 'ChatQueue/GitHubAgent'
+            context: 'ChatQueue/GitHubAgent',
+            onProgress: async (update: ProgressUpdate) => {
+              // Emit real-time progress based on update type
+              switch (update.type) {
+                case 'thought':
+                  // Agent's reasoning/analysis
+                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', update.content);
+                  break;
+                  
+                case 'tool_call':
+                  // Tool being invoked
+                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', update.content);
+                  break;
+                  
+                case 'tool_result':
+                  // Tool result received
+                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', update.content);
+                  break;
+                  
+                case 'error':
+                  // Error occurred
+                  await this.emitProgress(job.id, 'GitHubAgent', 'error', `❌ ${update.content}`);
+                  break;
+              }
+            }
           }) as any;
           
           // 🚨 CRITICAL: Ignore "files" field if PR was created
