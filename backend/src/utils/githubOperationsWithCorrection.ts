@@ -12,6 +12,7 @@ import {
   withAutoRetry,
   LLMCallFunction,
 } from './githubSelfCorrection';
+import { unescapeContent } from './contentCleaner';
 
 /**
  * Get file content with self-correction for path issues
@@ -77,12 +78,16 @@ export async function createOrUpdateFileWithCorrection(
     async () => {
       return await executeWithSelfCorrection(
         async (p) => {
+          // 🔧 CRITICAL: Unescape literal \n, \t, etc. before encoding to base64
+          // AI sometimes generates content like "line1\\nline2" instead of actual newlines
+          const cleanedContent = unescapeContent(p.content);
+          
           const response = await octokit.repos.createOrUpdateFileContents({
             owner: p.owner,
             repo: p.repo,
             path: p.path,
             message: p.message,
-            content: Buffer.from(p.content).toString('base64'),
+            content: Buffer.from(cleanedContent).toString('base64'),
             branch: p.branch,
             sha: p.sha,
           });
