@@ -12,7 +12,8 @@ import { useGenerationStore } from '../stores/generationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { useChatJobPolling } from '../hooks/useChatJobPolling';
+import { useRealtimeJob } from '../hooks/useRealtimeJob';
+import { useRealtimeJobsList } from '../hooks/useRealtimeJobsList';
 import { useSoundEffects } from '../hooks/useSoundEffects';
 import apiClient from '../services/apiClient';
 import { uploadMultipleFiles, validateFile } from '../services/fileUploadService';
@@ -100,33 +101,13 @@ export const TerminalPage: React.FC = () => {
     return gen;
   }, [id, currentGeneration, getGenerationById, history]);
 
-  // Poll active jobs count (even when panel is closed)
-  useEffect(() => {
-    if (!user) return;
-
-    const pollActiveJobs = async () => {
-      try {
-        const response = await apiClient.getUserJobs(user.id);
-        if (response.success && response.data) {
-          const jobs = response.data.jobs;
-          const activeCount = jobs.filter((job: any) => 
-            job.status === 'processing' || job.status === 'pending'
-          ).length;
-          setActiveJobsCount(activeCount);
-        }
-      } catch (error) {
-        console.error('Error polling active jobs count:', error);
-      }
-    };
-
-    // Initial fetch
-    pollActiveJobs();
-
-    // Poll every 5 seconds
-    const interval = setInterval(pollActiveJobs, 5000);
-
-    return () => clearInterval(interval);
-  }, [user]);
+  // Realtime active jobs updates (no polling!)
+  useRealtimeJobsList({
+    enabled: !!user,
+    onActiveJobsChange: (count) => {
+      setActiveJobsCount(count);
+    },
+  });
 
   // Load chat sessions - reload when ID changes (NOT on every message)
   useEffect(() => {
@@ -161,15 +142,15 @@ export const TerminalPage: React.FC = () => {
     }
   }, [messages, autoScroll]);
 
-  // Use custom hook to poll chat job directly from Supabase
-  // This avoids backend timeout limits
-  useChatJobPolling({
+  // Use realtime WebSocket updates (no polling!)
+  useRealtimeJob({
     jobId: currentJobId,
     enabled: isProcessing && !!currentJobId,
-    pollInterval: 500, // Poll every 500ms for smooth progress updates
-    maxAttempts: 1000, // 2 minutes max (500ms * 240 = 120s)
-    onProgressUpdate: (messages) => {
-      setProgressMessages(messages);
+    fallbackToPolling: true, // Auto-fallback if WebSocket fails
+    onProgress: (data) => {
+      if (data.progressMessages) {
+        setProgressMessages(data.progressMessages);
+      }
     },
     onComplete: (result) => {
       console.log('✅ Chat job completed:', result);

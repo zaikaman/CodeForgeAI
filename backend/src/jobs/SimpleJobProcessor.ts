@@ -2,6 +2,13 @@ import { supabase } from '../storage/SupabaseClient';
 import { chatQueue } from '../services/ChatQueue';
 import { randomUUID } from 'crypto';
 import { getTelegramBot } from '../services/TelegramBotService';
+import {
+  emitJobStarted,
+  emitJobProgress,
+  emitJobCompleted,
+  emitJobFailed,
+  emitJobsListUpdate,
+} from '../services/RealtimeJobEmitter';
 
 interface BackgroundJob {
   id: string;
@@ -91,6 +98,9 @@ export class SimpleJobProcessor {
       
       await this.processJob(job);
       
+      // Emit jobs list update after processing
+      await emitJobsListUpdate(job.user_id);
+      
     } catch (error: any) {
       console.error('❌ Error in processNextJob:', error);
     } finally {
@@ -113,6 +123,10 @@ export class SimpleJobProcessor {
         progress: 10,
       });
       
+      // 🔔 Emit realtime event: Job started
+      await emitJobStarted(job.user_id, job.id, 'Job started processing');
+      await emitJobsListUpdate(job.user_id);
+      
       // Update generation to processing
       await supabase
         .from('generations')
@@ -129,6 +143,10 @@ export class SimpleJobProcessor {
       // Use ChatQueue to process (same as normal chat)
       // This ensures full routing through ChatAgent → GitHubAgent/SimpleCoder/etc.
       await this.updateJob(job.id, { progress: 20, logs });
+      
+      // 🔔 Emit realtime progress
+      await emitJobProgress(job.user_id, job.id, 20, 'Submitting to ChatQueue...');
+      
       logs.push(`[${new Date().toISOString()}] Submitting to ChatQueue...`);
       
       // Create a NEW chat job ID (can't reuse background job ID due to unique constraint)
@@ -146,6 +164,10 @@ export class SimpleJobProcessor {
       });
       
       await this.updateJob(job.id, { progress: 30, logs });
+      
+      // 🔔 Emit realtime progress
+      await emitJobProgress(job.user_id, job.id, 30, 'Chat job created, processing...');
+      
       logs.push(`[${new Date().toISOString()}] Chat job ${chatJobId} created, waiting for completion...`);
       
       // Poll chat job status until completed
@@ -163,6 +185,11 @@ export class SimpleJobProcessor {
           // Update progress based on chat job progress
           const progress = Math.min(90, 30 + (attempts * 2)); // 30% → 90%
           await this.updateJob(job.id, { progress, logs });
+          
+          // 🔔 Emit realtime progress every 10 attempts (every ~20s)
+          if (attempts % 10 === 0) {
+            await emitJobProgress(job.user_id, job.id, progress, 'Processing request...');
+          }
           
           if (chatJob.status === 'completed') {
             chatJobCompleted = true;
@@ -202,6 +229,16 @@ export class SimpleJobProcessor {
             
             console.log(`✅ Job ${job.id} completed successfully`);
             console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
+            
+            // 🔔 Emit realtime completion event
+            await emitJobCompleted(
+              job.user_id,
+              job.id,
+              job.session_id,
+              chatJob.result,
+              duration
+            );
+            await emitJobsListUpdate(job.user_id);
             
             // Send Telegram notification if chat_id is available
             const telegramChatId = job.context?.telegram_chat_id;
@@ -263,6 +300,16 @@ export class SimpleJobProcessor {
       
       console.error(`❌ Job ${job.id} failed:`, error.message);
       console.error(`   Duration: ${(duration / 1000).toFixed(2)}s`);
+      
+      // 🔔 Emit realtime failure event
+      await emitJobFailed(
+        job.user_id,
+        job.id,
+        job.session_id,
+        error.message,
+        duration
+      );
+      await emitJobsListUpdate(job.user_id);
       
       // Send Telegram notification if chat_id is available
       const telegramChatId = job.context?.telegram_chat_id;

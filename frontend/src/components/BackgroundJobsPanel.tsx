@@ -1,26 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
 import { useUIStore } from '../stores/uiStore';
+import { useRealtimeJobsList } from '../hooks/useRealtimeJobsList';
 import './BackgroundJobsPanel.css';
-
-interface Job {
-  id: string;
-  user_id: string;
-  session_id: string;
-  type: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  user_message: string;
-  context?: any;
-  result?: any;
-  error?: string;
-  logs?: string[];
-  progress: number;
-  created_at: string;
-  started_at?: string;
-  completed_at?: string;
-  updated_at: string;
-}
 
 interface BackgroundJobsPanelProps {
   onClose: () => void;
@@ -30,93 +13,48 @@ interface BackgroundJobsPanelProps {
 export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClose, onActiveJobsCountChange }) => {
   const { user } = useAuthContext();
   const { showToast } = useUIStore();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previousJobStatusesRef = useRef<Record<string, string>>({});
 
-  // Fetch user's jobs
-  const fetchJobs = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    try {
-      const response = await apiClient.getUserJobs(user.id);
+  // Use realtime WebSocket updates (no polling!)
+  const { 
+    jobs: realtimeJobs,
+    loading: realtimeLoading,
+    refresh,
+    isConnected 
+  } = useRealtimeJobsList({
+    enabled: !!user,
+    onActiveJobsChange: (count) => {
+      onActiveJobsCountChange?.(count);
+    },
+  });
+
+  const jobs = realtimeJobs;
+  const loading = realtimeLoading;
+
+  // Show notifications on job status changes
+  useEffect(() => {
+    jobs.forEach(job => {
+      const previousStatus = previousJobStatusesRef.current[job.id];
       
-      if (response.success && response.data) {
-        const newJobs = response.data.jobs as Job[];
-        
-        // Check for status changes and show notifications
-        newJobs.forEach(job => {
-          const previousStatus = previousJobStatusesRef.current[job.id];
-          
-          // New job started processing
-          if (previousStatus === 'pending' && job.status === 'processing') {
-            showToast('info', `🚀 Background job started: ${job.user_message.substring(0, 50)}...`, 4000);
-          }
-          
-          // Job completed successfully
-          if ((previousStatus === 'processing' || previousStatus === 'pending') && job.status === 'completed') {
-            showToast('success', `✅ Background job completed: ${job.user_message.substring(0, 50)}...`, 6000);
-          }
-          
-          // Job failed
-          if ((previousStatus === 'processing' || previousStatus === 'pending') && job.status === 'failed') {
-            showToast('error', `❌ Background job failed: ${job.user_message.substring(0, 50)}...`, 6000);
-          }
-          
-          // Update previous status
-          previousJobStatusesRef.current[job.id] = job.status;
-        });
-        
-        setJobs(newJobs);
-        
-        // Notify parent of active jobs count
-        const activeCount = newJobs.filter(j => j.status === 'processing' || j.status === 'pending').length;
-        if (onActiveJobsCountChange) {
-          onActiveJobsCountChange(activeCount);
-        }
-      } else {
-        console.error('Failed to fetch jobs:', response.error);
+      // New job started processing
+      if (previousStatus === 'pending' && job.status === 'processing') {
+        showToast('info', `🚀 Background job started: ${job.user_message.substring(0, 50)}...`, 4000);
       }
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      fetchJobs();
-    }
-  }, [user]);
-
-  // Auto-refresh when there are active jobs
-  useEffect(() => {
-    const hasActiveJobs = jobs.some(j => j.status === 'processing' || j.status === 'pending');
-    
-    if (hasActiveJobs && user) {
-      // Poll every 2 seconds when there are active jobs
-      pollingIntervalRef.current = setInterval(() => {
-        console.log('🔄 Auto-refreshing jobs (active jobs detected)');
-        fetchJobs();
-      }, 2000);
-    } else {
-      // Clear interval when no active jobs
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
+      
+      // Job completed successfully
+      if ((previousStatus === 'processing' || previousStatus === 'pending') && job.status === 'completed') {
+        showToast('success', `✅ Background job completed: ${job.user_message.substring(0, 50)}...`, 6000);
       }
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+      
+      // Job failed
+      if ((previousStatus === 'processing' || previousStatus === 'pending') && job.status === 'failed') {
+        showToast('error', `❌ Background job failed: ${job.user_message.substring(0, 50)}...`, 6000);
       }
-    };
-  }, [jobs, user]);
+      
+      // Update previous status
+      previousJobStatusesRef.current[job.id] = job.status;
+    });
+  }, [jobs, showToast]);
 
   // Cancel a job
   const handleCancelJob = async (jobId: string) => {
@@ -124,8 +62,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
       const response = await apiClient.cancelJob(jobId);
       
       if (response.success) {
-        // Refresh jobs
-        fetchJobs();
+        refresh(); // Refresh jobs list
       } else {
         console.error('Failed to cancel job:', response.error);
       }
@@ -140,8 +77,7 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
       const response = await apiClient.retryJob(jobId);
       
       if (response.success) {
-        // Refresh jobs
-        fetchJobs();
+        refresh(); // Refresh jobs list
       } else {
         console.error('Failed to retry job:', response.error);
       }
@@ -193,10 +129,13 @@ export const BackgroundJobsPanel: React.FC<BackgroundJobsPanelProps> = ({ onClos
                 {activeJobs.length} active
               </span>
             )}
+            {isConnected && (
+              <span className="text-xs text-green-400">● realtime</span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchJobs}
+              onClick={refresh}
               disabled={loading}
               className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
             >
