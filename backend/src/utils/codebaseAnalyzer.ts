@@ -57,18 +57,29 @@ export class CodebaseAnalyzer {
   async analyzeCodebase(
     owner: string,
     repo: string,
-    branch: string = 'main'
+    branch?: string
   ): Promise<CodebaseAnalysis> {
-    const cacheKey = `${owner}/${repo}/${branch}`;
-    
-    // Check cache
-    if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey);
-    }
-
-    console.log(`[CodebaseAnalyzer] Analyzing ${owner}/${repo} on branch ${branch}`);
-
     try {
+      // If no branch specified, get default branch
+      if (!branch) {
+        const { data: repoInfo } = await this.octokit.repos.get({
+          owner,
+          repo,
+        });
+        branch = repoInfo.default_branch;
+        console.log(`[CodebaseAnalyzer] Using default branch: ${branch}`);
+      }
+
+      const cacheKey = `${owner}/${repo}/${branch}`;
+      
+      // Check cache
+      if (this.cache.has(cacheKey)) {
+        console.log(`[CodebaseAnalyzer] Using cached analysis for ${owner}/${repo}/${branch}`);
+        return this.cache.get(cacheKey);
+      }
+
+      console.log(`[CodebaseAnalyzer] Analyzing ${owner}/${repo} on branch ${branch}`);
+
       // Get repository tree
       const { data: branchData } = await this.octokit.repos.getBranch({
         owner,

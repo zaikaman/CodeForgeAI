@@ -45,11 +45,13 @@ Returns comprehensive analysis:
 - Build tools and test frameworks
 - Recommendations for approaching the codebase
 
-This tool provides the "big picture" understanding needed before making changes.`,
+This tool provides the "big picture" understanding needed before making changes.
+
+NOTE: Automatically detects the default branch (main/master) if not specified.`,
       schema: z.object({
         owner: z.string().describe('Repository owner'),
         repo: z.string().describe('Repository name'),
-        branch: z.string().optional().default('main').describe('Branch to analyze'),
+        branch: z.string().optional().describe('Branch to analyze (auto-detects default if not provided)'),
       }),
       fn: async (args) => {
         try {
