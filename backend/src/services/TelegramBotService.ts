@@ -669,6 +669,14 @@ Click the button below to sign in:
   }
   
   /**
+   * Escape special characters for Telegram Markdown
+   */
+  private escapeMarkdown(text: string): string {
+    // Escape special Markdown characters
+    return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+  }
+  
+  /**
    * Send notification to a Telegram user
    * (Called from background job processor when job completes)
    */
@@ -685,12 +693,15 @@ Click the button below to sign in:
     const status = success ? 'completed' : 'failed';
     const webUrl = `${process.env.FRONTEND_URL || 'https://codeforge-adk.vercel.app'}/terminal/${generationId}`;
     
+    // Escape the message content to prevent Markdown parsing errors
+    const safeMessage = message ? this.escapeMarkdown(message) : '';
+    
     const notification = `
 ${emoji} **Background job ${status}!**
 
 Job ID: \`${jobId}\`
 
-${message || ''}
+${safeMessage}
 
 View in web app: ${webUrl}
     `.trim();
@@ -699,6 +710,23 @@ View in web app: ${webUrl}
       await this.bot.sendMessage(chatId, notification, { parse_mode: 'Markdown' });
     } catch (error: any) {
       console.error('[Telegram] Failed to send notification:', error.message);
+      
+      // Fallback: Try sending without Markdown parsing
+      try {
+        const plainNotification = `
+${emoji} Background job ${status}!
+
+Job ID: ${jobId}
+
+${message || ''}
+
+View in web app: ${webUrl}
+        `.trim();
+        
+        await this.bot.sendMessage(chatId, plainNotification);
+      } catch (fallbackError: any) {
+        console.error('[Telegram] Failed to send notification (fallback):', fallbackError.message);
+      }
     }
   }
 }
