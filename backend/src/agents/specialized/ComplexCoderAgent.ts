@@ -56,10 +56,41 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
   // Enhance with GitHub tools
   const enhancedPrompt = enhancePromptWithGitHub(escapedSystemPrompt, options?.githubContext || null);
   
+  // Add TypeScript-only restriction for ComplexCoderAgent
+  const typeScriptOnlyRule = `
+
+<complex_coder_restrictions>
+  CRITICAL: ComplexCoderAgent can ONLY generate TypeScript-based applications.
+  
+  ❌ FORBIDDEN:
+  - Simple HTML/CSS/JS applications (index.html + styles.css + script.js)
+  - Vanilla JavaScript without build tools
+  - Static websites without frameworks
+  - Single-page HTML files with inline scripts
+  
+  ✅ REQUIRED:
+  - Must use TypeScript (React, Vue, or other TypeScript frameworks)
+  - Must have proper build configuration (Vite, package.json)
+  - Must include TypeScript types and interfaces
+  - Must use modern framework patterns (components, hooks, state management)
+  
+  If the user requests a simple HTML app, you must:
+  1. Respond with an error message explaining this agent only handles TypeScript projects
+  2. Suggest they use the SimpleCoder agent instead for HTML/CSS/JS apps
+  3. Do NOT attempt to generate the simple HTML app
+  
+  Example rejection response:
+  {{
+    "error": "ComplexCoderAgent can only generate TypeScript applications. For simple HTML/CSS/JS apps, please use the SimpleCoder agent instead. This agent is designed for complex projects using React, Vue, or other TypeScript frameworks."
+  }}
+</complex_coder_restrictions>
+`;
+  
   // Apply smart compression
   const combinedPrompt = enhancedPrompt + 
                          '\n\n' + escapedValidationRules + 
-                         '\n\n' + escapedChecklist;
+                         '\n\n' + escapedChecklist +
+                         '\n\n' + typeScriptOnlyRule;
   
   const finalPrompt = smartCompress(combinedPrompt);
   
