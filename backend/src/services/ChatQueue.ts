@@ -8,6 +8,7 @@ import { ChatMemoryManager } from './ChatMemoryManager';
 import { supabase } from '../storage/SupabaseClient';
 import { safeAgentCall } from '../utils/agentHelpers';
 import { cleanFiles } from '../utils/contentCleaner';
+import { fetchMultipleFilesAsBase64 } from '../utils/fileProcessing';
 
 interface ChatJob {
   id: string;
@@ -374,34 +375,19 @@ class ChatQueueManager {
         let chatMessage: any;
         
         if (allImageUrls.length > 0) {
-          console.log(`[ChatQueue] Including ${allImageUrls.length} images (${job.imageUrls?.length || 0} current + ${historyImageUrls.length} from history)`);
+          console.log(`[ChatQueue] Including ${allImageUrls.length} file(s)/image(s) (${job.imageUrls?.length || 0} current + ${historyImageUrls.length} from history)`);
           
-          // Download images and convert to base64
-          const imageParts = await Promise.all(
-            allImageUrls.map(async (url) => {
-              try {
-                const response = await globalThis.fetch(url);
-                const arrayBuffer = await response.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                const base64 = buffer.toString('base64');
-                const contentType = response.headers.get('content-type') || 'image/jpeg';
-                
-                return {
-                  inline_data: {
-                    mime_type: contentType,
-                    data: base64
-                  }
-                };
-              } catch (error) {
-                console.error(`[ChatQueue] Failed to fetch image from ${url}:`, error);
-                return null;
-              }
-            })
-          );
+          // Download files/images and convert to base64 using utility function
+          const validFileParts = await fetchMultipleFilesAsBase64(allImageUrls, 'ChatQueue');
           
-          const validImageParts = imageParts.filter(part => part !== null);
-          const textPart = { text: contextMessage };
-          chatMessage = { parts: [textPart, ...validImageParts] };
+          if (validFileParts.length === 0) {
+            console.warn(`[ChatQueue] ⚠️ WARNING: No valid files could be loaded, proceeding without attachments`);
+            chatMessage = contextMessage;
+          } else {
+            console.log(`[ChatQueue] Successfully loaded ${validFileParts.length}/${allImageUrls.length} file(s)`);
+            const textPart = { text: contextMessage };
+            chatMessage = { parts: [textPart, ...validFileParts] };
+          }
         } else {
           chatMessage = contextMessage;
         }

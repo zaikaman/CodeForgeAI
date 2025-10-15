@@ -16,6 +16,7 @@ import { formatCodeFiles, shouldFormatFile } from '../utils/prettier-formatter'
 import { supabase } from '../storage/SupabaseClient'
 import { escapeAdkTemplateVariables } from '../utils/adkEscaping'
 import { cleanContent, hasEscapedCharacters } from '../utils/contentCleaner'
+import { fetchMultipleFilesAsBase64 } from '../utils/fileProcessing'
 
 export class GenerateWorkflow {
   private readonly VALIDATION_ENABLED = true // Enable fast validation (< 2s overhead)
@@ -1009,35 +1010,18 @@ Return the result as JSON with the following structure:
       // Build message with images if provided
       let message: any
       if (imageUrls && imageUrls.length > 0) {
-        console.log(`[SpecInterpreter] Processing with ${imageUrls.length} image(s)`)
+        console.log(`[SpecInterpreter] Processing with ${imageUrls.length} file(s)/image(s)`)
         
-        const imageParts = await Promise.all(
-          imageUrls.map(async (url: string) => {
-            try {
-              const response = await globalThis.fetch(url)
-              const arrayBuffer = await response.arrayBuffer()
-              const buffer = Buffer.from(arrayBuffer)
-              const base64 = buffer.toString('base64')
-              const contentType = response.headers.get('content-type') || 'image/jpeg'
-
-              return {
-                inline_data: {
-                  mime_type: contentType,
-                  data: base64,
-                },
-              }
-            } catch (error) {
-              console.error(`[SpecInterpreter] Failed to fetch image from ${url}:`, error)
-              return null
-            }
-          })
-        )
-
-        const validImageParts = imageParts.filter(part => part !== null)
-        const textPart = { text: analysisPrompt }
-        message = { parts: [textPart, ...validImageParts] }
+        const validFileParts = await fetchMultipleFilesAsBase64(imageUrls, 'SpecInterpreter');
         
-        console.log(`[SpecInterpreter] Built multipart message with ${validImageParts.length} image(s)`)
+        if (validFileParts.length === 0) {
+          console.warn(`[SpecInterpreter] No valid files loaded, proceeding without attachments`);
+          message = analysisPrompt;
+        } else {
+          const textPart = { text: analysisPrompt };
+          message = { parts: [textPart, ...validFileParts] };
+          console.log(`[SpecInterpreter] Built multipart message with ${validFileParts.length} file(s)`);
+        }
       } else {
         message = analysisPrompt
       }
@@ -1207,39 +1191,22 @@ Return the result as JSON with the following structure:
 
         if (request.imageUrls && request.imageUrls.length > 0) {
           // Download images and convert to base64
-          const imageParts = await Promise.all(
-            request.imageUrls.map(async (url: string) => {
-              try {
-                const response = await globalThis.fetch(url)
-                const arrayBuffer = await response.arrayBuffer()
-                const buffer = Buffer.from(arrayBuffer)
-                const base64 = buffer.toString('base64')
-                const contentType = response.headers.get('content-type') || 'image/jpeg'
+          console.log(`Fetching ${request.imageUrls.length} file(s)/image(s) for ${agentName}...`);
+          const validFileParts = await fetchMultipleFilesAsBase64(request.imageUrls, agentName);
 
-                return {
-                  inline_data: {
-                    mime_type: contentType,
-                    data: base64,
-                  },
-                }
-              } catch (error) {
-                console.error(`Failed to fetch image from ${url}:`, error)
-                return null
-              }
-            })
-          )
+          if (validFileParts.length === 0) {
+            console.warn(`[${agentName}] No valid files loaded, proceeding without attachments`);
+            message = this.buildUserMessage(request, lastError, attempt);
+          } else {
+            // Build message with text and files
+            const textPart = {
+              text: this.buildUserMessage(request, lastError, attempt),
+            };
 
-          // Filter out failed downloads
-          const validImageParts = imageParts.filter(part => part !== null)
-
-          // Build message with text and images
-          // Keep it simple - agents have their own system prompts
-          const textPart = {
-            text: this.buildUserMessage(request, lastError, attempt),
-          }
-
-          message = {
-            parts: [textPart, ...validImageParts],
+            message = {
+              parts: [textPart, ...validFileParts],
+            };
+            console.log(`[${agentName}] Built multipart message with ${validFileParts.length} file(s)`);
           }
         } else {
           // Text-only message - lightweight user request
@@ -1484,31 +1451,17 @@ Return the complete updated codebase as JSON:
         // Build message with images if provided
         let message: any
         if (request.imageUrls && request.imageUrls.length > 0) {
-          const imageParts = await Promise.all(
-            request.imageUrls.map(async (url: string) => {
-              try {
-                const response = await globalThis.fetch(url)
-                const arrayBuffer = await response.arrayBuffer()
-                const buffer = Buffer.from(arrayBuffer)
-                const base64 = buffer.toString('base64')
-                const contentType = response.headers.get('content-type') || 'image/jpeg'
-
-                return {
-                  inline_data: {
-                    mime_type: contentType,
-                    data: base64,
-                  },
-                }
-              } catch (error) {
-                console.error(`Failed to fetch image from ${url}:`, error)
-                return null
-              }
-            })
-          )
-
-          const validImageParts = imageParts.filter(part => part !== null)
-          const textPart = { text: contextMessage }
-          message = { parts: [textPart, ...validImageParts] }
+          console.log(`Fetching ${request.imageUrls.length} file(s)/image(s) for CodeModificationAgent...`);
+          const validFileParts = await fetchMultipleFilesAsBase64(request.imageUrls, 'CodeModificationAgent');
+          
+          if (validFileParts.length === 0) {
+            console.warn(`[CodeModificationAgent] No valid files loaded, proceeding without attachments`);
+            message = contextMessage;
+          } else {
+            const textPart = { text: contextMessage };
+            message = { parts: [textPart, ...validFileParts] };
+            console.log(`[CodeModificationAgent] Built multipart message with ${validFileParts.length} file(s)`);
+          }
         } else {
           message = contextMessage
         }
