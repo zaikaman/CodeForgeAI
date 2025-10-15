@@ -39,31 +39,34 @@ export const useRealtimeJob = ({
     hasErroredRef.current = false;
   }, [jobId]);
 
-  // Connect to WebSocket
+  // Connect to WebSocket (only once per app lifetime)
   useEffect(() => {
     if (!enabled || !user) return;
 
+    let mounted = true;
+
     const connectWebSocket = async () => {
       try {
-        if (!wsClient.getConnectionStatus()) {
-          await wsClient.connect({
-            reconnection: true,
-            reconnectionAttempts: 3,
-            reconnectionDelay: 2000,
-          });
-        }
+        // Connect (will reuse existing connection if already connected)
+        await wsClient.connect({
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 2000,
+        });
+        
+        if (!mounted) return;
         
         // Join user-specific room
         wsClient.emit('join:user', user.id);
         setIsConnected(true);
         setUsePollingFallback(false);
         
-        console.log('✅ WebSocket connected for realtime job updates');
+        console.log('✅ WebSocket ready for realtime job updates');
       } catch (error: any) {
-        console.error('❌ WebSocket connection failed:', error);
+        if (!mounted) return;
+        console.warn('⚠️ WebSocket unavailable, using polling fallback');
         
         if (fallbackToPolling) {
-          console.log('⚠️ Falling back to polling mode');
           setUsePollingFallback(true);
         }
       }
@@ -72,7 +75,7 @@ export const useRealtimeJob = ({
     connectWebSocket();
 
     return () => {
-      // Don't disconnect on unmount - keep connection alive for other components
+      mounted = false;
     };
   }, [enabled, user, fallbackToPolling]);
 

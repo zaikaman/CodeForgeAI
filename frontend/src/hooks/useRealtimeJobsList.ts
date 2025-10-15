@@ -52,30 +52,34 @@ export const useRealtimeJobsList = ({
     }
   }, [user, onActiveJobsChange]);
 
-  // Connect to WebSocket
+  // Connect to WebSocket (only once per app lifetime)
   useEffect(() => {
     if (!enabled || !user) return;
 
+    let mounted = true;
+
     const connectWebSocket = async () => {
       try {
-        if (!wsClient.getConnectionStatus()) {
-          await wsClient.connect({
-            reconnection: true,
-            reconnectionAttempts: 3,
-            reconnectionDelay: 2000,
-          });
-        }
+        // Connect (will reuse existing connection if already connected)
+        await wsClient.connect({
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 2000,
+        });
+        
+        if (!mounted) return;
         
         // Join user-specific room
         wsClient.emit('join:user', user.id);
         setIsConnected(true);
         
-        console.log('✅ WebSocket connected for realtime jobs list updates');
+        console.log('✅ WebSocket ready for realtime jobs list updates');
         
         // Initial fetch
         fetchJobs();
       } catch (error: any) {
-        console.error('❌ WebSocket connection failed:', error);
+        if (!mounted) return;
+        console.warn('⚠️ WebSocket unavailable, using API polling:', error.message);
         
         // Still do initial fetch even if WebSocket fails
         fetchJobs();
@@ -83,6 +87,10 @@ export const useRealtimeJobsList = ({
     };
 
     connectWebSocket();
+    
+    return () => {
+      mounted = false;
+    };
   }, [enabled, user, fetchJobs]);
 
   // Subscribe to jobs list updates
