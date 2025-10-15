@@ -226,6 +226,6 @@ Output format:
 }`
 
 export const QualityAssuranceAgentADK = AgentBuilder.create('QualityAssuranceAgent')
-  .withModel('gpt-5-mini') // Fast model for validation
+  .withModel('gpt-5-nano') // Fast model for validation
   .withInstruction(systemPrompt)
   .build()

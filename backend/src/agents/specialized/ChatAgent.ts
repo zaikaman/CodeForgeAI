@@ -346,7 +346,7 @@ export const ChatAgent = async (
   
   let finalPrompt = systemPrompt;
   let builder = AgentBuilder.create('ChatAgent')
-    .withModel('gpt-5-mini')
+    .withModel('gpt-5-nano')
     .withOutputSchema(chatResponseSchema as any);
   
   // Add GitHub tools if context provided

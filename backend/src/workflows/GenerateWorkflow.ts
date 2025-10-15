@@ -1369,7 +1369,7 @@ Return the result as JSON with the following structure:
           files: finalFiles,
           confidence: 0.8,
           metadata: {
-            generatedBy: 'AI Agent (gpt-5-mini)',
+            generatedBy: 'AI Agent (gpt-5-nano)',
             formatted: !this.usedSimpleCoder,
             formattedCount: this.usedSimpleCoder ? 0 : finalFiles.length,
             attempt: attempt,
@@ -1611,7 +1611,7 @@ Return the complete updated codebase as JSON:
           files: finalFiles,
           confidence: 0.85,
           metadata: {
-            generatedBy: 'CodeModificationAgent (gpt-5-mini)',
+            generatedBy: 'CodeModificationAgent (gpt-5-nano)',
             formatted: true,
             formattedCount: formattedFiles.length,
             attempt: attempt,
@@ -1775,7 +1775,7 @@ Return a structured response with all test files and a summary.`
         metadata: {
           testCount,
           fileCount: response.files.length,
-          generatedBy: 'TestCrafterAgent (gpt-5-mini)',
+          generatedBy: 'TestCrafterAgent (gpt-5-nano)',
         },
       }
     } catch (error) {

@@ -17,9 +17,9 @@
 ```typescript
 import { AgentBuilder } from '@iqai/adk';
 
-// Simple agent with gpt-5-mini
+// Simple agent with gpt-5-nano
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withSystemPrompt('You are a code generation expert.')
   .withTemperature(0.2)
   .withMaxTokens(4096)
@@ -55,7 +55,7 @@ const parseCodeTool = createTool({
 
 // Agent with tool
 const codeAgent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withTools([parseCodeTool])
   .withSystemPrompt('You can parse TypeScript code using the parseCode tool.')
   .build();
@@ -70,19 +70,19 @@ import { AgentBuilder, SequentialAgent } from '@iqai/adk';
 
 // Create specialized agents
 const specInterpreter = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withSystemPrompt('Analyze specifications and extract requirements.')
   .withTemperature(0.2)
   .build();
 
 const codeGenerator = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withSystemPrompt('Generate code based on requirements.')
   .withTemperature(0.2)
   .build();
 
 const testCrafter = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withSystemPrompt('Create comprehensive tests for generated code.')
   .withTemperature(0.3)
   .build();
@@ -108,7 +108,7 @@ const result = await workflow.run('Create a user authentication module...');
 import { AgentBuilder } from '@iqai/adk';
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .build();
 
 const { runner } = agent;
@@ -139,7 +139,7 @@ const outputSchema = z.object({
 });
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withOutputSchema(outputSchema)
   .build();
 
@@ -170,7 +170,7 @@ await memory.add({
 
 // Agent with memory
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withMemory(memory)
   .withSystemPrompt('Use project context to generate consistent code.')
   .build();
@@ -187,7 +187,7 @@ const result = await agent.runner.run('Create a user service');
 ```bash
 # .env file
 OPENAI_API_KEY=sk-...your-api-key...
-LLM_MODEL=gpt-5-mini
+LLM_MODEL=gpt-5-nano
 ADK_LOG_LEVEL=info
 ```
 
@@ -223,7 +223,7 @@ const validatorAgent = AgentBuilder.withMaxTokens(256);
 import { AgentBuilder } from '@iqai/adk';
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .build();
 
 try {
@@ -251,7 +251,7 @@ import { AgentBuilder } from '@iqai/adk';
 
 // Enable verbose logging
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withDebug(true) // Shows all LLM calls
   .build();
 
@@ -305,13 +305,13 @@ import { AgentBuilder, ParallelAgent } from '@iqai/adk';
 
 // Create multiple agents with different perspectives
 const agents = await Promise.all([
-  AgentBuilder.withModel('gpt-5-mini')
+  AgentBuilder.withModel('gpt-5-nano')
     .withSystemPrompt('Focus on code quality and maintainability.')
     .build(),
-  AgentBuilder.withModel('gpt-5-mini')
+  AgentBuilder.withModel('gpt-5-nano')
     .withSystemPrompt('Focus on performance and optimization.')
     .build(),
-  AgentBuilder.withModel('gpt-5-mini')
+  AgentBuilder.withModel('gpt-5-nano')
     .withSystemPrompt('Focus on security and best practices.')
     .build(),
 ]);
@@ -325,7 +325,7 @@ const opinions = await debateAgent.run('Review this code...');
 
 // Lead agent resolves debate
 const leadAgent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .withSystemPrompt('Synthesize opinions and make final decision.')
   .build();
 
@@ -340,7 +340,7 @@ const finalDecision = await leadAgent.runner.run(
 import { AgentBuilder } from '@iqai/adk';
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-mini')
+  .withModel('gpt-5-nano')
   .build();
 
 let context = 'Project: User Management System\n';
