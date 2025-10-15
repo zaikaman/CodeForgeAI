@@ -34,7 +34,7 @@ export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
   console.log(`[SimpleCoderAgent] Prompt loaded: ${promptTime}ms (${finalPrompt.length} chars)`);
   
   let builder = AgentBuilder.create('SimpleCoderAgent')
-    .withModel('gpt-5-nano')
+    .withModel('gpt-5-mini')
     .withInstruction(finalPrompt)
     .withOutputSchema(generationSchema);
   

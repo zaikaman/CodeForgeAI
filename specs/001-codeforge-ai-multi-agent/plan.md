@@ -3,7 +3,7 @@
 - **AI Framework**: Local `adk-ts` clone (from `../adk-ts`) - Hierarchical multi-agent orchestration
   - **Note**: Using local development version instead of npm package
   - **Includes**: Built-in OpenAI SDK integration (no separate `openai` package needed)
-- **AI Model**: `gpt-5-nano` - Accessed via ADK-TS `AgentBuilder.withModel('gpt-5-nano')`Multi-Agent System
+- **AI Model**: `gpt-5-mini` - Accessed via ADK-TS `AgentBuilder.withModel('gpt-5-mini')`Multi-Agent System
 
 **Branch**: `001-codeforge-ai-multi-agent` | **Date**: 2025-10-07 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-codeforge-ai-multi-agent/spec.md`
@@ -40,7 +40,7 @@
 
 **Technical Approach**: 
 - **Architecture**: Monolithic Node.js backend with modular agent system, thin clients (CLI/Web/VSCode)
-- **AI Framework**: ADK-TS v2+ with hierarchical multi-agent workflows using OpenAI gpt-5-nano exclusively
+- **AI Framework**: ADK-TS v2+ with hierarchical multi-agent workflows using OpenAI gpt-5-mini exclusively
 - **Agent System**: Lead orchestrator + 8 specialized agents (SpecInterpreter, CodeGenerator, BugHunter, RefactorGuru, SecuritySentinel, PerformanceProfiler, TestCrafter, DocWeaver) with debate-driven consensus
 - **Code Intelligence**: ts-morph for AST parsing/generation, local vector embeddings via @xenova/transformers
 - **Interfaces**: Commander.js CLI, React/Vite web UI with Monaco editor, VS Code extension

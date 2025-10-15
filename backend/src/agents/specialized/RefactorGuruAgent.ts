@@ -28,7 +28,7 @@ export const RefactorGuruAgent = async (options?: RefactorGuruOptions) => {
   const systemPrompt = enhancePromptWithGitHub(baseSystemPrompt, options?.githubContext || null);
   
   let builder = AgentBuilder.create('RefactorGuruAgent')
-    .withModel('gpt-5-nano')
+    .withModel('gpt-5-mini')
     .withInstruction(systemPrompt)
     .withTools(patternMatcherTool);
   

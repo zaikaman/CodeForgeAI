@@ -1,4 +1,4 @@
-# ADK-TS gpt-5-nano Support
+# ADK-TS gpt-5-mini Support
 
 **Date Modified**: 2025-10-07  
 **Status**: ✅ Complete  
@@ -85,30 +85,30 @@ Supported OpenAI model patterns: [
 ]
 
 Model matching tests:
-  gpt-5-nano: ✅ SUPPORTED
+  gpt-5-mini: ✅ SUPPORTED
   gpt-5-turbo: ✅ SUPPORTED
   gpt-5-large: ✅ SUPPORTED
 ```
 
 ### Instance Creation
-✅ OpenAiLlm can be instantiated with gpt-5-nano:
+✅ OpenAiLlm can be instantiated with gpt-5-mini:
 ```javascript
-const llm = new OpenAiLlm('gpt-5-nano');
-console.log(llm.model); // Output: "gpt-5-nano"
+const llm = new OpenAiLlm('gpt-5-mini');
+console.log(llm.model); // Output: "gpt-5-mini"
 ```
 
 ---
 
 ## Usage in CodeForge AI
 
-Now you can use `gpt-5-nano` throughout the project:
+Now you can use `gpt-5-mini` throughout the project:
 
 ### Agent Creation
 ```typescript
 import { AgentBuilder } from '@iqai/adk';
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-nano')  // ✅ Now fully supported
+  .withModel('gpt-5-mini')  // ✅ Now fully supported
   .withSystemPrompt('You are a code generation expert.')
   .withTemperature(0.2)
   .build();
@@ -117,22 +117,22 @@ const agent = await AgentBuilder
 ### Hierarchical Agents
 ```typescript
 const leadAgent = await AgentBuilder
-  .withModel('gpt-5-nano')
+  .withModel('gpt-5-mini')
   .withSystemPrompt('Lead Engineer Agent')
   .build();
 
 const codeGenerator = await AgentBuilder
-  .withModel('gpt-5-nano')
+  .withModel('gpt-5-mini')
   .withSystemPrompt('Code Generator Agent')
   .build();
 ```
 
 ### Model Registry
-The ADK-TS LLMRegistry will automatically resolve `gpt-5-nano`:
+The ADK-TS LLMRegistry will automatically resolve `gpt-5-mini`:
 ```typescript
 import { LLMRegistry } from '@iqai/adk';
 
-const llm = LLMRegistry.newLLM('gpt-5-nano'); // ✅ Works!
+const llm = LLMRegistry.newLLM('gpt-5-mini'); // ✅ Works!
 ```
 
 ---
@@ -141,7 +141,7 @@ const llm = LLMRegistry.newLLM('gpt-5-nano'); // ✅ Works!
 
 ### Pattern Matching
 The regex pattern `gpt-5.*` matches:
-- ✅ `gpt-5-nano`
+- ✅ `gpt-5-mini`
 - ✅ `gpt-5-turbo`
 - ✅ `gpt-5-large`
 - ✅ `gpt-5` (base model)
@@ -175,7 +175,7 @@ The regex pattern `gpt-5.*` matches:
 
 - **No separate OpenAI SDK needed**: ADK-TS includes `openai@^5.20.0` internally
 - **API Key**: Set `OPENAI_API_KEY` environment variable
-- **Model availability**: Ensure OpenAI API actually supports `gpt-5-nano` when deployed
+- **Model availability**: Ensure OpenAI API actually supports `gpt-5-mini` when deployed
 - **Examples unchanged**: Didn't modify ADK-TS examples or env files as requested
 
 ---
