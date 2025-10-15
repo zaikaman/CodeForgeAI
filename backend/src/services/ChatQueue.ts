@@ -682,7 +682,16 @@ class ChatQueueManager {
           }
           await this.emitProgress(job.id, 'GitHubAgent', 'completed', finalMessage);
           
-          console.log(`[ChatQueue] GitHubAgent completed for job ${job.id}`);
+          // 🔔 Emit final complete event so frontend shows full response
+          JobEventEmitter.emitComplete(job.userId, {
+            jobId: job.id,
+            sessionId: job.generationId, // Use generationId as sessionId
+            success: true,
+            result: job.result,
+            timestamp: new Date().toISOString(),
+          });
+          
+          console.log(`[ChatQueue] GitHubAgent completed for job ${job.id}, emitted complete event`);
           return;
         }
         
