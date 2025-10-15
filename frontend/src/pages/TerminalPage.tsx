@@ -1311,11 +1311,6 @@ export const TerminalPage: React.FC = () => {
                       <DeployButton
                         projectId={id}
                         files={generation.response.files}
-                        projectStatus={
-                          generation.status === 'error' ? 'failed' : 
-                          generation.status === 'generating' ? 'processing' : 
-                          generation.status as 'pending' | 'processing' | 'completed' | 'failed'
-                        }
                         initialDeploymentUrl={deploymentData.url}
                         initialDeploymentStatus={deploymentData.status}
                         onDeployComplete={(url: string) => {

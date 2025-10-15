@@ -4,7 +4,6 @@ import apiClient from '../services/apiClient';
 interface DeployButtonProps {
   projectId: string;
   files: Array<{ path: string; content: string }>;
-  projectStatus?: 'pending' | 'processing' | 'completed' | 'failed';
   initialDeploymentUrl?: string | null;
   initialDeploymentStatus?: 'pending' | 'deploying' | 'deployed' | 'failed' | null;
   onDeployStart?: () => void;
@@ -16,7 +15,6 @@ interface DeployButtonProps {
 export function DeployButton({
   projectId,
   files,
-  projectStatus = 'pending',
   initialDeploymentUrl,
   initialDeploymentStatus,
   onDeployStart,
@@ -90,19 +88,6 @@ export function DeployButton({
       return;
     }
 
-    // Check if project is completed
-    if (projectStatus !== 'completed') {
-      const statusMessage = projectStatus === 'processing' 
-        ? 'Project is still generating. Please wait...'
-        : projectStatus === 'failed'
-        ? 'Project generation failed. Cannot deploy.'
-        : 'Project must be completed before deployment.';
-      
-      console.warn('[DeployButton]', statusMessage);
-      onDeployError?.(statusMessage);
-      return;
-    }
-
     try {
       setIsDeploying(true);
       updateStatus('deploying');
@@ -157,10 +142,6 @@ export function DeployButton({
   }, [initialDeploymentUrl, initialDeploymentStatus]);
 
   const getButtonText = () => {
-    if (projectStatus !== 'completed' && deployStatus === 'idle') {
-      return projectStatus === 'processing' ? 'GENERATING...' : 'NOT READY';
-    }
-    
     switch (deployStatus) {
       case 'deploying':
         return 'DEPLOYING...';
@@ -187,7 +168,7 @@ export function DeployButton({
   return (
     <button
       onClick={handleDeploy}
-      disabled={isDeploying || !files || files.length === 0 || (projectStatus !== 'completed' && deployStatus === 'idle')}
+      disabled={isDeploying || !files || files.length === 0}
       className={`
         px-6 py-2 rounded-lg font-medium text-white text-sm
         ${getButtonColor()}
@@ -195,10 +176,6 @@ export function DeployButton({
         transition-colors duration-200
         flex items-center gap-2
       `}
-      title={projectStatus !== 'completed' && deployStatus === 'idle' 
-        ? 'Project must be completed before deployment' 
-        : undefined
-      }
     >
       {isDeploying && (
         <svg
