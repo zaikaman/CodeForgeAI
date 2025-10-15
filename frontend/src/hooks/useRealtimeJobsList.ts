@@ -29,6 +29,12 @@ export const useRealtimeJobsList = ({
   // Track if we're currently fetching to prevent duplicate requests
   const isFetchingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Stable reference to callback to prevent useEffect re-runs
+  const onActiveJobsChangeRef = useRef(onActiveJobsChange);
+  useEffect(() => {
+    onActiveJobsChangeRef.current = onActiveJobsChange;
+  }, [onActiveJobsChange]);
 
   // Fetch jobs from API (initial load or manual refresh)
   const fetchJobs = useCallback(async () => {
@@ -69,7 +75,7 @@ export const useRealtimeJobsList = ({
         ).length;
         
         setActiveCount(active);
-        onActiveJobsChange?.(active);
+        onActiveJobsChangeRef.current?.(active); // Use ref instead of direct callback
       }
     } catch (error: any) {
       if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
@@ -82,7 +88,7 @@ export const useRealtimeJobsList = ({
       setLoading(false);
       abortControllerRef.current = null;
     }
-  }, [user, onActiveJobsChange]);
+  }, [user]); // Remove onActiveJobsChange from dependencies
 
   // Connect to WebSocket (only once per app lifetime)
   useEffect(() => {
@@ -146,14 +152,14 @@ export const useRealtimeJobsList = ({
         
         setJobs(data.jobs);
         setActiveCount(data.activeCount);
-        onActiveJobsChange?.(data.activeCount);
+        onActiveJobsChangeRef.current?.(data.activeCount); // Use ref instead
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [enabled, user, isConnected, onActiveJobsChange]);
+  }, [enabled, user, isConnected]); // Remove onActiveJobsChange dependency
 
   // Fallback polling (optional, disabled by default)
   useEffect(() => {
