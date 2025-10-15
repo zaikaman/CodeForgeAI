@@ -18,6 +18,8 @@ class WebSocketClient {
   private socket: Socket | null = null
   private url: string
   private isConnected: boolean = false
+  private isConnecting: boolean = false
+  private connectionPromise: Promise<void> | null = null
   private messageHandlers: Map<string, Set<(message: WebSocketMessage) => void>> = new Map()
   private connectionHandlers: Set<() => void> = new Set()
   private disconnectionHandlers: Set<() => void> = new Set()
@@ -29,14 +31,34 @@ class WebSocketClient {
   }
 
   /**
-   * Connect to WebSocket server
+   * Connect to WebSocket server (singleton - reuses existing connection)
    */
   async connect(options: ConnectionOptions = {}): Promise<void> {
+    // If already connected, just return
     if (this.socket?.connected) {
-      console.log('WebSocket already connected')
-      return
+      console.log('🔌 WebSocket already connected, reusing connection')
+      return Promise.resolve()
     }
 
+    // If currently connecting, wait for that connection
+    if (this.isConnecting && this.connectionPromise) {
+      console.log('⏳ WebSocket connection in progress, waiting...')
+      return this.connectionPromise
+    }
+
+    // Start new connection
+    this.isConnecting = true
+    this.connectionPromise = this._doConnect(options)
+
+    try {
+      await this.connectionPromise
+    } finally {
+      this.isConnecting = false
+      this.connectionPromise = null
+    }
+  }
+
+  private async _doConnect(options: ConnectionOptions): Promise<void> {
     // Get auth token
     const {
       data: { session },
@@ -59,6 +81,30 @@ class WebSocketClient {
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        console.warn('⚠️ WebSocket connection timeout')
+        reject(new Error('WebSocket connection timeout'))
+      }, 5000)
+
+      this.socket?.once('connect', () => {
+        clearTimeout(timeout)
+        this.isConnected = true
+        console.log('✅ WebSocket connected to', this.url)
+        resolve()
+      })
+
+      this.socket?.once('connect_error', (error) => {
+        clearTimeout(timeout)
+        console.error('❌ WebSocket connection error:', error)
+        reject(error)
+      })
+    })
+  }
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        console.warn('⚠️ WebSocket connection timeout')
+        reject(new Error('WebSocket connection timeout'))
+      }, 5000)
         console.warn('⚠️ WebSocket connection timeout - will retry');
         reject(new Error('WebSocket connection timeout'))
       }, 5000) // Reduced to 5s
