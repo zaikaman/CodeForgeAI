@@ -507,7 +507,7 @@ Use /background to enable background mode for the next request. This is useful f
               
               // If files were generated, send a link to view them
               if (job.result?.files && job.result.files.length > 0) {
-                const webUrl = `${process.env.FRONTEND_URL || 'https://codeforge-adk.vercel.app'}/project/${generationId}`;
+                const webUrl = `${process.env.FRONTEND_URL || 'https://codeforge-adk.vercel.app'}/terminal/${generationId}`;
                 await this.bot.sendMessage(
                   chatId,
                   `📁 **Generated ${job.result.files.length} files**\n\n` +
@@ -666,7 +666,7 @@ Click the button below to sign in:
     
     const emoji = success ? '✅' : '❌';
     const status = success ? 'completed' : 'failed';
-    const webUrl = `${process.env.FRONTEND_URL || 'https://codeforge-adk.vercel.app'}/project/${generationId}`;
+    const webUrl = `${process.env.FRONTEND_URL || 'https://codeforge-adk.vercel.app'}/terminal/${generationId}`;
     
     const notification = `
 ${emoji} **Background job ${status}!**
