@@ -610,12 +610,12 @@ Use /background to enable background mode for the next request. This is useful f
 
 To use CodeForge AI via Telegram, you need to sign in to our web interface first.
 
-**Why sign in?**
+Why sign in?
 • Link your Telegram account to your CodeForge account
 • Access your projects and generation history
 • Sync between web and Telegram
 
-**It's quick and secure!** 🔒
+It's quick and secure! 🔒
 
 Click the button below to sign in:
     `.trim();
