@@ -9,7 +9,20 @@ import { createTool } from '@iqai/adk';
 import { z } from 'zod';
 import { CodebaseAnalyzer } from './codebaseAnalyzer';
 import { createBotGitHubTools, BOT_GITHUB_TOOLS_DESCRIPTION } from './githubToolsWithBot';
+import { createGitHubFilePatcherTools } from './githubFilePatcherTools';
+import { performSmartEdit, SmartEditParams } from './githubSmartEditTool';
+import { performGitHubSearch, GitHubSearchParams, formatSearchResults } from './githubSearchTools';
+import { 
+  saveMemory, 
+  loadMemory, 
+  clearMemory, 
+  formatMemoryForDisplay,
+  SaveMemoryParams,
+  LoadMemoryParams,
+  MemoryData 
+} from './githubMemoryTool';
 import { getConfig } from './config';
+import { Octokit } from '@octokit/rest';
 
 /**
  * Create enhanced GitHub tools with codebase analysis
@@ -29,8 +42,335 @@ export function createEnhancedGitHubTools() {
   // Create analyzer instance
   const analyzer = new CodebaseAnalyzer(botToken);
 
+  // Get file patcher tools
+  const patcherTools = createGitHubFilePatcherTools();
+
+  // Create Octokit instance for smart edit
+  const octokit = new Octokit({ auth: botToken });
+
   // Add enhanced analysis tools
   const enhancedTools = [
+    // Smart Edit Tool - Uses 3 strategies + self-correction
+    createTool({
+      name: 'bot_github_smart_edit',
+      description: `🎯 INTELLIGENT FILE EDITING: Smart search-and-replace with 3 fallback strategies + self-correction
+
+**WHY USE THIS?**
+- ✅ Prevents code truncation issues
+- ✅ Automatically handles whitespace/indentation differences
+- ✅ Self-corrects when initial edit fails
+- ✅ Much more reliable than rewriting entire files
+
+**HOW IT WORKS:**
+1. **Exact Match** - Tries exact string matching first (fastest)
+2. **Flexible Match** - Tolerates whitespace/indentation differences
+3. **Regex Match** - Token-level matching with flexible whitespace
+4. **Self-Correction** - If all fail, uses LLM to fix search parameters
+
+**WHEN TO USE:**
+- Making targeted code changes
+- Fixing bugs in specific functions
+- Updating configuration values
+- Refactoring specific code blocks
+
+**PARAMETERS:**
+- owner/repo/filePath: Target file location
+- oldString: The exact code to find (include 3+ lines of context!)
+- newString: The replacement code
+- instruction: High-level goal (e.g., "Fix null pointer in getUserProfile")
+- branch: Branch to edit (optional)
+
+**IMPORTANT:** Include sufficient context in oldString to uniquely identify the code to change!`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        filePath: z.string().describe('Path to file to edit'),
+        oldString: z.string().describe('Exact code to replace (include 3+ lines context)'),
+        newString: z.string().describe('Replacement code'),
+        instruction: z.string().describe('High-level goal of this edit (for self-correction)'),
+        branch: z.string().optional().describe('Branch to edit (defaults to default branch)'),
+      }),
+      fn: async (args, context) => {
+        try {
+          const params: SmartEditParams = {
+            owner: args.owner,
+            repo: args.repo,
+            filePath: args.filePath,
+            oldString: args.oldString,
+            newString: args.newString,
+            instruction: args.instruction,
+            branch: args.branch,
+          };
+
+          // Create LLM call function for self-correction
+          const llmCall = async (systemPrompt: string, userPrompt: string): Promise<string> => {
+            // Use the agent's context to make LLM call
+            // This assumes context has a method to call the LLM
+            if (context && typeof (context as any).generateText === 'function') {
+              return await (context as any).generateText({
+                systemInstruction: systemPrompt,
+                prompt: userPrompt,
+                temperature: 0.1,
+              });
+            }
+            throw new Error('LLM context not available for self-correction');
+          };
+
+          const result = await performSmartEdit(octokit, params, llmCall);
+
+          if (result.success) {
+            return {
+              success: true,
+              newContent: result.newContent,
+              occurrences: result.occurrences,
+              strategy: result.strategy,
+              message: `✅ Smart edit succeeded using ${result.strategy} strategy (${result.occurrences} replacement${result.occurrences! > 1 ? 's' : ''})`,
+            };
+          } else {
+            return {
+              success: false,
+              error: result.error,
+              message: `❌ Smart edit failed: ${result.error}`,
+            };
+          }
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Smart edit error: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    // Advanced Search Tool - Multi-strategy search
+    createTool({
+      name: 'bot_github_advanced_search',
+      description: `🔍 ADVANCED CODE SEARCH: Multi-strategy search with automatic fallbacks
+
+**SEARCH STRATEGIES (Automatic):**
+1. **GitHub API** - Fast cloud-based search (tries first)
+2. **Git Grep** - Local search if repo is cloned (fallback)  
+3. **JavaScript** - Pure JS fallback (always works)
+
+**FEATURES:**
+- ✅ Regex pattern support
+- ✅ File pattern filtering (*.ts, *.{js,jsx})
+- ✅ Path-based filtering
+- ✅ Case-insensitive by default
+- ✅ Line number results
+- ✅ Grouped by file
+
+**USE CASES:**
+- Find function/class definitions
+- Search for specific patterns
+- Locate imports/dependencies
+- Find TODO/FIXME comments
+- Search error messages
+
+**EXAMPLES:**
+- Pattern: "function.*getUserProfile" (regex)
+- Pattern: "TODO" (plain text)
+- Include: "*.ts" (TypeScript files only)
+- Path: "src/components" (search in specific directory)
+
+**TIPS:**
+- Use regex for flexible matching
+- Add include pattern to limit scope
+- Results show line numbers for quick navigation`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        pattern: z.string().describe('Search pattern (regex or plain text)'),
+        path: z.string().optional().describe('Optional: search within specific path (e.g., "src/components")'),
+        include: z.string().optional().describe('Optional: file pattern to include (e.g., "*.ts", "*.{js,jsx}")'),
+        branch: z.string().optional().describe('Optional: branch to search (defaults to default branch)'),
+        isRegex: z.boolean().optional().describe('Whether pattern is regex (default: true)'),
+      }),
+      fn: async (args) => {
+        try {
+          const searchParams: GitHubSearchParams = {
+            owner: args.owner,
+            repo: args.repo,
+            pattern: args.pattern,
+            path: args.path,
+            include: args.include,
+            branch: args.branch,
+            isRegex: args.isRegex,
+          };
+
+          const result = await performGitHubSearch(octokit, searchParams);
+          const formatted = formatSearchResults(result);
+
+          return {
+            success: result.success,
+            strategy: result.strategy,
+            totalMatches: result.totalMatches,
+            matchesByFile: result.matchesByFile,
+            formatted,
+            message: formatted,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Search failed: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    // Memory Tools - Context persistence across sessions
+    createTool({
+      name: 'bot_github_save_memory',
+      description: `💾 SAVE MEMORY: Store important context for future reference
+
+**WHAT TO SAVE:**
+- 📁 **Project Context**: Repo structure, architecture, key files
+- 🔍 **Investigation Notes**: Findings, patterns, root causes
+- ✅ **Decisions Made**: Approaches chosen, alternatives considered
+- 💡 **Things to Remember**: User preferences, special requirements
+- 🧩 **Codebase Insights**: Complex logic explained, gotchas discovered
+
+**WHEN TO USE:**
+- After analyzing a complex codebase
+- When discovering important patterns
+- After making architectural decisions
+- When user shares preferences/requirements
+- When finding non-obvious code behavior
+
+**BENEFITS:**
+- ✅ Context persists across sessions
+- ✅ Avoid re-analyzing same code
+- ✅ Remember user preferences
+- ✅ Build knowledge over time
+
+**EXAMPLE ENTRIES:**
+- "Main entry point: src/index.ts exports App component"
+- "Database uses Supabase with RLS policies enabled"
+- "User prefers TypeScript strict mode and functional style"
+- "Auth flow: JWT stored in httpOnly cookie, refreshed on /api/refresh"`,
+      schema: z.object({
+        repoOwner: z.string().describe('Repository owner'),
+        repoName: z.string().describe('Repository name'),
+        section: z.enum([
+          'project_context',
+          'investigation_notes',
+          'decisions_made',
+          'things_to_remember',
+          'codebase_insights',
+        ]).describe('Memory section to save to'),
+        content: z.string().describe('What to remember (clear, concise statement)'),
+        timestamp: z.boolean().optional().describe('Add timestamp to entry (default: true)'),
+      }),
+      fn: async (args) => {
+        try {
+          const params: SaveMemoryParams = {
+            repoOwner: args.repoOwner,
+            repoName: args.repoName,
+            section: args.section,
+            content: args.content,
+            timestamp: args.timestamp,
+          };
+          
+          const result = await saveMemory(params);
+          return result;
+        } catch (error: any) {
+          return {
+            success: false,
+            message: `❌ Failed to save memory: ${error.message}`,
+            error: error.message,
+          };
+        }
+      },
+    }),
+
+    createTool({
+      name: 'bot_github_load_memory',
+      description: `📖 LOAD MEMORY: Retrieve saved context and insights
+
+**USE CASES:**
+- Resume work on a repository
+- Recall previous findings
+- Check past decisions
+- Load user preferences
+- Review codebase insights
+
+**RETURNS:**
+All saved memories organized by section, or specific section if requested.
+
+**TIP:** Always load memory at the start of complex tasks to avoid redundant work!`,
+      schema: z.object({
+        repoOwner: z.string().describe('Repository owner'),
+        repoName: z.string().describe('Repository name'),
+        section: z.enum([
+          'project_context',
+          'investigation_notes',
+          'decisions_made',
+          'things_to_remember',
+          'codebase_insights',
+        ]).optional().describe('Optional: load specific section only'),
+      }),
+      fn: async (args) => {
+        try {
+          const params: LoadMemoryParams = {
+            repoOwner: args.repoOwner,
+            repoName: args.repoName,
+            section: args.section,
+          };
+          
+          const result = await loadMemory(params);
+          
+          if (result.success && result.memory) {
+            // Format for display
+            const formatted = typeof result.memory === 'object' && !Array.isArray(result.memory)
+              ? formatMemoryForDisplay(result.memory as MemoryData)
+              : result.memory.join('\n');
+            
+            return {
+              ...result,
+              formatted,
+            };
+          }
+          
+          return result;
+        } catch (error: any) {
+          return {
+            success: false,
+            message: `❌ Failed to load memory: ${error.message}`,
+            error: error.message,
+          };
+        }
+      },
+    }),
+
+    createTool({
+      name: 'bot_github_clear_memory',
+      description: `🗑️ CLEAR MEMORY: Delete all saved context for a repository
+
+Use when:
+- Repository has been restructured
+- Starting fresh analysis
+- Memory is outdated/incorrect
+
+**WARNING:** This action cannot be undone!`,
+      schema: z.object({
+        repoOwner: z.string().describe('Repository owner'),
+        repoName: z.string().describe('Repository name'),
+      }),
+      fn: async (args) => {
+        try {
+          return await clearMemory(args.repoOwner, args.repoName);
+        } catch (error: any) {
+          return {
+            success: false,
+            message: `❌ Failed to clear memory: ${error.message}`,
+            error: error.message,
+          };
+        }
+      },
+    }),
+
     createTool({
       name: 'bot_github_analyze_codebase',
       description: `🧠 CRITICAL TOOL: Analyze entire codebase structure, architecture, and complexity.
@@ -355,7 +695,7 @@ Use when exploring unfamiliar codebase or tracking down bugs.`,
   ];
 
   return {
-    tools: [...botTools.tools, ...enhancedTools],
+    tools: [...botTools.tools, ...enhancedTools, ...patcherTools],
     botUsername: botTools.botUsername,
     botToken: botTools.botToken,
     analyzer, // Expose analyzer instance
@@ -408,37 +748,130 @@ ${BOT_GITHUB_TOOLS_DESCRIPTION}
 - Ranks results by relevance
 - **When to use**: Exploring unfamiliar codebase
 
+## 🎯 File Patching Tools (RECOMMENDED FOR CODE CHANGES!)
+
+**Instead of rewriting entire files, use surgical patches:**
+
+**1. github_patch_file_lines** ⭐ BEST FOR TARGETED FIXES
+- Modify specific line range in a file
+- **When to use**: Fixing a function, replacing specific code block
+- Example: Replace lines 45-60 in auth.js with fixed code
+- **Benefits**: No truncation, clear changes, reviewable PRs
+
+**2. github_patch_file_search_replace** ⭐ BEST FOR EXACT REPLACEMENTS  
+- Find and replace exact code
+- **When to use**: Replacing a function, updating specific values
+- Example: Find "function oldAuth() {..." replace with "function newAuth() {..."
+- **Benefits**: No line numbers needed, works even if file changes
+
+**3. github_patch_multiple_files**
+- Apply patches to multiple files at once
+- **When to use**: Multi-file related changes
+- Supports both line-range and search-replace
+
+**4. github_validate_patch**
+- Test a patch before applying
+- **When to use**: Verify patch will work before using
+- Returns preview and validation errors
+
+**💡 WHY USE PATCHES?**
+
+❌ **OLD WAY (Don't do this):**
+\`\`\`
+// Read entire file
+// Rewrite entire file with changes
+// Risk: File gets truncated with "# rest of file..."
+// Result: Broken PR, lost code
+\`\`\`
+
+✅ **NEW WAY (Do this):**
+\`\`\`
+// Read file
+// Create patch for exact lines/code to change
+// Apply patch (rest of file preserved)
+// Result: Clean PR, clear changes, no truncation
+\`\`\`
+
+**📋 RECOMMENDED WORKFLOW FOR CODE CHANGES:**
+
+\`\`\`
+Step 1: Read file (bot_github_get_file_content)
+Step 2: Identify exact change needed
+Step 3: Choose editing strategy:
+   
+   OPTION A - Smart Edit (RECOMMENDED for surgical changes):
+   → Use bot_github_smart_edit(path, oldString, newString, instruction)
+   → Handles whitespace differences automatically
+   → Self-corrects if search fails
+   → Best for targeted function/line changes
+   
+   OPTION B - Line-based Patch (for known line numbers):
+   → Use github_patch_file_lines(path, 45, 60, newCode, original)
+   → Good when you know exact line range
+   
+   OPTION C - Search-Replace Patch (for exact code):
+   → Use github_patch_file_search_replace(path, oldCode, newCode, original)
+   → Precise but requires exact match
+  
+Step 4: Push patched content (bot_github_push_to_fork)
+\`\`\`
+
 **📋 RECOMMENDED WORKFLOW FOR COMPLEX ISSUES:**
 
 \`\`\`
+Step 0: Load Context (if resuming work)
+→ Use bot_github_load_memory
+   - Retrieves previous findings
+   - Recalls decisions made
+   - Loads user preferences
+   - Avoids redundant analysis
+
 Step 1: Understand the Repository
 → Use bot_github_analyze_codebase
+→ SAVE findings: bot_github_save_memory(section='project_context')
 
 Step 2: Get Issue Details
 → Use bot_github_get_issue_context (if working on specific issue)
 
 Step 3: Find Relevant Code
-→ Use bot_github_find_related_files or bot_github_smart_file_search
+→ OPTION A: Use bot_github_advanced_search (RECOMMENDED)
+   - Supports regex patterns
+   - Multiple fallback strategies
+   - Returns line numbers
+   - Grouped results by file
+→ OPTION B: Use bot_github_find_related_files (keyword search)
+→ OPTION C: Use bot_github_smart_file_search (multi-pattern)
+→ SAVE findings: bot_github_save_memory(section='investigation_notes')
 
 Step 4: Analyze Key Files
 → Use bot_github_analyze_files_deep on identified files
+→ SAVE insights: bot_github_save_memory(section='codebase_insights')
 
 Step 5: Check Dependencies (if needed)
 → Use bot_github_analyze_dependencies
 
-Step 6: Read Specific Code
+Step 6: Plan & Decide
+→ Determine approach
+→ SAVE decision: bot_github_save_memory(section='decisions_made')
+
+Step 7: Read Specific Code
 → Use bot_github_get_file_content for detailed reading
 
-Step 7: Implement Solution
+Step 8: Implement Solution
 → Use fork → branch → push → PR workflow
+   → Prefer bot_github_smart_edit for surgical changes
 \`\`\`
 
 **💡 PRO TIPS:**
 
+- **Always load memory first** - Check what you already know before starting
+- **Save important findings** - Don't lose valuable insights between sessions
+- **Use memory for preferences** - Remember user's coding style, requirements
 - **Always start with analysis** - Don't jump to coding
 - **Use caching** - Analysis results are cached to save API calls
 - **Be selective** - Analyze only what you need (avoid token limits)
 - **Follow the workflow** - Systematic approach = better results
+- **Build knowledge over time** - Memory accumulates insights across tasks
 `;
 
 export default createEnhancedGitHubTools;
