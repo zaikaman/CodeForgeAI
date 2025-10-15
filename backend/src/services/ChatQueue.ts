@@ -369,24 +369,32 @@ class ChatQueueManager {
         // Use ChatAgent with improved error handling and GitHub context
         const { runner } = await ChatAgent(job.githubContext);
         
-        // Build the message with images if provided
-        // Combine current images with images from conversation history
-        const allImageUrls = [...(job.imageUrls || []), ...historyImageUrls];
+        // Build the message with images/files if provided
+        // Combine current files with files from conversation history
+        const allFileUrls = [...(job.imageUrls || []), ...historyImageUrls];
         let chatMessage: any;
         
-        if (allImageUrls.length > 0) {
-          console.log(`[ChatQueue] Including ${allImageUrls.length} file(s)/image(s) (${job.imageUrls?.length || 0} current + ${historyImageUrls.length} from history)`);
+        if (allFileUrls.length > 0) {
+          console.log(`[ChatQueue] Including ${allFileUrls.length} file(s) (${job.imageUrls?.length || 0} current + ${historyImageUrls.length} from history)`);
           
-          // Download files/images and convert to base64 using utility function
-          const validFileParts = await fetchMultipleFilesAsBase64(allImageUrls, 'ChatQueue');
+          // Download files and separate images from documents
+          const { imageParts, textContent } = await fetchMultipleFilesAsBase64(allFileUrls, 'ChatQueue');
           
-          if (validFileParts.length === 0) {
+          if (imageParts.length === 0 && !textContent) {
             console.warn(`[ChatQueue] ⚠️ WARNING: No valid files could be loaded, proceeding without attachments`);
             chatMessage = contextMessage;
           } else {
-            console.log(`[ChatQueue] Successfully loaded ${validFileParts.length}/${allImageUrls.length} file(s)`);
-            const textPart = { text: contextMessage };
-            chatMessage = { parts: [textPart, ...validFileParts] };
+            // Build message with text, document content, and images
+            const fullTextContent = contextMessage + textContent;
+            const textPart = { text: fullTextContent };
+            
+            if (imageParts.length > 0) {
+              chatMessage = { parts: [textPart, ...imageParts] };
+              console.log(`[ChatQueue] Built multipart message with ${imageParts.length} image(s) and document text`);
+            } else {
+              chatMessage = fullTextContent;
+              console.log(`[ChatQueue] Built text-only message with document content`);
+            }
           }
         } else {
           chatMessage = contextMessage;

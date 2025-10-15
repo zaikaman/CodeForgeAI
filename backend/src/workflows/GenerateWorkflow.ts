@@ -1010,17 +1010,24 @@ Return the result as JSON with the following structure:
       // Build message with images if provided
       let message: any
       if (imageUrls && imageUrls.length > 0) {
-        console.log(`[SpecInterpreter] Processing with ${imageUrls.length} file(s)/image(s)`)
+        console.log(`[SpecInterpreter] Processing with ${imageUrls.length} file(s)`)
         
-        const validFileParts = await fetchMultipleFilesAsBase64(imageUrls, 'SpecInterpreter');
+        const { imageParts, textContent } = await fetchMultipleFilesAsBase64(imageUrls, 'SpecInterpreter');
         
-        if (validFileParts.length === 0) {
+        if (imageParts.length === 0 && !textContent) {
           console.warn(`[SpecInterpreter] No valid files loaded, proceeding without attachments`);
           message = analysisPrompt;
         } else {
-          const textPart = { text: analysisPrompt };
-          message = { parts: [textPart, ...validFileParts] };
-          console.log(`[SpecInterpreter] Built multipart message with ${validFileParts.length} file(s)`);
+          const fullPrompt = analysisPrompt + textContent;
+          const textPart = { text: fullPrompt };
+          
+          if (imageParts.length > 0) {
+            message = { parts: [textPart, ...imageParts] };
+            console.log(`[SpecInterpreter] Built multipart message with ${imageParts.length} image(s) and document text`);
+          } else {
+            message = fullPrompt;
+            console.log(`[SpecInterpreter] Built text-only message with document content`);
+          }
         }
       } else {
         message = analysisPrompt
@@ -1186,27 +1193,28 @@ Return the result as JSON with the following structure:
               githubContext: this.githubContext,
             })
 
-        // Build the message with images if provided
+        // Build the message with files if provided
         let message: any
 
         if (request.imageUrls && request.imageUrls.length > 0) {
-          // Download images and convert to base64
-          console.log(`Fetching ${request.imageUrls.length} file(s)/image(s) for ${agentName}...`);
-          const validFileParts = await fetchMultipleFilesAsBase64(request.imageUrls, agentName);
+          console.log(`Fetching ${request.imageUrls.length} file(s) for ${agentName}...`);
+          const { imageParts, textContent } = await fetchMultipleFilesAsBase64(request.imageUrls, agentName);
 
-          if (validFileParts.length === 0) {
+          if (imageParts.length === 0 && !textContent) {
             console.warn(`[${agentName}] No valid files loaded, proceeding without attachments`);
             message = this.buildUserMessage(request, lastError, attempt);
           } else {
-            // Build message with text and files
-            const textPart = {
-              text: this.buildUserMessage(request, lastError, attempt),
-            };
+            const userMessage = this.buildUserMessage(request, lastError, attempt);
+            const fullMessage = userMessage + textContent;
+            const textPart = { text: fullMessage };
 
-            message = {
-              parts: [textPart, ...validFileParts],
-            };
-            console.log(`[${agentName}] Built multipart message with ${validFileParts.length} file(s)`);
+            if (imageParts.length > 0) {
+              message = { parts: [textPart, ...imageParts] };
+              console.log(`[${agentName}] Built multipart message with ${imageParts.length} image(s) and document text`);
+            } else {
+              message = fullMessage;
+              console.log(`[${agentName}] Built text-only message with document content`);
+            }
           }
         } else {
           // Text-only message - lightweight user request
@@ -1448,19 +1456,26 @@ Return the complete updated codebase as JSON:
   ]
 }`
 
-        // Build message with images if provided
+        // Build message with files if provided
         let message: any
         if (request.imageUrls && request.imageUrls.length > 0) {
-          console.log(`Fetching ${request.imageUrls.length} file(s)/image(s) for CodeModificationAgent...`);
-          const validFileParts = await fetchMultipleFilesAsBase64(request.imageUrls, 'CodeModificationAgent');
+          console.log(`Fetching ${request.imageUrls.length} file(s) for CodeModificationAgent...`);
+          const { imageParts, textContent } = await fetchMultipleFilesAsBase64(request.imageUrls, 'CodeModificationAgent');
           
-          if (validFileParts.length === 0) {
+          if (imageParts.length === 0 && !textContent) {
             console.warn(`[CodeModificationAgent] No valid files loaded, proceeding without attachments`);
             message = contextMessage;
           } else {
-            const textPart = { text: contextMessage };
-            message = { parts: [textPart, ...validFileParts] };
-            console.log(`[CodeModificationAgent] Built multipart message with ${validFileParts.length} file(s)`);
+            const fullMessage = contextMessage + textContent;
+            const textPart = { text: fullMessage };
+            
+            if (imageParts.length > 0) {
+              message = { parts: [textPart, ...imageParts] };
+              console.log(`[CodeModificationAgent] Built multipart message with ${imageParts.length} image(s) and document text`);
+            } else {
+              message = fullMessage;
+              console.log(`[CodeModificationAgent] Built text-only message with document content`);
+            }
           }
         } else {
           message = contextMessage

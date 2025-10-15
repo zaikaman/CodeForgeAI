@@ -3,6 +3,67 @@
  * Supports images and documents for GPT-5-nano multimodal processing
  */
 
+const pdfParse = require('pdf-parse');
+
+/**
+ * Check if content type is an image that supports vision API
+ */
+export function isVisionSupportedImage(contentType: string): boolean {
+  return contentType.startsWith('image/') && 
+    (contentType.includes('png') || 
+     contentType.includes('jpeg') || 
+     contentType.includes('jpg') ||
+     contentType.includes('gif') ||
+     contentType.includes('webp'));
+}
+
+/**
+ * Check if content type is a document that needs text extraction
+ */
+export function isDocumentType(contentType: string): boolean {
+  return (
+    contentType === 'application/pdf' ||
+    contentType.includes('text/') ||
+    contentType.includes('document') ||
+    contentType.includes('word') ||
+    contentType.includes('spreadsheet')
+  );
+}
+
+/**
+ * Extract text content from PDF buffer
+ */
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  try {
+    const data = await pdfParse(buffer);
+    return data.text || '';
+  } catch (error) {
+    console.error('Failed to extract PDF text:', error);
+    return '[PDF text extraction failed]';
+  }
+}
+
+/**
+ * Extract text from document buffer based on content type
+ */
+async function extractDocumentText(buffer: Buffer, contentType: string): Promise<string> {
+  if (contentType === 'application/pdf') {
+    return extractPdfText(buffer);
+  }
+  
+  // For text-based formats, convert buffer to string
+  if (contentType.startsWith('text/') || 
+      contentType.includes('json') || 
+      contentType.includes('xml') ||
+      contentType.includes('csv')) {
+    return buffer.toString('utf-8');
+  }
+  
+  // For other document types (DOCX, XLSX, etc.), return placeholder
+  // In a production app, you'd use libraries like mammoth (DOCX), xlsx (Excel), etc.
+  return `[Document content - ${contentType}]\n(Text extraction not yet implemented for this format)`;
+}
+
 /**
  * Validate if a buffer contains a valid image
  */
@@ -58,17 +119,20 @@ export function getFileFormatInfo(buffer: Buffer, contentType: string): string {
 }
 
 /**
- * Fetch a file from URL and convert to base64 for LLM processing
- * Includes validation for image formats
+ * Fetch a file from URL and convert to format suitable for LLM processing
+ * - Images: base64 encoded for vision API
+ * - Documents (PDF, etc.): extracted text content
  */
 export async function fetchFileAsBase64(
   url: string,
   context: string = 'FileProcessor'
 ): Promise<{
-  inline_data: {
+  inline_data?: {
     mime_type: string;
     data: string;
   };
+  text?: string;
+  fileName?: string;
 } | null> {
   try {
     console.log(`[${context}] Fetching file from: ${url}`);
@@ -80,31 +144,50 @@ export async function fetchFileAsBase64(
     
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const base64 = buffer.toString('base64');
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const fileName = url.split('/').pop() || 'file';
     
     const formatInfo = getFileFormatInfo(buffer, contentType);
-    console.log(`[${context}] Successfully fetched: ${url.split('/').pop()} (${formatInfo}, ${buffer.length} bytes)`);
+    console.log(`[${context}] Successfully fetched: ${fileName} (${formatInfo}, ${buffer.length} bytes)`);
     
-    // For images, validate the data is actually a valid image
-    if (contentType.startsWith('image/')) {
+    // Check if this is a vision-supported image
+    if (isVisionSupportedImage(contentType)) {
+      // Validate image format
       if (!isValidImageBuffer(buffer)) {
         throw new Error(`Invalid image format - file does not contain valid ${contentType} data`);
       }
+      
+      const base64 = buffer.toString('base64');
+      console.log(`[${context}] Encoded as base64 image for vision API`);
+      
+      return {
+        inline_data: {
+          mime_type: contentType,
+          data: base64
+        },
+        fileName
+      };
     }
     
-    // For PDFs, validate format
-    if (contentType === 'application/pdf') {
-      if (!isValidPdfBuffer(buffer)) {
-        throw new Error(`Invalid PDF format - file does not contain valid PDF data`);
-      }
+    // For documents, extract text content
+    if (isDocumentType(contentType)) {
+      console.log(`[${context}] Extracting text from document...`);
+      const textContent = await extractDocumentText(buffer, contentType);
+      console.log(`[${context}] Extracted ${textContent.length} characters of text`);
+      
+      return {
+        text: `📄 **File: ${fileName}** (${formatInfo})\n\n${textContent}`,
+        fileName
+      };
     }
+    
+    // For other file types, return as text with warning
+    console.warn(`[${context}] ⚠️ Unsupported file type ${contentType}, attempting text conversion`);
+    const textContent = buffer.toString('utf-8').substring(0, 10000); // Limit to 10KB
     
     return {
-      inline_data: {
-        mime_type: contentType,
-        data: base64
-      }
+      text: `📎 **File: ${fileName}** (${contentType})\n\n${textContent}\n\n[Content truncated if longer than 10KB]`,
+      fileName
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -114,36 +197,55 @@ export async function fetchFileAsBase64(
 }
 
 /**
- * Fetch multiple files and convert to base64
- * Returns only successfully fetched files
+ * Fetch multiple files and convert to appropriate format
+ * Returns images as base64 and documents as text
  */
 export async function fetchMultipleFilesAsBase64(
   urls: string[],
   context: string = 'FileProcessor'
-): Promise<Array<{
-  inline_data: {
-    mime_type: string;
-    data: string;
-  };
-}>> {
-  const results = await Promise.all(
-    urls.map(url => fetchFileAsBase64(url, context))
-  );
-  
-  const validFiles = results.filter(file => file !== null) as Array<{
+): Promise<{
+  imageParts: Array<{
     inline_data: {
       mime_type: string;
       data: string;
     };
   }>;
+  textContent: string;
+}> {
+  const results = await Promise.all(
+    urls.map(url => fetchFileAsBase64(url, context))
+  );
   
-  if (validFiles.length === 0 && urls.length > 0) {
-    console.warn(`[${context}] ⚠️ WARNING: No valid files could be loaded from ${urls.length} URLs`);
-  } else if (validFiles.length < urls.length) {
-    console.warn(`[${context}] ⚠️ WARNING: Only ${validFiles.length}/${urls.length} files loaded successfully`);
-  } else {
-    console.log(`[${context}] Successfully loaded ${validFiles.length} file(s)`);
+  const validResults = results.filter(result => result !== null);
+  
+  // Separate images and text content
+  const imageParts: Array<{
+    inline_data: {
+      mime_type: string;
+      data: string;
+    };
+  }> = [];
+  
+  const textParts: string[] = [];
+  
+  for (const result of validResults) {
+    if (result!.inline_data) {
+      imageParts.push({ inline_data: result!.inline_data });
+    }
+    if (result!.text) {
+      textParts.push(result!.text);
+    }
   }
   
-  return validFiles;
+  const textContent = textParts.length > 0 ? `\n\n${textParts.join('\n\n---\n\n')}` : '';
+  
+  if (validResults.length === 0 && urls.length > 0) {
+    console.warn(`[${context}] ⚠️ WARNING: No valid files could be loaded from ${urls.length} URLs`);
+  } else if (validResults.length < urls.length) {
+    console.warn(`[${context}] ⚠️ WARNING: Only ${validResults.length}/${urls.length} files loaded successfully`);
+  } else {
+    console.log(`[${context}] Successfully loaded ${validResults.length} file(s) (${imageParts.length} images, ${textParts.length} documents)`);
+  }
+  
+  return { imageParts, textContent };
 }
