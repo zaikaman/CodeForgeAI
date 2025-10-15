@@ -1,6 +1,7 @@
 import { supabase } from '../storage/SupabaseClient';
 import { chatQueue } from '../services/ChatQueue';
 import { randomUUID } from 'crypto';
+import { getTelegramBot } from '../services/TelegramBotService';
 
 interface BackgroundJob {
   id: string;
@@ -202,6 +203,23 @@ export class SimpleJobProcessor {
             console.log(`✅ Job ${job.id} completed successfully`);
             console.log(`   Duration: ${(duration / 1000).toFixed(2)}s`);
             
+            // Send Telegram notification if chat_id is available
+            const telegramChatId = job.context?.telegram_chat_id;
+            if (telegramChatId) {
+              try {
+                const telegramBot = getTelegramBot();
+                await telegramBot.sendJobCompletionNotification(
+                  telegramChatId,
+                  job.id,
+                  job.session_id,
+                  true,
+                  chatJob.result?.summary || 'Your request has been completed successfully!'
+                );
+              } catch (error: any) {
+                console.error('⚠️ Failed to send Telegram notification:', error.message);
+              }
+            }
+            
           } else if (chatJob.status === 'error') {
             throw new Error(chatJob.error || 'Chat job failed');
           }
@@ -245,6 +263,23 @@ export class SimpleJobProcessor {
       
       console.error(`❌ Job ${job.id} failed:`, error.message);
       console.error(`   Duration: ${(duration / 1000).toFixed(2)}s`);
+      
+      // Send Telegram notification if chat_id is available
+      const telegramChatId = job.context?.telegram_chat_id;
+      if (telegramChatId) {
+        try {
+          const telegramBot = getTelegramBot();
+          await telegramBot.sendJobCompletionNotification(
+            telegramChatId,
+            job.id,
+            job.session_id,
+            false,
+            `Error: ${error.message}`
+          );
+        } catch (notifError: any) {
+          console.error('⚠️ Failed to send Telegram notification:', notifError.message);
+        }
+      }
     }
   }
   

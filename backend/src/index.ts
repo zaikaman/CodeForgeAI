@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { server } from './api/server';
 import { checkSupabaseConnection } from './storage/SupabaseClient';
 import { preloadAgentCaches } from './services/AgentInitService';
+import { startTelegramBot } from './services/TelegramBotService';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -37,6 +38,13 @@ server.listen(PORT, async () => {
     console.warn('⚠️  Cache preload failed (non-critical):', error);
   });
   console.log('');
+
+  // Start Telegram bot if token is provided
+  try {
+    await startTelegramBot();
+  } catch (error: any) {
+    console.warn('⚠️  Telegram bot failed to start (non-critical):', error.message);
+  }
 });
 
 export default server;
