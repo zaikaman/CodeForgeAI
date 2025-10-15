@@ -46,7 +46,11 @@ export const useRealtimeJob = ({
     const connectWebSocket = async () => {
       try {
         if (!wsClient.getConnectionStatus()) {
-          await wsClient.connect();
+          await wsClient.connect({
+            reconnection: true,
+            reconnectionAttempts: 3,
+            reconnectionDelay: 2000,
+          });
         }
         
         // Join user-specific room

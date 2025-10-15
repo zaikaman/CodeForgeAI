@@ -59,8 +59,9 @@ class WebSocketClient {
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        console.warn('⚠️ WebSocket connection timeout - will retry');
         reject(new Error('WebSocket connection timeout'))
-      }, 10000)
+      }, 5000) // Reduced to 5s
 
       this.socket?.once('connect', () => {
         clearTimeout(timeout)

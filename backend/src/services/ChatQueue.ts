@@ -9,6 +9,7 @@ import { supabase } from '../storage/SupabaseClient';
 import { safeAgentCall } from '../utils/agentHelpers';
 import { cleanFiles } from '../utils/contentCleaner';
 import { fetchMultipleFilesAsBase64 } from '../utils/fileProcessing';
+import JobEventEmitter from './JobEventEmitter';
 
 interface ChatJob {
   id: string;
@@ -238,10 +239,10 @@ class ChatQueueManager {
         message,
       };
 
-      // Fetch current progress messages
+      // Fetch current progress messages and userId
       const { data: job } = await supabase
         .from('chat_jobs')
-        .select('progress_messages')
+        .select('progress_messages, user_id')
         .eq('id', jobId)
         .single();
 
@@ -255,6 +256,11 @@ class ChatQueueManager {
         .eq('id', jobId);
 
       console.log(`[ChatQueue Progress] ${agent} - ${status}: ${message}`);
+      
+      // 🔔 Emit realtime Socket.IO event
+      if (job?.user_id) {
+        JobEventEmitter.emitChatProgress(job.user_id, jobId, updatedMessages);
+      }
     } catch (error) {
       console.error('[ChatQueue Progress] Failed to emit:', error);
     }
@@ -781,6 +787,15 @@ class ChatQueueManager {
           })
           .eq('id', job.id);
         
+        // 🔔 Emit realtime completion event
+        JobEventEmitter.emitComplete(job.userId, {
+          jobId: job.id,
+          sessionId: job.generationId,
+          success: true,
+          result: job.result,
+          timestamp: new Date().toISOString(),
+        });
+        
         // Update generation with new files (only if files were generated)
         if (!isReviewWorkflow && workflowResult.files && workflowResult.files.length > 0) {
           await supabase
@@ -825,6 +840,15 @@ class ChatQueueManager {
           updated_at: new Date().toISOString(),
         })
         .eq('id', job.id);
+      
+      // 🔔 Emit realtime error event
+      JobEventEmitter.emitComplete(job.userId, {
+        jobId: job.id,
+        sessionId: job.generationId,
+        success: false,
+        error: job.error,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 }
