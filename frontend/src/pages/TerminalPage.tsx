@@ -280,9 +280,17 @@ export const TerminalPage: React.FC = () => {
       return;
     }
 
+    // Check if generation already exists in memory (newly created)
+    const existingGeneration = getGenerationById(id);
+    if (existingGeneration) {
+      console.log(`📂 Session ${id} already loaded in memory, skipping DB load`);
+      return;
+    }
+
+    // Only load from DB if not in memory (user refreshed page or navigated to old session)
     const loadSession = async () => {
       try {
-        console.log(`📂 Loading session ${id}...`);
+        console.log(`📂 Loading session ${id} from database...`);
         
         const { data: generationData, error: dbError } = await supabase
           .from('generations')
