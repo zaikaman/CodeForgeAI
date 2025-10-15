@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { wsClient } from '../services/websocketClient';
 import { useAuthContext } from '../contexts/AuthContext';
 import apiClient from '../services/apiClient';
@@ -25,14 +25,40 @@ export const useRealtimeJobsList = ({
   const [jobs, setJobs] = useState<any[]>([]);
   const [activeCount, setActiveCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  
+  // Track if we're currently fetching to prevent duplicate requests
+  const isFetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch jobs from API (initial load or manual refresh)
   const fetchJobs = useCallback(async () => {
     if (!user) return;
+    
+    // Prevent duplicate calls
+    if (isFetchingRef.current) {
+      console.log('⏩ fetchJobs already in progress, skipping...');
+      return;
+    }
 
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+
     try {
       const response = await apiClient.getUserJobs(user.id);
+      
+      // Check if request was aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('⏹️ getUserJobs request was aborted');
+        return;
+      }
       
       if (response.success && response.data) {
         const newJobs = response.data.jobs;
@@ -45,10 +71,16 @@ export const useRealtimeJobsList = ({
         setActiveCount(active);
         onActiveJobsChange?.(active);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        console.log('⏹️ getUserJobs request was canceled');
+        return;
+      }
       console.error('Error fetching jobs:', error);
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }, [user, onActiveJobsChange]);
 
@@ -90,6 +122,10 @@ export const useRealtimeJobsList = ({
     
     return () => {
       mounted = false;
+      // Cancel any ongoing request on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [enabled, user, fetchJobs]);
 
