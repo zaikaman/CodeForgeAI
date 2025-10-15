@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ImageUpload, UploadedImage } from './ImageUpload';
+import { FileUpload, UploadedFile } from './FileUpload';
 import { useAuthContext } from '../contexts/AuthContext';
 import { useSoundEffects } from '../hooks/useSoundEffects';
 import '../styles/theme.css';
@@ -26,7 +26,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   showImageUpload = true,
 }) => {
   const [text, setText] = useState('');
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<UploadedFile[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const { user } = useAuthContext();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -79,8 +79,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
-  const handleImagesChange = (images: UploadedImage[]) => {
-    setUploadedImages(images);
+  const handleImagesChange = (files: UploadedFile[]) => {
+    setUploadedImages(files);
   };
 
   const toggleUpload = () => {
@@ -94,11 +94,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Image Upload Section */}
           {showImageUpload && user && showUpload && (
             <div className="chat-input-upload-section">
-              <ImageUpload
+              <FileUpload
                 userId={user.id}
                 folder="chat"
-                maxImages={3}
-                onImagesChange={handleImagesChange}
+                maxFiles={3}
+                onFilesChange={handleImagesChange}
                 disabled={disabled}
               />
             </div>

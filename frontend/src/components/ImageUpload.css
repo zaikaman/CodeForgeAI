@@ -111,6 +111,26 @@
   display: block;
 }
 
+.preview-file-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  background: var(--bg-primary);
+  border: 2px dashed var(--border-color);
+}
+
+.file-extension {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
 .btn-remove-image {
   position: absolute;
   top: var(--spacing-xs);

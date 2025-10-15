@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useChatJobPolling } from '../hooks/useChatJobPolling';
 import { useSoundEffects } from '../hooks/useSoundEffects';
 import apiClient from '../services/apiClient';
-import { uploadMultipleImages, validateImageFile } from '../services/imageUploadService';
+import { uploadMultipleFiles, validateFile } from '../services/fileUploadService';
 import '../styles/theme.css';
 import './TerminalPage.css';
 
@@ -436,7 +436,7 @@ export const TerminalPage: React.FC = () => {
     const errors: string[] = [];
     
     files.forEach(file => {
-      const validation = validateImageFile(file);
+      const validation = validateFile(file);
       if (validation.valid) {
         validFiles.push(file);
       } else {
@@ -501,10 +501,10 @@ export const TerminalPage: React.FC = () => {
       let imageUrls: string[] = [];
       if (imagesToUpload.length > 0 && user) {
         setUploadingImages(true);
-        const uploadResults = await uploadMultipleImages(imagesToUpload, user.id, 'chat');
+        const uploadResults = await uploadMultipleFiles(imagesToUpload, user.id, 'chat');
         imageUrls = uploadResults
-          .filter(result => result.url && !result.error)
-          .map(result => result.url);
+          .filter((result) => result.url && !result.error)
+          .map((result) => result.url);
         setUploadingImages(false);
       }
 
@@ -1105,7 +1105,7 @@ export const TerminalPage: React.FC = () => {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept=".docx,.html,.md,.pdf,.tex,.txt,.csv,.json,.xml,.xlsx,.pptx,.c,.cpp,.css,.java,.js,.php,.py,.rb,.ts,.tsx,.jsx,.go,.rs,.swift,.gif,.jpg,.jpeg,.png,.webp,.tar,.zip"
                     multiple
                     onChange={handleImageSelect}
                     style={{ display: 'none' }}
@@ -1118,7 +1118,7 @@ export const TerminalPage: React.FC = () => {
                       handleImageButtonClick();
                     }}
                     disabled={isProcessing || uploadingImages}
-                    title="Attach images to your message"
+                    title="Attach files (images, documents, code, etc.)"
                   >
                     <span className="btn-icon">📎</span>
                     <span className="btn-text">Attach</span>
