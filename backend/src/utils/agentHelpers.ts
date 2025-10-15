@@ -123,9 +123,53 @@ function normalizeAgentResponse(response: any, context: string): AgentResponse {
       throw new Error('Response missing required "summary" property');
     }
     
+    // Additional validation: Check if summary indicates routing but missing fields
+    const summaryLower = response.summary.toLowerCase();
+    const looksLikeRouting = summaryLower.includes('route to') || 
+                             summaryLower.includes('routing to') ||
+                             summaryLower.includes("i'll route") ||
+                             summaryLower.includes('specialist') ||
+                             summaryLower.includes('transferring to');
+    
+    if (looksLikeRouting) {
+      console.log(`[${context}] Summary indicates routing: "${response.summary.substring(0, 100)}"`);
+      
+      if (!response.needsSpecialist || !response.specialistAgent) {
+        console.error(`[${context}] ⚠️ ROUTING RESPONSE ERROR!`);
+        console.error(`[${context}] Summary mentions routing but missing fields:`);
+        console.error(`[${context}] - needsSpecialist: ${response.needsSpecialist}`);
+        console.error(`[${context}] - specialistAgent: ${response.specialistAgent}`);
+        
+        // Try to extract agent name from summary
+        const agentMatch = response.summary.match(/(?:route to|routing to|transfer to)\s+(\w+)/i);
+        if (agentMatch) {
+          const extractedAgent = agentMatch[1];
+          console.warn(`[${context}] Extracted agent name from summary: "${extractedAgent}"`);
+          console.warn(`[${context}] Auto-correcting response to include routing fields`);
+          
+          return {
+            summary: response.summary,
+            needsSpecialist: true,
+            specialistAgent: extractedAgent
+          };
+        } else {
+          console.error(`[${context}] Could not extract agent name from summary`);
+          throw new Error(
+            `Invalid routing response: Summary mentions routing but missing needsSpecialist/specialistAgent fields. ` +
+            `Summary: "${response.summary.substring(0, 200)}"`
+          );
+        }
+      }
+    }
+    
     // Check if this needs specialist routing
     if (response.needsSpecialist) {
       console.log(`[${context}] Specialist agent requested: ${response.specialistAgent || 'unknown'}`);
+      
+      if (!response.specialistAgent) {
+        throw new Error('needsSpecialist is true but specialistAgent is missing');
+      }
+      
       return {
         summary: response.summary,
         needsSpecialist: true,

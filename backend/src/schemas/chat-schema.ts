@@ -8,16 +8,23 @@ export const chatFileSchema = z.object({
 
 /**
  * Chat response schema used by agents
- * NOTE: ChatAgent should NEVER use the 'files' field - it's for specialist agents only
- * ChatAgent can only:
- * - Return conversational responses (summary only)
- * - Route to specialists (summary + needsSpecialist + specialistAgent + githubOperation)
+ * 
+ * ⚠️ CRITICAL RULES:
+ * 
+ * 1. ChatAgent (Router):
+ *    - Conversational: { summary: string }
+ *    - Routing: { summary: string, needsSpecialist: true, specialistAgent: string }
+ *    - NEVER uses 'files' field
+ * 
+ * 2. Specialist Agents (SimpleCoder, ComplexCoder, CodeModification, etc.):
+ *    - Code generation: { summary: string, files: [...] }
+ *    - Can optionally include githubOperation for GitHub integration
  */
 export const chatResponseSchema = z.object({
-  files: z.array(chatFileSchema).optional(), // Only for specialist agents (CodeGenerator, CodeModification, etc.), NOT ChatAgent
-  summary: z.string(),
-  needsSpecialist: z.boolean().optional(),
-  specialistAgent: z.string().optional(),
+  files: z.array(chatFileSchema).optional(), // Only for specialist agents, NOT ChatAgent
+  summary: z.string().describe('Brief explanation of the action taken or routing decision'),
+  needsSpecialist: z.boolean().optional().describe('True if routing to a specialist agent'),
+  specialistAgent: z.string().optional().describe('Name of specialist agent to route to (GitHubAgent, SimpleCoder, ComplexCoder, CodeModification, etc.)'),
   githubOperation: z.object({
     type: z.enum(['create_pr', 'push_to_repo', 'create_repo_and_push', 'update_file', 'none']),
     repository: z.string().optional(), // repo name like "HealthCheckerSGU"

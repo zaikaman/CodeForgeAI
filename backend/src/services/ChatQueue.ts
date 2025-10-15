@@ -413,21 +413,77 @@ class ChatQueueManager {
           context: 'ChatQueue'
         }) as any; // Cast to any to access githubOperation field
         
-        // Check if ChatAgent determined a specialist is needed
-        needsSpecialist = response.needsSpecialist || false;
-        specialistAgent = response.specialistAgent || '';
-        
         // Debug: Log the full response to see what ChatAgent returned
-        console.log(`[ChatQueue] ChatAgent response:`, JSON.stringify({
+        console.log(`[ChatQueue] ChatAgent raw response:`, JSON.stringify({
           needsSpecialist: response.needsSpecialist,
           specialistAgent: response.specialistAgent,
-          summary: response.summary?.substring(0, 100)
+          summary: response.summary?.substring(0, 200),
+          hasFiles: !!response.files,
+          filesCount: response.files?.length || 0
         }, null, 2));
+        
+        // Validate response format
+        if (response.files && response.files.length > 0) {
+          console.warn(`[ChatQueue] ⚠️ WARNING: ChatAgent returned files array! This should never happen.`);
+          console.warn(`[ChatQueue] ChatAgent should only route to specialists, not generate code.`);
+          // Force routing to appropriate specialist based on content
+          needsSpecialist = true;
+          specialistAgent = 'CodeModification'; // Default fallback
+          console.log(`[ChatQueue] Forcing route to ${specialistAgent} due to unexpected files in response`);
+        } else {
+          // Check if ChatAgent determined a specialist is needed
+          needsSpecialist = response.needsSpecialist || false;
+          specialistAgent = response.specialistAgent || '';
+          
+          // Additional validation: if summary mentions "route to" but missing fields
+          if (response.summary && 
+              (response.summary.toLowerCase().includes('route to') || 
+               response.summary.toLowerCase().includes('routing to') ||
+               response.summary.toLowerCase().includes("i'll route")) && 
+              (!needsSpecialist || !specialistAgent)) {
+            console.warn(`[ChatQueue] ⚠️ WARNING: ChatAgent summary mentions routing but missing needsSpecialist/specialistAgent!`);
+            console.warn(`[ChatQueue] Summary: ${response.summary}`);
+            
+            // Try to extract agent name from summary
+            const agentMatch = response.summary.match(/(?:route to|routing to)\s+(\w+)/i);
+            if (agentMatch) {
+              specialistAgent = agentMatch[1];
+              needsSpecialist = true;
+              console.log(`[ChatQueue] Extracted agent name from summary: ${specialistAgent}`);
+            } else {
+              // Force routing to appropriate specialist
+              needsSpecialist = true;
+              specialistAgent = 'ComplexCoder'; // Default fallback for code requests
+              console.log(`[ChatQueue] Forcing route to ${specialistAgent} due to incomplete routing response`);
+            }
+          }
+        }
+        
+        console.log(`[ChatQueue] Final routing decision:`, {
+          needsSpecialist,
+          specialistAgent,
+          willRoute: needsSpecialist && specialistAgent
+        });
         
         // If no specialist needed, handle as conversational response or simple code generation
         if (!needsSpecialist) {
+          console.log(`[ChatQueue] No specialist needed - handling as conversational response`);
+          
           // Check if this is a conversational response (no files) or code changes
           const isConversational = !response.files || response.files.length === 0;
+          
+          // Additional check: if user message looks like a code request, this might be an error
+          const codeKeywords = ['create', 'build', 'generate', 'add', 'fix', 'update', 'modify', 'write', 'implement'];
+          const userWantsCode = codeKeywords.some(keyword => 
+            job.message.toLowerCase().includes(keyword)
+          );
+          
+          if (userWantsCode && isConversational) {
+            console.warn(`[ChatQueue] ⚠️ POTENTIAL ROUTING ERROR:`);
+            console.warn(`[ChatQueue] User message appears to request code: "${job.message.substring(0, 100)}"`);
+            console.warn(`[ChatQueue] But ChatAgent returned conversational response without routing`);
+            console.warn(`[ChatQueue] This might indicate ChatAgent failed to properly route the request`);
+          }
           
           let updatedFiles: Array<{ path: string; content: string }> = [...job.currentFiles];
           
