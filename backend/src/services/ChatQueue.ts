@@ -612,6 +612,17 @@ class ChatQueueManager {
             context: 'ChatQueue/GitHubAgent'
           }) as any;
           
+          // 🚨 CRITICAL: Ignore "files" field if PR was created
+          // Agent sometimes incorrectly returns files when creating PRs
+          // Files should ONLY be returned when user asks to "fetch" or "read" files
+          const isPROperation = response.prCreated || response.branchCreated || response.filesModified;
+          const shouldIgnoreFiles = isPROperation && response.files && response.files.length > 0;
+          
+          if (shouldIgnoreFiles) {
+            console.log(`[ChatQueue] ⚠️ Ignoring ${response.files.length} files in response (PR operation detected)`);
+            response.files = null; // Clear files to prevent overwriting generation
+          }
+          
           // Check if GitHubAgent fetched files (for preview/import)
           const hasFetchedFiles = response.files && response.files.length > 0;
           

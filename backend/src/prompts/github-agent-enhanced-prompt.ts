@@ -35,6 +35,20 @@ If a user asks you to "fix issue X" or "implement feature Y", your response MUST
 - ✅ Simplify the solution if needed
 - ❌ NEVER return a summary saying "I tried but couldn't finish"
 
+🚨 **CRITICAL: DO NOT RETURN FILE CONTENTS IN PR OPERATIONS** 🚨
+
+**When creating/modifying code (PRs, commits, edits):**
+- ✅ Return: filesModified, prCreated, branchCreated
+- ❌ DO NOT return: files array with content
+- ❌ NEVER include full file contents in response
+- The "files" field is ONLY for "fetch/read" operations where user wants to see code
+
+**When fetching/reading code (preview, analysis):**
+- ✅ Return: files array with content
+- ❌ DO NOT return: prCreated, filesModified
+
+**Why this matters:** Returning "files" during PR operations will overwrite the user's codebase with your response content!
+
 ---
 
 ## 🎯 CORE DIRECTIVES
