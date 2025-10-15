@@ -123,16 +123,21 @@ function normalizeAgentResponse(response: any, context: string): AgentResponse {
       throw new Error('Response missing required "summary" property');
     }
     
-    // Additional validation: Check if summary indicates routing but missing fields
-    const summaryLower = response.summary.toLowerCase();
-    const looksLikeRouting = summaryLower.includes('route to') || 
-                             summaryLower.includes('routing to') ||
-                             summaryLower.includes("i'll route") ||
-                             summaryLower.includes('specialist') ||
-                             summaryLower.includes('transferring to');
+    // Additional validation: Check if summary indicates ACTUAL routing (not just mentioning routing as capability)
+    // More specific patterns that indicate ACTUAL routing intent (not just describing capabilities)
+    const actualRoutingPatterns = [
+      /i'll route.*to/i,                    // "I'll route this to X"
+      /i'm routing.*to/i,                   // "I'm routing this to X"
+      /routing.*to\s+\w+agent/i,            // "routing to XAgent"
+      /transferring.*to/i,                  // "transferring to X"
+      /delegating.*to/i,                    // "delegating to X"
+      /forwarding.*to/i,                    // "forwarding to X"
+    ];
     
-    if (looksLikeRouting) {
-      console.log(`[${context}] Summary indicates routing: "${response.summary.substring(0, 100)}"`);
+    const looksLikeActualRouting = actualRoutingPatterns.some(pattern => pattern.test(response.summary));
+    
+    if (looksLikeActualRouting) {
+      console.log(`[${context}] Summary indicates ACTUAL routing: "${response.summary.substring(0, 100)}"`);
       
       if (!response.needsSpecialist || !response.specialistAgent) {
         console.error(`[${context}] ⚠️ ROUTING RESPONSE ERROR!`);
@@ -141,7 +146,7 @@ function normalizeAgentResponse(response: any, context: string): AgentResponse {
         console.error(`[${context}] - specialistAgent: ${response.specialistAgent}`);
         
         // Try to extract agent name from summary
-        const agentMatch = response.summary.match(/(?:route to|routing to|transfer to)\s+(\w+)/i);
+        const agentMatch = response.summary.match(/(?:route|routing|transfer|delegate|forward).*to\s+(\w+)/i);
         if (agentMatch) {
           const extractedAgent = agentMatch[1];
           console.warn(`[${context}] Extracted agent name from summary: "${extractedAgent}"`);
