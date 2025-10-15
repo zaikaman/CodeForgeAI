@@ -253,7 +253,7 @@ export const GitHubAgent = async (
     console.log('[GitHubAgent] Bot username:', botTools.botUsername);
     
     return AgentBuilder.create('GitHubAgent')
-      .withModel('gpt-5-nano')
+      .withModel('gpt-5-nano-2025-08-07')
       .withInstruction(systemPrompt + '\n\n' + BOT_GITHUB_TOOLS_DESCRIPTION)
       .withTools(...botTools.tools)
       .withOutputSchema(githubAgentResponseSchema)
@@ -268,7 +268,7 @@ export const GitHubAgent = async (
       const githubToolsObj = createGitHubTools(githubContext);
       
       return AgentBuilder.create('GitHubAgent')
-        .withModel('gpt-5-nano')
+        .withModel('gpt-5-nano-2025-08-07')
         .withInstruction(systemPrompt + '\n\n⚠️ Running in USER TOKEN mode (bot token not configured)')
         .withTools(...githubToolsObj.tools)
         .withOutputSchema(githubAgentResponseSchema)
