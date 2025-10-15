@@ -23,6 +23,7 @@ class WebSocketClient {
   private connectionHandlers: Set<() => void> = new Set()
   private disconnectionHandlers: Set<() => void> = new Set()
   private errorHandlers: Set<(error: any) => void> = new Set()
+  private joinedRooms: Set<string> = new Set() // Track rooms we've already joined
 
   constructor() {
     this.url = import.meta.env.VITE_API_URL || 'http://localhost:3000'
@@ -89,6 +90,7 @@ class WebSocketClient {
     if (this.socket) {
       this.socket.disconnect()
       this.socket = null
+      this.joinedRooms.clear() // Clear room tracking on disconnect
       console.log('WebSocket disconnected')
     }
   }
@@ -181,6 +183,18 @@ class WebSocketClient {
       console.warn('⚠️ Cannot emit - WebSocket not connected')
       return
     }
+    
+    // Prevent duplicate room joins
+    if (event === 'join:user' && data) {
+      const roomKey = `user:${data}`
+      if (this.joinedRooms.has(roomKey)) {
+        console.log(`⏩ Already joined room ${roomKey}, skipping duplicate join`)
+        return
+      }
+      this.joinedRooms.add(roomKey)
+      console.log(`🔑 Joining room: ${roomKey}`)
+    }
+    
     this.socket.emit(event, data)
   }
 
