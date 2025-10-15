@@ -113,6 +113,45 @@ router.post('/telegram/complete-auth', optionalAuth, async (req, res): Promise<v
     console.log('[Telegram Auth] User ID:', userId);
     console.log('[Telegram Auth] Telegram ID:', pendingAuth.telegram_id);
     
+    // Send success message to Telegram
+    try {
+      const { getTelegramBot } = await import('../../services/TelegramBotService');
+      const bot = getTelegramBot();
+      
+      // Get chat_id from context (stored when auth was initiated)
+      const chatId = pendingAuth.telegram_id; // telegram_id IS the chat_id for private chats
+      
+      const successMessage = `
+✅ **Authentication Successful!**
+
+Your Telegram account has been successfully linked to CodeForge AI!
+
+You can now:
+• Send me messages to generate code
+• Use /background for long-running tasks
+• Use /status to check your jobs
+• Use /help for more commands
+
+Try sending me a message like:
+"Create a React todo app"
+
+Let's start coding! 🚀
+      `.trim();
+      
+      await bot.sendJobCompletionNotification(
+        chatId,
+        'auth-success',
+        userId,
+        true,
+        successMessage
+      );
+      
+      console.log('[Telegram Auth] ✅ Success notification sent to Telegram');
+    } catch (notifError: any) {
+      console.error('[Telegram Auth] ⚠️ Failed to send notification:', notifError.message);
+      // Don't fail the whole request if notification fails
+    }
+    
     res.json({
       success: true,
       data: {
