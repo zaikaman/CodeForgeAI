@@ -14,7 +14,14 @@ export const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/terminal')
+      // Check if there's a Telegram auth return URL
+      const returnUrl = sessionStorage.getItem('telegram_auth_return_url');
+      if (returnUrl) {
+        sessionStorage.removeItem('telegram_auth_return_url');
+        navigate(returnUrl);
+      } else {
+        navigate('/terminal');
+      }
     }
   }, [user, navigate])
 

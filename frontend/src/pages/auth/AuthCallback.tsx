@@ -38,9 +38,17 @@ export const AuthCallback: React.FC = () => {
             setStatus('success')
             setMessage('Authentication successful! Redirecting...')
 
-            // Redirect to terminal after a brief delay
+            // Check if there's a Telegram auth return URL
+            const returnUrl = sessionStorage.getItem('telegram_auth_return_url');
+
+            // Redirect after a brief delay
             setTimeout(() => {
-              navigate('/terminal')
+              if (returnUrl) {
+                sessionStorage.removeItem('telegram_auth_return_url');
+                navigate(returnUrl);
+              } else {
+                navigate('/terminal');
+              }
             }, 1500)
           } else {
             throw new Error('Failed to establish session')
@@ -56,8 +64,16 @@ export const AuthCallback: React.FC = () => {
           setStatus('success')
           setMessage('Session restored! Redirecting...')
 
+          // Check if there's a Telegram auth return URL
+          const returnUrl = sessionStorage.getItem('telegram_auth_return_url');
+
           setTimeout(() => {
-            navigate('/terminal')
+            if (returnUrl) {
+              sessionStorage.removeItem('telegram_auth_return_url');
+              navigate(returnUrl);
+            } else {
+              navigate('/terminal');
+            }
           }, 1500)
         }
       } catch (err: any) {

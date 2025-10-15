@@ -11,6 +11,7 @@ import { SignupPage } from './pages/auth/SignupPage'
 import { AuthCallback } from './pages/auth/AuthCallback'
 import { SettingsPage } from './pages/SettingsPage'
 import { TerminalPage } from './pages/TerminalPage'
+import TelegramAuth from './pages/TelegramAuth'
 
 // Styles
 import './styles/theme.css'
@@ -65,6 +66,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/telegram-auth" element={<TelegramAuth />} />
 
             {/* Protected Routes */}
             {/* Main Terminal Interface (Cursor-style) */}
