@@ -314,7 +314,9 @@ Use /background to enable background mode for the next request. This is useful f
       .eq('telegram_user_id', telegramUser.id)
       .single();
     
-    const newBackgroundMode = !settings?.background_mode;
+    // Get current background mode (default to false if not set)
+    const currentBackgroundMode = settings?.background_mode ?? false;
+    const newBackgroundMode = !currentBackgroundMode;
     
     // Upsert settings
     await supabase
@@ -328,12 +330,12 @@ Use /background to enable background mode for the next request. This is useful f
     const emoji = newBackgroundMode ? '🔄' : '⚡';
     const mode = newBackgroundMode ? 'BACKGROUND' : 'REAL-TIME';
     const description = newBackgroundMode
-      ? 'Your next request will run in the background. You can continue chatting!'
-      : 'Your next request will run in real-time (faster for small tasks).';
+      ? 'Your requests will now run in the background. You\'ll get a notification when they\'re done!'
+      : 'Your requests will now run in real-time (faster for small tasks).';
     
     await this.bot.sendMessage(
       chatId,
-      `${emoji} **${mode} mode enabled**\n\n${description}`,
+      `${emoji} **${mode} mode activated**\n\n${description}`,
       { parse_mode: 'Markdown' }
     );
   }
