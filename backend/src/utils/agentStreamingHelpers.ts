@@ -250,19 +250,139 @@ async function processEvent(
 }
 
 /**
- * Format tool call for display
+ * Format tool call for display with context-aware messages
  */
 function formatToolCall(toolName: string, args: any): string {
-  const formattedArgs = formatArgs(args);
-  return `🔧 Calling ${toolName}${formattedArgs}`;
+  // GitHub-specific tool calls with meaningful messages
+  switch (toolName) {
+    case 'github_search_users':
+      return `🔍 Searching for GitHub user: "${args.username || args.query}"`;
+    
+    case 'github_get_user_repos':
+      return `📂 Fetching repositories for user: ${args.username || args.owner}`;
+    
+    case 'github_get_repo_contents':
+      return `📁 Reading repository contents: ${args.owner}/${args.repo}${args.path ? `/${args.path}` : ''}`;
+    
+    case 'github_get_file_content':
+      return `📄 Reading file: ${args.path} from ${args.owner}/${args.repo}`;
+    
+    case 'github_create_or_update_file':
+      return `✏️ ${args.sha ? 'Updating' : 'Creating'} file: ${args.path} in ${args.owner}/${args.repo}`;
+    
+    case 'github_create_pull_request':
+      return `🔀 Creating pull request: "${args.title}" (${args.head} → ${args.base})`;
+    
+    case 'github_create_issue':
+      return `� Creating issue: "${args.title}" in ${args.owner}/${args.repo}`;
+    
+    case 'github_search_code':
+      return `🔎 Searching code: "${args.query}" in ${args.owner}/${args.repo}`;
+    
+    case 'github_list_branches':
+      return `🌿 Listing branches in ${args.owner}/${args.repo}`;
+    
+    case 'github_create_branch':
+      return `🌱 Creating branch: ${args.branch} from ${args.from_branch || 'default'}`;
+    
+    case 'github_fork_repository':
+      return `🍴 Forking repository: ${args.owner}/${args.repo}`;
+    
+    case 'github_create_repository':
+      return `📦 Creating repository: ${args.name}${args.description ? ` - ${args.description}` : ''}`;
+    
+    // Generic fallback for other tools
+    default:
+      const formattedArgs = formatArgs(args);
+      return `🔧 ${toolName.replace(/_/g, ' ')}${formattedArgs}`;
+  }
 }
 
 /**
- * Format tool result for display
+ * Format tool result for display with context-aware summaries
  */
 function formatToolResult(toolName: string, result: any): string {
   if (!result) {
     return `✅ ${toolName} completed (no result)`;
+  }
+
+  // GitHub-specific result formatting
+  switch (toolName) {
+    case 'github_search_users':
+      if (result.login) {
+        return `✅ Found user: @${result.login}${result.name ? ` (${result.name})` : ''}`;
+      }
+      return `✅ User search completed`;
+    
+    case 'github_get_user_repos':
+      if (Array.isArray(result)) {
+        const publicCount = result.filter((r: any) => !r.private).length;
+        return `✅ Found ${result.length} repositories (${publicCount} public)`;
+      }
+      return `✅ Repositories fetched`;
+    
+    case 'github_get_repo_contents':
+      if (Array.isArray(result)) {
+        const files = result.filter((f: any) => f.type === 'file').length;
+        const dirs = result.filter((f: any) => f.type === 'dir').length;
+        return `✅ Found ${files} files and ${dirs} directories`;
+      }
+      return `✅ Contents retrieved`;
+    
+    case 'github_get_file_content':
+      if (result.content) {
+        const size = result.size || result.content.length;
+        return `✅ File retrieved (${formatBytes(size)})`;
+      }
+      return `✅ File read successfully`;
+    
+    case 'github_create_or_update_file':
+      if (result.commit) {
+        return `✅ File ${result.commit.message?.includes('Create') ? 'created' : 'updated'} successfully`;
+      }
+      return `✅ File operation completed`;
+    
+    case 'github_create_pull_request':
+      if (result.number) {
+        return `✅ Pull request #${result.number} created: ${result.html_url}`;
+      }
+      return `✅ Pull request created`;
+    
+    case 'github_create_issue':
+      if (result.number) {
+        return `✅ Issue #${result.number} created: ${result.html_url}`;
+      }
+      return `✅ Issue created`;
+    
+    case 'github_search_code':
+      if (result.total_count !== undefined) {
+        return `✅ Found ${result.total_count} code matches`;
+      }
+      return `✅ Code search completed`;
+    
+    case 'github_list_branches':
+      if (Array.isArray(result)) {
+        return `✅ Found ${result.length} branches`;
+      }
+      return `✅ Branches listed`;
+    
+    case 'github_create_branch':
+      if (result.ref) {
+        return `✅ Branch created: ${result.ref.replace('refs/heads/', '')}`;
+      }
+      return `✅ Branch created successfully`;
+    
+    case 'github_fork_repository':
+      if (result.full_name) {
+        return `✅ Repository forked: ${result.full_name}`;
+      }
+      return `✅ Fork created`;
+    
+    case 'github_create_repository':
+      if (result.html_url) {
+        return `✅ Repository created: ${result.html_url}`;
+      }
+      return `✅ Repository created`;
   }
 
   // Handle string results
@@ -278,6 +398,15 @@ function formatToolResult(toolName: string, result: any): string {
   }
 
   return `✅ ${toolName} completed`;
+}
+
+/**
+ * Format bytes for display
+ */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**
