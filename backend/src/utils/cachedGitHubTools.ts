@@ -186,6 +186,69 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     }),
 
     /**
+     * Replace text in file (helper tool - combines get + edit)
+     * This tool automates the process of reading a file, finding text, replacing it, and saving
+     */
+    createTool({
+      name: 'bot_github_replace_text',
+      description: `Smart replace tool: reads file → finds text → replaces → saves in one call.
+        Perfect for code replacements. Automatically handles newContent generation.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        path: z.string().describe('File path (e.g., "src/file.ts")'),
+        findText: z.string().describe('Exact text to find and replace'),
+        replaceWith: z.string().describe('New text to replace with'),
+        branch: z.string().optional().describe('Branch name (default: main)'),
+        description: z.string().optional().describe('What change are you making? (for logging)'),
+      }),
+      fn: async (args) => {
+        try {
+          // Read current file content
+          const currentContent = await cache.getFileContent(
+            args.owner,
+            args.repo,
+            args.path,
+            args.branch || 'main'
+          );
+
+          // Verify text exists
+          if (!currentContent.includes(args.findText)) {
+            return {
+              success: false,
+              error: `Text not found in file: "${args.findText.substring(0, 100)}..."`,
+              message: `❌ Could not find text to replace in ${args.path}`,
+            };
+          }
+
+          // Edit the file (performs the replacement)
+          await cache.editFile(
+            args.owner,
+            args.repo,
+            args.path,
+            args.findText,
+            args.replaceWith,
+            args.branch || 'main'
+          );
+
+          return {
+            success: true,
+            path: args.path,
+            findLength: args.findText.length,
+            replaceLength: args.replaceWith.length,
+            message: `✅ Replaced text in ${args.path}${args.description ? ': ' + args.description : ''}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Replace failed in ${args.path}: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
      * Get modified files
      */
     createTool({

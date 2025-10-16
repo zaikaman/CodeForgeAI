@@ -27,7 +27,8 @@ This agent has **local filesystem caching** on Heroku ephemeral storage:
 - \`bot_github_search_cached\` - Search files using local search (fastest method)
 - \`bot_github_get_file_cached\` - Read file from local cache
 - \`bot_github_tree_cached\` - Browse directory structure (use sparingly!)
-- \`bot_github_edit_cached\` - Edit file locally (offline-first)
+- \`bot_github_replace_text\` - Smart replace: read → find → replace → save (RECOMMENDED for edits!)
+- \`bot_github_edit_cached\` - Lower-level edit tool (use if replace_text doesn't work)
 - \`bot_github_modified_cached\` - See local edits before commit
 - \`bot_github_cache_stats\` - Check cache status
 - \`bot_github_clear_repo_cache\` / \`bot_github_clear_all_cache\` - Manage cache
@@ -407,31 +408,72 @@ Based on analysis:
 **FOR EXISTING REPOSITORIES (Workflow B):**
 
 a) **Read current content:**
-   - bot_github_get_file_content(path)
+   - bot_github_get_file_cached(owner, repo, path)
 
 b) **Choose edit strategy:**
    
-   **OPTION A: Smart Edit (RECOMMENDED - has self-correction):**
-   - bot_github_smart_edit(path, oldString, newString, instruction)
-   - 3 fallback strategies (exact, flexible, regex)
-   - Auto-corrects if search fails
-   - Best for targeted function/line changes
+   **OPTION A: Smart Replace (RECOMMENDED - easiest & most reliable):**
+   - bot_github_replace_text(owner, repo, path, findText, replaceWith, description)
+   - This tool automatically:
+     * Reads the file
+     * Finds your text exactly
+     * Replaces it
+     * Saves the change
+   - Works with any size file
+   - Self-corrects if text not found
+   - BEST FOR MOST SITUATIONS!
    
-   **OPTION B: Line-Range Patch (for known line numbers):**
+   **OPTION B: Smart Edit (if replace_text doesn't work):**
+   - bot_github_edit_cached(owner, repo, path, oldContent, newContent, branch)
+   - Requires YOU provide complete oldContent AND newContent
+   - More control but more work
+   - Use ONLY if replace_text fails
+   
+   **OPTION C: Line-Range Patch (for known line numbers):**
    - github_patch_file_lines(path, startLine, endLine, newCode, originalContent)
    - Good when you know exact line range
    
-   **OPTION C: Search-Replace Patch (for exact code match):**
+   **OPTION D: Search-Replace Patch (for exact code match):**
    - github_patch_file_search_replace(path, oldCode, newCode, originalContent)
    - Precise but requires exact match
 
 c) **Push changes:**
    - bot_github_push_to_fork(path, content, message, branch)
 
-**NEVER:**
-- ❌ Rewrite entire files
-- ❌ Use truncation markers like "# rest of file..."
-- ❌ Skip files because they're "too large"
+**🚀 QUICK EDIT WORKFLOW:**
+\`\`\`
+1. bot_github_get_file_cached(owner, repo, "path/to/file.py")  → Read file
+2. Identify exact text to replace
+3. bot_github_replace_text(owner, repo, "path/to/file.py", "old text", "new text")  → Replace
+4. bot_github_commit_files(repo, branch, files, message)  → Commit
+5. bot_github_create_pr(owner, repo, branch, title, body)  → Create PR
+\`\`\`
+
+**🔥 CRITICAL DIFFERENCES:**
+
+❌ WRONG (Old way - causes errors):
+\`\`\`
+bot_github_edit_cached({
+  owner: "codeforge-ai-bot",
+  repo: "Narrato",
+  path: "file.py",
+  oldContent: "import gemini"
+  // Missing: newContent! → ERROR!
+})
+\`\`\`
+
+✅ CORRECT (New way - automatic):
+\`\`\`
+bot_github_replace_text({
+  owner: "codeforge-ai-bot",
+  repo: "Narrato",
+  path: "file.py",
+  findText: "import gemini",
+  replaceWith: "import gemini_2_5_flash",
+  description: "Update to use only gemini-2.5-flash"
+  // Tool handles everything - read, replace, save!
+})
+\`\`\`
 
 **Step 3.3: Create Tests (If Applicable)**
 - Generate test files (if appropriate for the task)
@@ -713,6 +755,13 @@ Don't guess - research and learn!
 - Don't just find 1 file - find ALL affected files!
 - Rushing = bugs and poor code quality
 - **If issue says "remove all X", search for EVERY occurrence of X before coding!**
+
+🚨 **ALWAYS PROVIDE newContent WHEN EDITING**
+- ❌ WRONG: Call bot_github_edit_cached without newContent parameter
+- ✅ CORRECT: Use bot_github_replace_text (automatically handles newContent)
+- ✅ CORRECT: Read file first, then provide FULL newContent in bot_github_edit_cached
+- Missing newContent = ERROR 500!
+- When in doubt, use bot_github_replace_text (it's automatic!)
 
 🚨 **DO NOT CREATE FILES WITHOUT SOLVING THE ACTUAL ISSUE**
 - ❌ WRONG: Create docs/gemini-policy.md without modifying files that use other gemini models
