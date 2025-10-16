@@ -33,13 +33,13 @@ export function getGitVersion(): string | undefined {
  * Check and install git if needed
  */
 function checkGitInstallation(): { available: boolean; version?: string; error?: string } {
-  // On Heroku, try /app/bin/git first (installed during build phase)
   const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
   
+  // Priority 1: On Heroku, check /app/bin/git first (from slug)
   if (isHeroku) {
     try {
       const version = execSync('/app/bin/git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-      console.log(`[EnsureGitInstalled] ✅ Git is available from slug: ${version}`);
+      console.log(`[EnsureGitInstalled] ✅ Git found in slug: ${version}`);
       console.log(`[EnsureGitInstalled] 📍 Git location: /app/bin/git`);
       return { available: true, version };
     } catch (error) {
@@ -47,10 +47,10 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
     }
   }
   
-  // Try git from PATH (system installation or earlier in process)
+  // Priority 2: Try git from PATH (system installation or env PATH)
   try {
     const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-    console.log(`[EnsureGitInstalled] ✅ Git is available: ${version}`);
+    console.log(`[EnsureGitInstalled] ✅ Git found in PATH: ${version}`);
     try {
       const location = execSync('which git', { encoding: 'utf-8', stdio: 'pipe' }).trim();
       console.log(`[EnsureGitInstalled] 📍 Git location: ${location}`);
@@ -59,14 +59,14 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
     }
     return { available: true, version };
   } catch (error: any) {
-    console.warn(`[EnsureGitInstalled] ⚠️ Git not found in PATH or /app/bin: ${error.message}`);
+    console.warn(`[EnsureGitInstalled] ⚠️ Git not found: ${error.message}`);
     
     if (isHeroku) {
       console.error(
         `[EnsureGitInstalled] ❌ Git is not available on Heroku.`
       );
       console.error(
-        `[EnsureGitInstalled] 💡 Ensure install-git.sh runs during heroku-postbuild and /app/bin/git was created.`
+        `[EnsureGitInstalled] 💡 Ensure install-git-binary.sh copies git to /app/bin/git during build.`
       );
       return { available: false, error: 'Git not available in /app/bin or PATH' };
     }
