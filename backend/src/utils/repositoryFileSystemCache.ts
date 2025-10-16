@@ -17,6 +17,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
 import crypto from 'crypto';
+import { isGitAvailable } from './ensureGitInstalled';
 
 /**
  * Configuration for filesystem cache
@@ -142,7 +143,7 @@ export class RepositoryFileSystemCache {
       }
     }
 
-    console.log(`[RepositoryFileSystemCache] Cloning/updating ${repoKey}@${branch}...`);
+    console.log(`[RepositoryFileSystemCache] Preparing ${repoKey}@${branch}...`);
 
     try {
       // Ensure directory exists
@@ -150,24 +151,49 @@ export class RepositoryFileSystemCache {
 
       const cloneUrl = `https://github.com/${owner}/${repo}.git`;
 
+      // Check if git is available
+      const gitAvailable = isGitAvailable();
+
       // Check if already cloned
       const gitDir = path.join(localPath, '.git');
       const isCloned = await this.fileExists(gitDir);
 
-      if (isCloned) {
-        // Update existing repo
-        this.execGit(localPath, ['fetch', 'origin', branch]);
-        this.execGit(localPath, ['checkout', branch]);
+      let sha = 'api-mode'; // Default for API-only mode
+      let fileCount = 0;
+      let totalSize = 0;
+
+      if (gitAvailable) {
+        if (isCloned) {
+          try {
+            // Update existing repo with git
+            this.execGit(localPath, ['fetch', 'origin', branch]);
+            this.execGit(localPath, ['checkout', branch]);
+            sha = this.execGit(localPath, ['rev-parse', 'HEAD']).trim();
+            const analyzed = await this.analyzeRepoSize(localPath);
+            fileCount = analyzed.fileCount;
+            totalSize = analyzed.totalSize;
+            console.log(`[RepositoryFileSystemCache] ✅ Updated via git: ${repoKey}@${branch}`);
+          } catch (error: any) {
+            console.error(`[RepositoryFileSystemCache] Git update failed:`, error.message);
+            throw error;
+          }
+        } else {
+          try {
+            // Clone repo with git
+            this.execGit('', ['clone', '--depth', '1', '--branch', branch, cloneUrl, localPath]);
+            sha = this.execGit(localPath, ['rev-parse', 'HEAD']).trim();
+            const analyzed = await this.analyzeRepoSize(localPath);
+            fileCount = analyzed.fileCount;
+            totalSize = analyzed.totalSize;
+            console.log(`[RepositoryFileSystemCache] ✅ Cloned via git: ${repoKey}@${branch}`);
+          } catch (error: any) {
+            console.error(`[RepositoryFileSystemCache] Git clone failed:`, error.message);
+            throw error;
+          }
+        }
       } else {
-        // New clone
-        this.execGit('', ['clone', '--depth', '1', '--branch', branch, cloneUrl, localPath]);
+        console.log(`[RepositoryFileSystemCache] ⚠️ Git not available, using API-only mode for ${repoKey}`);
       }
-
-      // Get current SHA
-      const sha = this.execGit(localPath, ['rev-parse', 'HEAD']).trim();
-
-      // Count files and size
-      const { fileCount, totalSize } = await this.analyzeRepoSize(localPath);
 
       const info: RepositoryCacheInfo = {
         owner,
@@ -184,13 +210,12 @@ export class RepositoryFileSystemCache {
       this.repositoryIndex.set(repoKey, info);
       await this.saveRepositoryIndex();
 
-      console.log(
-        `[RepositoryFileSystemCache] Ready: ${repoKey}@${branch} (${fileCount} files, ${this.formatBytes(totalSize)})`
-      );
+      const mode = sha === 'api-mode' ? '(API-only mode)' : `(${fileCount} files)`;
+      console.log(`[RepositoryFileSystemCache] Ready: ${repoKey}@${branch} ${mode}`);
 
       return info;
     } catch (error: any) {
-      console.error(`[RepositoryFileSystemCache] Error cloning ${repoKey}:`, error.message);
+      console.error(`[RepositoryFileSystemCache] Error preparing ${repoKey}:`, error.message);
       throw error;
     }
   }
@@ -600,6 +625,13 @@ export class RepositoryFileSystemCache {
       const output = execSync(command, options);
       return output;
     } catch (error: any) {
+      // On Heroku or systems without git, throw with clear message
+      const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
+      if (isHeroku || error.message.includes('ENOENT') || error.message.includes('not found')) {
+        const gitNotAvailable = new Error(`Git not available: ${error.message}`);
+        (gitNotAvailable as any).isGitMissing = true;
+        throw gitNotAvailable;
+      }
       error.status = error.status || 1;
       throw error;
     }

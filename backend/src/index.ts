@@ -3,6 +3,7 @@ import { server } from './api/server';
 import { checkSupabaseConnection } from './storage/SupabaseClient';
 import { preloadAgentCaches } from './services/AgentInitService';
 import { setupTelegramWebhook } from './services/TelegramBotService';
+import { initializeGit } from './utils/ensureGitInstalled';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -17,6 +18,13 @@ server.listen(PORT, async () => {
 ✨ Environment: ${process.env.NODE_ENV || 'development'}
 📝 Press Ctrl+C to stop
 `);
+
+  // Initialize git for repository operations
+  console.log('');
+  await initializeGit().catch(error => {
+    console.warn('⚠️  Git initialization failed (non-critical):', error);
+  });
+  console.log('');
 
   // Test database connection on startup
   checkSupabaseConnection()
