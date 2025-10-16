@@ -9,6 +9,10 @@
 }
 
 /* Left Sidebar - Chat History */
+.btn-menu-toggle {
+  display: none;
+}
+
 .chat-history-sidebar {
   width: 260px;
   min-width: 260px;
