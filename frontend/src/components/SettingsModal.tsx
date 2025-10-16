@@ -188,6 +188,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <div className="terminal-button minimize"></div>
             <div className="terminal-button maximize"></div>
             <div className="terminal-title">SYSTEM CONFIGURATION</div>
+            <button className="close-button" onClick={onClose} title="Close" aria-label="Close settings">
+              ✕
+            </button>
           </div>
 
           <div className="settings-modal-content">
