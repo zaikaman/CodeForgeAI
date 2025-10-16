@@ -294,6 +294,49 @@ export function createCachedGitHubTools(_octokit: Octokit) {
         }
       },
     }),
+
+    /**
+     * Preload repository - prepare cache before analysis
+     * This should be called first with the target repository
+     */
+    createTool({
+      name: 'bot_github_preload_repo',
+      description: `Preload a repository into cache. Call this first with the target repository URL or owner/repo.
+        This prepares the cache and makes subsequent file reads instant.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().optional().describe('Branch name (default: main)'),
+      }),
+      fn: async (args) => {
+        try {
+          console.log(`[CachedGitHubTools] Preloading ${args.owner}/${args.repo}...`);
+          const info = await cache.ensureRepository(
+            args.owner,
+            args.repo,
+            args.branch || 'main'
+          );
+
+          return {
+            success: true,
+            owner: args.owner,
+            repo: args.repo,
+            branch: args.branch || 'main',
+            fileCount: info.fileCount,
+            totalSize: info.totalSize,
+            message: `✅ Repository ${args.owner}/${args.repo} preloaded and ready for analysis`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            owner: args.owner,
+            repo: args.repo,
+            error: error.message,
+            message: `❌ Failed to preload: ${error.message}`,
+          };
+        }
+      },
+    }),
   ];
 
   return { tools, cache };
