@@ -159,6 +159,84 @@ export const TerminalPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hasUnsavedChanges, isSaving, selectedFile]);
 
+  // Matrix rain effect for welcome screen
+  useEffect(() => {
+    if (messages.length > 0) return; // Only show on empty chat
+
+    const canvas = document.getElementById('matrix-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*(){}[]<>+-*/=アイウエオカキクケコサシスセソタチツテト'.split('');
+    const fontSize = 16; // Increased font size for better visibility
+    const columns = canvas.width / fontSize;
+    const drops: number[] = [];
+
+    for (let i = 0; i < columns; i++) {
+      drops[i] = Math.random() * -100;
+    }
+
+    let animationId: number;
+    const draw = () => {
+      // Darker fade for more contrast
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `bold ${fontSize}px monospace`; // Bold for better visibility
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = chars[Math.floor(Math.random() * chars.length)];
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+
+        // More vibrant colors with better gradients
+        if (drops[i] * fontSize > canvas.height * 0.95) {
+          // Brightest at bottom
+          ctx.fillStyle = '#00FF00';
+          ctx.shadowColor = '#00FF00';
+          ctx.shadowBlur = 10;
+        } else {
+          // Gradient effect from top to bottom
+          const opacity = Math.min(1, (drops[i] * fontSize) / (canvas.height * 0.8));
+          ctx.fillStyle = `rgba(0, 255, 0, ${opacity * 0.9})`;
+          ctx.shadowColor = '#00FF00';
+          ctx.shadowBlur = 5;
+        }
+        
+        ctx.fillText(text, x, y);
+
+        // Reset shadow for next iteration
+        ctx.shadowBlur = 0;
+
+        if (y > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+        drops[i]++;
+      }
+
+      animationId = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    const handleResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [messages.length]);
+
   // Use realtime WebSocket updates (no polling!)
   useRealtimeJob({
     jobId: currentJobId,
@@ -986,21 +1064,50 @@ export const TerminalPage: React.FC = () => {
             <div className="chat-messages">
               {messages.length === 0 ? (
                 <div className="chat-empty">
-                  <pre className="ascii-logo phosphor-glow">
-{`    ╔═══════════════════════════════════╗
-    ║                                   ║
-    ║      WELCOME TO CODEFORGE AI      ║
-    ║                                   ║
-    ║   ►  Generate code from prompts   ║
-    ║   ►  Review & analyze code        ║
-    ║   ►  Refactor & optimize          ║
-    ║   ►  Security & performance       ║
-    ║   ►  Generate tests & docs        ║
-    ║                                   ║
-    ║   Just describe what you need!    ║
-    ║                                   ║
-    ╚═══════════════════════════════════╝`}
-                  </pre>
+                  <div className="matrix-rain-container">
+                    <canvas id="matrix-canvas" className="matrix-canvas"></canvas>
+                  </div>
+                  <div className="welcome-content">
+                    <pre className="ascii-logo terminal-glow">
+{`    ╔═══════════════════════════════════════════════════════════════════════════════╗
+    ║   ██████╗ ██████╗ ██████╗ ███████╗███████╗ ██████╗ ██████╗  ██████╗ ███████╗  ║
+    ║  ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝  ║
+    ║  ██║     ██║   ██║██║  ██║█████╗  █████╗  ██║   ██║██████╔╝██║  ███╗█████╗    ║
+    ║  ██║     ██║   ██║██║  ██║██╔══╝  ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝    ║
+    ║  ╚██████╗╚██████╔╝██████╔╝███████╗██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗  ║
+    ║   ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝  ║
+    ║                                                                               ║
+    ║                      [ A I   P O W E R E D   C O D E   G E N ]                ║
+    ╚═══════════════════════════════════════════════════════════════════════════════╝`}
+                    </pre>
+                    <div className="welcome-features">
+                      <div className="feature-line typing-effect" style={{ animationDelay: '0.5s' }}>
+                        <span className="feature-icon">▸</span>
+                        <span className="feature-text">GENERATE_CODE<span className="cursor-blink">_</span></span>
+                      </div>
+                      <div className="feature-line typing-effect" style={{ animationDelay: '1s' }}>
+                        <span className="feature-icon">▸</span>
+                        <span className="feature-text">ANALYZE_AND_REVIEW<span className="cursor-blink">_</span></span>
+                      </div>
+                      <div className="feature-line typing-effect" style={{ animationDelay: '1.5s' }}>
+                        <span className="feature-icon">▸</span>
+                        <span className="feature-text">REFACTOR_OPTIMIZE<span className="cursor-blink">_</span></span>
+                      </div>
+                      <div className="feature-line typing-effect" style={{ animationDelay: '2s' }}>
+                        <span className="feature-icon">▸</span>
+                        <span className="feature-text">SECURITY_SCAN<span className="cursor-blink">_</span></span>
+                      </div>
+                      <div className="feature-line typing-effect" style={{ animationDelay: '2.5s' }}>
+                        <span className="feature-icon">▸</span>
+                        <span className="feature-text">TESTS_AND_DOCS<span className="cursor-blink">_</span></span>
+                      </div>
+                    </div>
+                    <div className="welcome-prompt typing-effect" style={{ animationDelay: '3s' }}>
+                      <span className="prompt-symbol">&gt;&gt;</span>
+                      <span className="prompt-text">AWAITING_INPUT<span className="cursor-blink">█</span></span>
+                    </div>
+                    <div className="scan-line"></div>
+                  </div>
                 </div>
               ) : (
                 messages.map((message) => (

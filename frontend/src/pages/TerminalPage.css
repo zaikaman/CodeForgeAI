@@ -327,6 +327,254 @@
   justify-content: center;
   height: 100%;
   min-height: 400px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Matrix Rain Background */
+.matrix-rain-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.2; /* Increased from 0.15 for better visibility */
+  z-index: 0;
+  pointer-events: none;
+}
+
+.matrix-canvas {
+  width: 100%;
+  height: 100%;
+  filter: brightness(1.2) contrast(1.3); /* Enhanced visibility */
+}
+
+/* Welcome Content */
+.welcome-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+}
+
+/* ASCII Logo with Glow */
+.ascii-logo {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--color-primary);
+  margin: 0;
+  text-shadow: 0 0 10px var(--color-primary),
+               0 0 20px var(--color-primary),
+               0 0 30px var(--color-primary);
+  animation: logoGlow 3s ease-in-out infinite alternate;
+}
+
+.terminal-glow {
+  filter: drop-shadow(0 0 5px var(--color-primary));
+}
+
+@keyframes logoGlow {
+  0% {
+    text-shadow: 0 0 10px var(--color-primary),
+                 0 0 20px var(--color-primary),
+                 0 0 30px var(--color-primary);
+  }
+  100% {
+    text-shadow: 0 0 15px var(--color-primary),
+                 0 0 30px var(--color-primary),
+                 0 0 45px var(--color-primary),
+                 0 0 60px rgba(0, 255, 0, 0.5);
+  }
+}
+
+/* Welcome Features */
+.welcome-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  width: 100%;
+  max-width: 500px;
+}
+
+.feature-line {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--color-primary);
+  opacity: 0;
+}
+
+.feature-icon {
+  color: var(--color-success);
+  font-weight: bold;
+  text-shadow: 0 0 10px var(--color-success);
+  animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+.feature-text {
+  letter-spacing: 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+  position: relative;
+}
+
+/* Typing Effect */
+.typing-effect {
+  animation: typeIn 0.8s ease-out forwards;
+}
+
+@keyframes typeIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Cursor Blink */
+.cursor-blink {
+  animation: cursorBlink 1s step-end infinite;
+  color: var(--color-primary);
+  font-weight: bold;
+}
+
+@keyframes cursorBlink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Welcome Prompt */
+.welcome-prompt {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: rgba(0, 255, 0, 0.05);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--border-radius);
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+  opacity: 0;
+}
+
+.prompt-symbol {
+  color: var(--color-success);
+  font-weight: bold;
+  font-size: 1.5rem;
+  text-shadow: 0 0 10px var(--color-success);
+  animation: promptPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes promptPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+.prompt-text {
+  color: var(--color-primary);
+  letter-spacing: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Scanning Line Effect */
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-primary) 50%,
+    transparent
+  );
+  box-shadow: 0 0 10px var(--color-primary);
+  animation: scanLine 4s linear infinite;
+  opacity: 0.7;
+  z-index: 2;
+}
+
+@keyframes scanLine {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.7;
+  }
+  95% {
+    opacity: 0.7;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Glitch Effect (Random) */
+@keyframes glitch {
+  0% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    transform: translate(-2px, -2px);
+  }
+  60% {
+    transform: translate(2px, 2px);
+  }
+  80% {
+    transform: translate(2px, -2px);
+  }
+  100% {
+    transform: translate(0);
+  }
+}
+
+.ascii-logo:hover {
+  animation: logoGlow 3s ease-in-out infinite alternate,
+             glitch 0.3s ease-in-out;
+}
+
+/* Phosphor Glow (Legacy support) */
+.phosphor-glow {
+  text-shadow: 0 0 5px var(--color-primary);
 }
 
 .ascii-logo {
