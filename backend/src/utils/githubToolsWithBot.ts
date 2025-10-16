@@ -181,22 +181,26 @@ https://github.com/${args.owner}/${args.repo}/compare/${args.base_branch}...${bo
 
     createTool({
       name: 'bot_github_push_to_fork',
-      description: 'Push file changes to a repository (fork or bot-owned repo). Use this for: 1) Pushing to forked repos (any branch) 2) Pushing to bot-owned repos created via bot_github_create_repository (typically to main branch)',
+      description: 'Push file changes to a repository (fork or bot-owned repo). IMPORTANT: message parameter is OPTIONAL - if not provided, a commit message will be auto-generated. Use this for: 1) Pushing to forked repos (any branch) 2) Pushing to bot-owned repos created via bot_github_create_repository (typically to main branch)',
       schema: z.object({
         repo: z.string().describe('Repository name (in bot account)'),
         files: z.array(z.object({
           path: z.string(),
           content: z.string(),
         })).describe('Files to push'),
-        message: z.string().describe('Commit message'),
+        message: z.string().optional().describe('Commit message (optional, auto-generated if not provided)'),
         branch: z.string().describe('Target branch (e.g., "main" for new repos, feature branch for forks)'),
       }),
       fn: async (args) => {
+        const fileCount = args.files.length;
+        const filePaths = args.files.map(f => f.path).join(', ');
+        const autoMessage = `🤖 CodeForge AI: Updated ${fileCount} file${fileCount > 1 ? 's' : ''} (${filePaths})`;
+        
         return await server.executeTool('push_files', {
           owner: botUsername,
           repo: args.repo,
           files: args.files,
-          message: args.message,
+          message: args.message || autoMessage,
           branch: args.branch,
         })
       },

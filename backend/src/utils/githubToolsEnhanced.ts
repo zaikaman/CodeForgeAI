@@ -785,7 +785,8 @@ Step 2: Generate code files
 → Create all necessary files (HTML, CSS, JS, etc.)
 
 Step 3: Push directly to main
-→ Use bot_github_push_to_fork(repo, files, message, branch='main')
+→ Use bot_github_push_to_fork(repo, files, message?, branch='main')
+   - message is OPTIONAL (auto-generated if not provided)
 → DONE - No forking/branching/PR needed!
 
 Result: ✅ Repository live at https://github.com/codeforge-ai-bot/{repo-name}
@@ -814,6 +815,8 @@ Step 3: Choose editing strategy:
    → Precise but requires exact match
   
 Step 4: Push patched content (bot_github_push_to_fork)
+   - Parameters: repo, files, message (optional), branch
+   - Message will be auto-generated if not provided
 Step 5: Create PR (bot_github_create_pull_request_from_fork)
 \`\`\`
 
