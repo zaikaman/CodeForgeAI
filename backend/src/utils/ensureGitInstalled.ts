@@ -30,6 +30,28 @@ export function getGitVersion(): string | undefined {
 }
 
 /**
+ * Get environment variables needed for git to work with HTTPS on Heroku
+ */
+export function getGitEnv(): NodeJS.ProcessEnv {
+  const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
+  
+  if (isHeroku) {
+    return {
+      ...process.env,
+      LD_LIBRARY_PATH: '/app/bin/lib:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib',
+      SSL_CERT_FILE: '/app/bin/etc/ssl/certs/ca-bundle.crt',
+      SSL_CERT_DIR: '/app/bin/etc/ssl/certs',
+      GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || 'CodeForge Bot',
+      GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'bot@codeforge.ai',
+      GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME || 'CodeForge Bot',
+      GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL || 'bot@codeforge.ai'
+    };
+  }
+  
+  return process.env;
+}
+
+/**
  * Check and install git if needed
  */
 function checkGitInstallation(): { available: boolean; version?: string; error?: string } {
@@ -38,7 +60,14 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
   // Priority 1: On Heroku, check /app/bin/git first (from slug)
   if (isHeroku) {
     try {
-      const version = execSync('/app/bin/git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+      // Set LD_LIBRARY_PATH to find git's dependencies
+      const env = { 
+        ...process.env,
+        LD_LIBRARY_PATH: '/app/bin/lib:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib',
+        SSL_CERT_FILE: '/app/bin/etc/ssl/certs/ca-bundle.crt',
+        SSL_CERT_DIR: '/app/bin/etc/ssl/certs'
+      };
+      const version = execSync('/app/bin/git --version', { encoding: 'utf-8', stdio: 'pipe', env }).trim();
       console.log(`[EnsureGitInstalled] ✅ Git found in slug: ${version}`);
       console.log(`[EnsureGitInstalled] 📍 Git location: /app/bin/git`);
       return { available: true, version };
@@ -100,5 +129,25 @@ export function ensureGitReady(): void {
 export async function initializeGit(): Promise<void> {
   console.log('[EnsureGitInstalled] Initializing git...');
   ensureGitReady();
+}
+
+/**
+ * Execute a git command with proper environment setup
+ * Useful for other parts of the codebase that need to run git
+ */
+export function execGitCommand(args: string[], cwd: string = process.cwd()): string {
+  try {
+    const command = `git ${args.join(' ')}`;
+    const result = execSync(command, {
+      cwd,
+      encoding: 'utf-8',
+      env: getGitEnv(),
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return result;
+  } catch (error: any) {
+    console.error(`[EnsureGitInstalled] Git command failed: ${error.message}`);
+    throw error;
+  }
 }
 

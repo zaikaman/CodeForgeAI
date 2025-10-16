@@ -37,13 +37,13 @@ if command -v git &> /dev/null; then
     chmod +x bin/git
     
     # Try to copy required dependencies for git
-    echo "� Copying git dependencies..."
+    echo "📦 Copying git dependencies..."
+    
+    # Create lib directory
+    mkdir -p bin/lib
     
     # Get the library dependencies for git
     if command -v ldd &> /dev/null; then
-        # Create lib directory
-        mkdir -p bin/lib
-        
         # Get all dependencies
         LIBS=$(ldd "$GIT_PATH" | grep "=> /" | awk '{print $3}')
         for lib in $LIBS; do
@@ -52,6 +52,36 @@ if command -v git &> /dev/null; then
             fi
         done
     fi
+    
+    # Also copy critical HTTPS support libraries
+    for lib in libcurl.so.4 libssl.so.1.1 libcrypto.so.1.1 libcrypto.so.3 libssl.so.3; do
+        if find /usr/lib -name "$lib" 2>/dev/null | head -1 | xargs -I {} cp {} bin/lib/ 2>/dev/null; then
+            echo "✓ Copied $lib"
+        fi
+    done
+    
+    # Copy additional required libraries for HTTPS
+    for lib in libz.so.1 libc.so.6 libdl.so.2; do
+        if find /lib -name "$lib" 2>/dev/null | head -1 | xargs -I {} cp {} bin/lib/ 2>/dev/null; then
+            echo "✓ Copied $lib"
+        fi
+    done
+    
+    # Copy ca-certificates
+    if [ -d "/etc/ssl/certs" ]; then
+        mkdir -p bin/etc/ssl/certs
+        cp -r /etc/ssl/certs/* bin/etc/ssl/certs/ 2>/dev/null || true
+        echo "✓ Copied SSL certificates"
+    fi
+    
+    # Fallback: Try to copy ca-bundle.crt
+    for cert_path in /etc/ssl/certs/ca-bundle.crt /etc/ssl/cert.pem /usr/local/share/ca-certificates/ca-bundle.crt; do
+        if [ -f "$cert_path" ]; then
+            cp "$cert_path" bin/etc/ssl/certs/ca-bundle.crt 2>/dev/null || true
+            echo "✓ Copied ca-bundle.crt from $cert_path"
+            break
+        fi
+    done
     
     echo "✅ Git installed to /app/bin/git"
     ./bin/git --version

@@ -17,7 +17,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
 import crypto from 'crypto';
-import { isGitAvailable } from './ensureGitInstalled';
+import { isGitAvailable, getGitEnv } from './ensureGitInstalled';
 
 /**
  * Configuration for filesystem cache
@@ -729,6 +729,7 @@ export class RepositoryFileSystemCache {
         encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024, // 10MB
         shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
+        env: getGitEnv(), // Use environment with proper HTTPS support
       };
       
       const output = execSync(command, options);
