@@ -256,7 +256,19 @@ class ChatQueueManager {
         .update({ progress_messages: updatedMessages })
         .eq('id', jobId);
 
-      console.log(`[ChatQueue Progress] ${agent} - ${status}: ${message}`);
+      // Log with better formatting for function calls
+      let logMessage = `[ChatQueue Progress] ${agent} - ${status}: ${message}`;
+      
+      // Add better formatting for tool-related messages
+      if (message.includes('🔧') || message.includes('Tool') || message.includes('Calling')) {
+        logMessage = `[ChatQueue Progress] ${agent} - 🔧 FUNCTION CALL: ${message}`;
+      } else if (message.includes('✅') || message.includes('Result') || message.includes('Found')) {
+        logMessage = `[ChatQueue Progress] ${agent} - ✅ RESULT: ${message}`;
+      } else if (message.includes('💭') || message.includes('Thought') || message.includes('Analyzing')) {
+        logMessage = `[ChatQueue Progress] ${agent} - 💭 THINKING: ${message}`;
+      }
+      
+      console.log(logMessage);
       
       // 🔔 Emit realtime Socket.IO event
       if (job?.user_id) {
@@ -297,7 +309,7 @@ class ChatQueueManager {
       
       if (!specialistAgent) {
         // No forced agent, use ChatAgent to determine routing
-        await this.emitProgress(job.id, 'ChatAgent', 'started', 'Analyzing your request and determining the best approach...');
+        await this.emitProgress(job.id, 'ChatAgent', 'started', 'Analyzing your request and determining the best approach');
 
         // Build context with conversation history
         const { contextMessage, totalTokens, historyImageUrls } = await ChatMemoryManager.buildContext(
@@ -537,14 +549,14 @@ class ChatQueueManager {
         }
         
         console.log(`[ChatQueue] Routing to specialist: ${specialistAgent}`);
-        await this.emitProgress(job.id, 'ChatAgent', 'completed', `Routing your request to ${specialistAgent}...`);
+        await this.emitProgress(job.id, 'ChatAgent', 'completed', `Routing your request to ${specialistAgent}`);
         
         // Handle GitHubAgent separately (doesn't use workflows)
         if (specialistAgent === 'GitHubAgent') {
           // GitHubAgent now uses bot token - no user token required!
           // User token is only passed if available (for fallback scenarios)
           
-          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Analyzing GitHub operation requirements...');
+          await this.emitProgress(job.id, 'GitHubAgent', 'started', 'Analyzing GitHub operation requirements');
           
           // Build context with conversation history for GitHubAgent
           const { contextMessage } = await ChatMemoryManager.buildContext(
@@ -567,25 +579,30 @@ class ChatQueueManager {
             retryDelay: 1000,
             context: 'ChatQueue/GitHubAgent',
             onProgress: async (update: ProgressUpdate) => {
-              // Emit real-time progress based on update type
+              // Emit real-time progress based on update type with detailed logging
               switch (update.type) {
                 case 'thought':
                   // Agent's reasoning/analysis
-                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', update.content);
+                  console.log(`[ChatQueue/GitHubAgent] 💭 Agent Thought: ${update.content.substring(0, 150)}`);
+                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', `💭 ${update.content}`);
                   break;
                   
                 case 'tool_call':
                   // Tool being invoked
-                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', update.content);
+                  console.log(`[ChatQueue/GitHubAgent] 🔧 Tool Called: ${update.content.substring(0, 150)}`);
+                  const toolName = update.toolName || 'unknown_tool';
+                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', `🔧 Calling: ${toolName}\n${update.content}`);
                   break;
                   
                 case 'tool_result':
                   // Tool result received
-                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', update.content);
+                  console.log(`[ChatQueue/GitHubAgent] ✅ Tool Result: ${update.content.substring(0, 150)}`);
+                  await this.emitProgress(job.id, 'GitHubAgent', 'processing', `✅ ${update.content}`);
                   break;
                   
                 case 'error':
                   // Error occurred
+                  console.error(`[ChatQueue/GitHubAgent] ❌ Error: ${update.content}`);
                   await this.emitProgress(job.id, 'GitHubAgent', 'error', `❌ ${update.content}`);
                   break;
               }

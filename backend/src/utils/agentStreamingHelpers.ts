@@ -68,33 +68,14 @@ export async function safeAgentCallWithStreaming(
         throw new Error('Runner must have either ask() or runAsync() method');
       }
 
-      console.log(`[${context}] Using ${hasAskMethod ? 'ask()' : 'runAsync()'} method`);
+      console.log(`[${context}] Available methods: ask=${hasAskMethod}, runAsync=${hasRunAsyncMethod}`);
+      console.log(`[${context}] Has session: ${!!session}`);
+      if (session) {
+        console.log(`[${context}] Session ID: ${session.id}, User ID: ${session.userId}`);
+      }
 
-      // Prefer ask() for simplicity (already handles sessions internally)
-      if (hasAskMethod) {
-        // Simple API: runner.ask() - handles sessions automatically
-        // Note: This doesn't support mid-stream progress, only tool call logging
-        console.log(`[${context}] Using simplified ask() API`);
-        
-        if (onProgress) {
-          await onProgress({
-            type: 'thought',
-            content: '🤔 Processing request...',
-            timestamp: Date.now(),
-          });
-        }
-
-        const response = await runner.ask(message);
-        
-        // Response is already the final structured output (Zod schema validated)
-        console.log(`[${context}] Got response from ask():`, typeof response);
-        
-        const duration = Date.now() - startTime;
-        console.log(`[${context}] Completed in ${duration}ms`);
-        
-        return response as StreamingAgentResponse;
-        
-      } else if (hasRunAsyncMethod && session) {
+      // TRY runAsync first (supports true streaming), then fallback to ask()
+      if (hasRunAsyncMethod && session) {
         // Full API: runner.runAsync() - supports true streaming
         console.log(`[${context}] Using full runAsync() API with session streaming`);
         
@@ -104,6 +85,9 @@ export async function safeAgentCallWithStreaming(
           : message.parts 
             ? message 
             : { role: 'user', parts: [{ text: String(message) }] };
+
+        // Track if we received any tool-related events
+        let receivedToolEvents = false;
 
         // Stream events from the runner using the existing session
         for await (const event of runner.runAsync({
@@ -117,6 +101,11 @@ export async function safeAgentCallWithStreaming(
           // Process each event type
           await processEvent(event, context, onProgress);
           
+          // Track if we got tool-related events
+          if (event?.content?.parts?.some((p: any) => p.functionCall || p.functionResponse)) {
+            receivedToolEvents = true;
+          }
+          
           // Check if this is the final response
           if (event.isFinalResponse?.()) {
             console.log(`[${context}] Final response received (event #${eventCount})`);
@@ -125,7 +114,7 @@ export async function safeAgentCallWithStreaming(
         }
 
         const duration = Date.now() - startTime;
-        console.log(`[${context}] Streaming completed in ${duration}ms (${eventCount} events)`);
+        console.log(`[${context}] Streaming completed in ${duration}ms (${eventCount} events, tool events: ${receivedToolEvents})`);
 
         if (!finalResponse) {
           throw new Error('No final response received from agent');
@@ -134,8 +123,128 @@ export async function safeAgentCallWithStreaming(
         // Extract response from final event
         const normalized = await extractResponse(finalResponse, context);
         
+        // If we didn't receive tool events during streaming but response contains analysis/findings,
+        // emit a synthetic event to show the analysis was done
+        if (!receivedToolEvents && onProgress && (normalized.analysis?.approach || normalized.analysis?.understood)) {
+          console.log(`[${context}] Emitting analysis findings (no tool events received during streaming)`);
+          
+          const analysisMessage = `📊 Analysis Complete:\n${normalized.analysis?.understood || ''}\n\n📋 Approach:\n${normalized.analysis?.approach || ''}`;
+          await onProgress({
+            type: 'thought',
+            content: analysisMessage,
+            timestamp: Date.now(),
+          });
+        }
+        
         console.log(`[${context}] Response validated successfully`);
         return normalized;
+      } else if (hasAskMethod) {
+        // Fallback API: runner.ask() - no streaming, but still works
+        console.log(`[${context}] ⚠️ FALLBACK: Using ask() API (streaming not available)`);
+        console.log(`[${context}] Fallback reason: hasRunAsyncMethod=${hasRunAsyncMethod}, hasSession=${!!session}`);
+        
+        // Emit thinking start message to frontend and backend log
+        if (onProgress) {
+          try {
+            const startMessage = '🤔 Processing request...';
+            console.log(`[${context}] 💭 Thought: ${startMessage}`);
+            const result = onProgress({
+              type: 'thought',
+              content: startMessage,
+              timestamp: Date.now(),
+            });
+            if (result instanceof Promise) {
+              await result;
+            }
+          } catch (error) {
+            console.error(`[${context}] Error in onProgress callback:`, error);
+          }
+        }
+
+        // Intercept console.log to capture tool calls that ADK logs
+        const originalLog = console.log;
+        const capturedLogs: string[] = [];
+        let emittedLogs = new Set<string>(); // Track what we've already emitted to avoid duplicates
+        
+        console.log = function(...args: any[]) {
+          const logStr = args.join(' ');
+          capturedLogs.push(logStr);
+          
+          // Always log to original console for backend visibility
+          originalLog.apply(console, args as any);
+          
+          // Emit ALL logs containing tool-like patterns or agent thinking
+          // But avoid duplicate emissions by tracking what we've already emitted
+          const logKey = logStr.substring(0, 100); // Use first 100 chars as key
+          
+          if (!emittedLogs.has(logKey) &&
+              (logStr.includes('🔧') || logStr.includes('🔍') || logStr.includes('📁') || 
+               logStr.includes('📄') || logStr.includes('✏️') || logStr.includes('🔀') ||
+               logStr.includes('Tool') || logStr.includes('tool') || logStr.includes('Calling') ||
+               logStr.includes('🌐') || logStr.includes('API') || logStr.includes('Finding') ||
+               logStr.includes('Searching') || logStr.includes('Found'))) {
+            
+            emittedLogs.add(logKey);
+            
+            if (onProgress) {
+              // Determine if it's a tool call, tool result, or thought
+              let updateType: 'tool_call' | 'tool_result' | 'thought' = 'thought';
+              
+              if (logStr.includes('Calling') || logStr.includes('Invoking') || logStr.includes('🔧') || 
+                  logStr.includes('Searching') || logStr.includes('🔍')) {
+                updateType = 'tool_call';
+              } else if (logStr.includes('Result') || logStr.includes('Found') || logStr.includes('✅') ||
+                         logStr.includes('completed')) {
+                updateType = 'tool_result';
+              }
+              
+              const progressResult = onProgress({
+                type: updateType,
+                content: logStr,
+                timestamp: Date.now(),
+              });
+              // Handle both void and Promise returns
+              if (progressResult instanceof Promise) {
+                progressResult.catch(() => {
+                  // Silently catch errors
+                });
+              }
+            }
+          }
+          
+          return undefined;
+        };
+
+        try {
+          const response = await runner.ask(message);
+          
+          // Restore original console.log
+          console.log = originalLog;
+          
+          // Response is already the final structured output (Zod schema validated)
+          console.log(`[${context}] Got response from ask(): ${typeof response}`);
+          
+          const duration = Date.now() - startTime;
+          console.log(`[${context}] Completed in ${duration}ms (captured ${capturedLogs.length} logs, emitted ${emittedLogs.size})`);
+          
+          // Log captured function calls for backend visibility
+          if (capturedLogs.length > 0) {
+            console.log(`[${context}] === Captured Tool Calls and Events ===`);
+            capturedLogs.forEach(log => {
+              if (log.includes('🔧') || log.includes('Tool') || log.includes('tool') || 
+                  log.includes('Calling') || log.includes('Found') || log.includes('Found')) {
+                console.log(`[${context}] 📋 ${log}`);
+              }
+            });
+            console.log(`[${context}] === End Tool Calls ===`);
+          }
+          
+          return response as StreamingAgentResponse;
+        } catch (error) {
+          // Restore original console.log even on error
+          console.log = originalLog;
+          throw error;
+        }
       } else {
         throw new Error('runAsync() requires session from AgentBuilder.build()');
       }
@@ -186,11 +295,18 @@ async function processEvent(
       console.log(`[${context}] 💭 Thought:`, part.text.substring(0, 200));
       
       if (onProgress) {
-        await onProgress({
-          type: 'thought',
-          content: part.text,
-          timestamp: Date.now(),
-        });
+        try {
+          const result = onProgress({
+            type: 'thought',
+            content: part.text,
+            timestamp: Date.now(),
+          });
+          if (result instanceof Promise) {
+            await result;
+          }
+        } catch (error) {
+          console.error(`[${context}] Error in onProgress callback:`, error);
+        }
       }
     }
 
@@ -203,13 +319,20 @@ async function processEvent(
       console.log(`[${context}]    Args:`, JSON.stringify(toolArgs, null, 2).substring(0, 300));
       
       if (onProgress) {
-        await onProgress({
-          type: 'tool_call',
-          content: formatToolCall(toolName, toolArgs),
-          toolName,
-          toolArgs,
-          timestamp: Date.now(),
-        });
+        try {
+          const result = onProgress({
+            type: 'tool_call',
+            content: formatToolCall(toolName, toolArgs),
+            toolName,
+            toolArgs,
+            timestamp: Date.now(),
+          });
+          if (result instanceof Promise) {
+            await result;
+          }
+        } catch (error) {
+          console.error(`[${context}] Error in onProgress callback:`, error);
+        }
       }
     }
 
@@ -222,13 +345,20 @@ async function processEvent(
       console.log(`[${context}]    Result:`, JSON.stringify(toolResult, null, 2).substring(0, 300));
       
       if (onProgress) {
-        await onProgress({
-          type: 'tool_result',
-          content: formatToolResult(toolName, toolResult),
-          toolName,
-          toolResult,
-          timestamp: Date.now(),
-        });
+        try {
+          const result = onProgress({
+            type: 'tool_result',
+            content: formatToolResult(toolName, toolResult),
+            toolName,
+            toolResult,
+            timestamp: Date.now(),
+          });
+          if (result instanceof Promise) {
+            await result;
+          }
+        } catch (error) {
+          console.error(`[${context}] Error in onProgress callback:`, error);
+        }
       }
     }
 
@@ -237,13 +367,20 @@ async function processEvent(
       console.log(`[${context}] 🖥️ Code Execution:`, part.codeExecutionResult.output?.substring(0, 200));
       
       if (onProgress) {
-        await onProgress({
-          type: 'tool_result',
-          content: `Code executed:\n${part.codeExecutionResult.output || 'No output'}`,
-          toolName: 'code_execution',
-          toolResult: part.codeExecutionResult,
-          timestamp: Date.now(),
-        });
+        try {
+          const result = onProgress({
+            type: 'tool_result',
+            content: `Code executed:\n${part.codeExecutionResult.output || 'No output'}`,
+            toolName: 'code_execution',
+            toolResult: part.codeExecutionResult,
+            timestamp: Date.now(),
+          });
+          if (result instanceof Promise) {
+            await result;
+          }
+        } catch (error) {
+          console.error(`[${context}] Error in onProgress callback:`, error);
+        }
       }
     }
   }
