@@ -18,6 +18,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     maxCacheSize: 2 * 1024 * 1024 * 1024, // 2GB
     cacheTTL: 2 * 60 * 60 * 1000, // 2 hours
     maxRepositories: 20,
+    octokit: _octokit, // Pass Octokit for API fallback
   });
 
   const tools = [

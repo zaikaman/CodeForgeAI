@@ -26,6 +26,7 @@ export interface FileCacheConfig {
   cacheTTL: number; // milliseconds, default 1 hour
   maxRepositories: number; // default 10
   compressionEnabled: boolean; // gzip compression
+  octokit?: any; // Optional Octokit instance for API fallback
 }
 
 /**
@@ -80,6 +81,7 @@ export class RepositoryFileSystemCache {
   private memoryCache: Map<string, { data: any; entry: CacheEntry }> = new Map();
   private repositoryIndex: Map<string, RepositoryCacheInfo> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private octokit: any = null;
 
   constructor(_config: Partial<FileCacheConfig> = {}) {
     // Apply default config
@@ -88,7 +90,11 @@ export class RepositoryFileSystemCache {
       cacheTTL: _config.cacheTTL ?? 60 * 60 * 1000, // 1 hour
       maxRepositories: _config.maxRepositories ?? 10,
       compressionEnabled: _config.compressionEnabled ?? false,
+      octokit: _config.octokit,
     };
+
+    // Store octokit for API fallback
+    this.octokit = _config.octokit;
 
     // Set cache directory
     this.cacheDir = path.join(os.tmpdir(), 'codeforge-agent-cache');
@@ -240,6 +246,49 @@ export class RepositoryFileSystemCache {
 
       return content;
     } catch (error: any) {
+      // Fallback to GitHub API if local cache fails
+      if (this.octokit) {
+        console.warn(`[RepositoryFileSystemCache] Git cache failed, trying API fallback for ${filePath}`);
+        try {
+          const response = await this.octokit.repos.getContent({
+            owner,
+            repo,
+            path: filePath,
+            ref: branch,
+          });
+
+          if (Array.isArray(response.data)) {
+            throw new Error('Expected file, got directory');
+          }
+
+          const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+
+          // Store in memory cache
+          const entry: CacheEntry = {
+            key: cacheKey,
+            owner,
+            repo,
+            branch,
+            path: filePath,
+            type: 'file',
+            size: Buffer.byteLength(content),
+            hash: this.hashContent(content),
+            createdAt: Date.now(),
+            accessedAt: Date.now(),
+            accessCount: 1,
+            ttl: this.config.cacheTTL,
+          };
+
+          this.memoryCache.set(cacheKey, { data: content, entry });
+          console.log(`[RepositoryFileSystemCache] ✅ Retrieved ${filePath} from GitHub API (cached)`);
+
+          return content;
+        } catch (apiError: any) {
+          console.error(`[RepositoryFileSystemCache] API fallback failed:`, apiError.message);
+          throw new Error(`Failed to retrieve ${filePath}: ${apiError.message}`);
+        }
+      }
+
       if (error.code === 'ENOENT') {
         console.warn(`[RepositoryFileSystemCache] File not found: ${filePath}`);
         throw new Error(`File not found: ${filePath}`);
@@ -541,11 +590,14 @@ export class RepositoryFileSystemCache {
   private execGit(cwd: string, args: string[]): string {
     try {
       const command = `git ${args.join(' ')}`;
-      const output = execSync(command, {
-        cwd,
+      const options: any = {
+        cwd: cwd || process.cwd(),
         encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024, // 10MB
-      });
+        shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
+      };
+      
+      const output = execSync(command, options);
       return output;
     } catch (error: any) {
       error.status = error.status || 1;
