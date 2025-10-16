@@ -193,6 +193,19 @@ export class RepositoryFileSystemCache {
         }
       } else {
         console.log(`[RepositoryFileSystemCache] ⚠️ Git not available, using API-only mode for ${repoKey}`);
+        if (this.octokit) {
+          try {
+            const analyzed = await this.fetchFilesViaAPI(owner, repo, branch, localPath);
+            fileCount = analyzed.fileCount;
+            totalSize = analyzed.totalSize;
+            console.log(`[RepositoryFileSystemCache] ✅ Fetched via API: ${repoKey}@${branch} (${fileCount} files)`);
+          } catch (error: any) {
+            console.error(`[RepositoryFileSystemCache] API fetch failed:`, error.message);
+            // Continue without files - allow graceful degradation
+          }
+        } else {
+          console.warn(`[RepositoryFileSystemCache] No Octokit instance provided, cannot fetch files via API`);
+        }
       }
 
       const info: RepositoryCacheInfo = {
@@ -216,6 +229,78 @@ export class RepositoryFileSystemCache {
       return info;
     } catch (error: any) {
       console.error(`[RepositoryFileSystemCache] Error preparing ${repoKey}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch repository tree and files via GitHub API (when git is not available)
+   */
+  private async fetchFilesViaAPI(
+    owner: string,
+    repo: string,
+    branch: string,
+    localPath: string
+  ): Promise<{ fileCount: number; totalSize: number }> {
+    if (!this.octokit) {
+      throw new Error('Octokit instance not available for API access');
+    }
+
+    let fileCount = 0;
+    let totalSize = 0;
+
+    try {
+      // Get repository tree recursively
+      const treeResponse = await this.octokit.git.getTree({
+        owner,
+        repo,
+        tree_sha: branch,
+        recursive: 1,
+      });
+
+      const tree = treeResponse.data.tree || [];
+
+      // Filter to files only and fetch each one
+      const files = tree.filter((item: any) => item.type === 'blob');
+      console.log(`[RepositoryFileSystemCache] Found ${files.length} files to fetch from API`);
+
+      for (const file of files) {
+        try {
+          const fileResponse = await this.octokit.repos.getContent({
+            owner,
+            repo,
+            path: file.path,
+            ref: branch,
+          });
+
+          if (Array.isArray(fileResponse.data)) {
+            continue; // Skip directories
+          }
+
+          const content = Buffer.from(fileResponse.data.content, 'base64');
+          const fullPath = path.join(localPath, file.path);
+
+          // Create parent directories
+          const dirPath = path.dirname(fullPath);
+          await fs.mkdir(dirPath, { recursive: true });
+
+          // Write file
+          await fs.writeFile(fullPath, content);
+
+          fileCount++;
+          totalSize += content.length;
+        } catch (error: any) {
+          console.warn(`[RepositoryFileSystemCache] Failed to fetch ${file.path}:`, error.message);
+          // Continue with next file
+        }
+      }
+
+      console.log(
+        `[RepositoryFileSystemCache] API fetch complete: ${fileCount} files, ${this.formatBytes(totalSize)}`
+      );
+      return { fileCount, totalSize };
+    } catch (error: any) {
+      console.error(`[RepositoryFileSystemCache] API tree fetch failed:`, error.message);
       throw error;
     }
   }
@@ -456,26 +541,50 @@ export class RepositoryFileSystemCache {
         throw new Error('Path traversal attempt detected');
       }
 
-      // Read current content
-      const currentContent = await fs.readFile(fullPath, 'utf-8');
+      let updated: string;
+      const fileExists = await this.fileExists(fullPath);
 
-      // Verify old content matches
-      if (!currentContent.includes(oldContent)) {
-        throw new Error('Old content not found in file');
+      if (!fileExists) {
+        // File doesn't exist - create it
+        if (oldContent !== '') {
+          throw new Error(
+            `File does not exist (${filePath}) but oldContent is not empty. Cannot apply edit.`
+          );
+        }
+
+        // Create parent directories if needed
+        const dirPath = path.dirname(fullPath);
+        await fs.mkdir(dirPath, { recursive: true });
+
+        // Write new file
+        updated = newContent;
+        await fs.writeFile(fullPath, updated, 'utf-8');
+
+        console.log(
+          `[RepositoryFileSystemCache] Created new file ${filePath} in ${owner}/${repo}@${branch}`
+        );
+      } else {
+        // File exists - update it
+        const currentContent = await fs.readFile(fullPath, 'utf-8');
+
+        // Verify old content matches
+        if (!currentContent.includes(oldContent)) {
+          throw new Error('Old content not found in file');
+        }
+
+        // Replace
+        updated = currentContent.replace(oldContent, newContent);
+
+        // Write back
+        await fs.writeFile(fullPath, updated, 'utf-8');
+
+        console.log(
+          `[RepositoryFileSystemCache] Updated ${filePath} in ${owner}/${repo}@${branch}`
+        );
       }
-
-      // Replace
-      const updated = currentContent.replace(oldContent, newContent);
-
-      // Write back
-      await fs.writeFile(fullPath, updated, 'utf-8');
 
       // Invalidate cache
       this.invalidateFileCache(owner, repo, filePath);
-
-      console.log(
-        `[RepositoryFileSystemCache] Updated ${filePath} in ${owner}/${repo}@${branch}`
-      );
 
       return updated;
     } catch (error) {
