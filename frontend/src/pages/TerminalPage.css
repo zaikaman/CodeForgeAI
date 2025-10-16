@@ -771,6 +771,7 @@
   overflow: hidden;
   background: var(--color-bg);
   animation: slideInRight 0.3s ease-out;
+  position: relative;
 }
 
 @keyframes slideInRight {
@@ -791,6 +792,7 @@
   flex-wrap: nowrap;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-terminal-bg);
+  position: relative;
 }
 
 .tabs button {
@@ -820,41 +822,33 @@
   box-shadow: none;
 }
 
-.btn-download-zip {
-  margin-left: auto;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: transparent;
-  border: none;
-  border-left: 1px solid var(--color-border);
-  color: var(--color-secondary);
-  font-family: var(--font-mono);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 0;
-  font-size: 0.85rem;
-}
-
-.btn-download-zip:hover {
-  background: rgba(0, 200, 255, 0.1);
-  color: var(--color-success);
-}
-
 .btn-close-panel {
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: transparent;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: var(--color-terminal-bg);
   border: none;
   border-left: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: 0;
-  font-size: 1rem;
+  font-size: 1.2rem;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
 }
 
 .btn-close-panel:hover {
   background: rgba(255, 0, 0, 0.1);
   color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 /* Source Code View */
@@ -884,6 +878,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--spacing-xs);
   padding: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   background: rgba(0, 255, 0, 0.05);
@@ -893,9 +888,33 @@
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--color-primary);
+  flex: 1;
 }
 
 .file-tree-sidebar.collapsed .file-tree-title {
+  display: none;
+}
+
+.btn-download-zip {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-secondary);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: var(--border-radius);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.btn-download-zip:hover {
+  background: rgba(0, 200, 255, 0.1);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.file-tree-sidebar.collapsed .btn-download-zip {
   display: none;
 }
 
@@ -906,6 +925,7 @@
   cursor: pointer;
   padding: 4px;
   font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
 .collapse-btn:hover {

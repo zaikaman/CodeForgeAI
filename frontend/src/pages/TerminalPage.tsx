@@ -1273,15 +1273,6 @@ export const TerminalPage: React.FC = () => {
               >
                 DEPLOY
               </button>
-              {activeTab === 'source' && (
-                <button 
-                  className="btn-download-zip"
-                  onClick={handleDownloadZip}
-                  title="Download all files as ZIP"
-                >
-                  ⬇ ZIP
-                </button>
-              )}
               <button 
                 className="btn-close-panel"
                 onClick={() => {
@@ -1298,6 +1289,13 @@ export const TerminalPage: React.FC = () => {
               <div className={`file-tree-sidebar ${isFileTreeCollapsed ? 'collapsed' : ''}`}>
                 <div className="file-tree-header">
                   <span className="file-tree-title">FILES</span>
+                  <button 
+                    className="btn-download-zip"
+                    onClick={handleDownloadZip}
+                    title="Download all files as ZIP"
+                  >
+                    ⬇ ZIP
+                  </button>
                   <button 
                     className="collapse-btn"
                     onClick={() => {
