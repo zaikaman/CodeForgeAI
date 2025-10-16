@@ -10,12 +10,16 @@
  * - Manage branches, issues, PRs
  * - Orchestrate code generation/translation with other agents
  * - Complete end-to-end GitHub workflows
+ * - SESSION MEMORY to prevent duplicate operations
  * 
  * This agent uses CodeForge AI Bot token for most operations, so users
  * don't need to provide their personal access tokens!
  * 
- * ENHANCED VERSION: Now includes advanced codebase analysis tools
- * for handling complex issues in large repositories.
+ * ENHANCED VERSION: Now includes:
+ * - Advanced codebase analysis tools for complex issues
+ * - Session state tracking to prevent duplicate operations
+ * - Comprehensive search validation
+ * - Pre-PR validation checklist
  * 
  * OPERATION MODES:
  * 1. Bot Mode (Default) - Uses bot token for PRs via fork, issues, comments
@@ -27,6 +31,7 @@ import { z } from 'zod';
 import { GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT } from '../../prompts/github-agent-enhanced-prompt';
 import { createCachedGitHubTools } from '../../utils/cachedGitHubTools';
 import { AgentCacheManager } from '../../utils/agentCacheManager';
+import { getAgentStateManager } from '../../services/AgentStateManager';
 import { Octokit } from '@octokit/rest';
 
 const githubAgentResponseSchema = z.object({
@@ -58,11 +63,29 @@ const githubAgentResponseSchema = z.object({
 });
 
 export const GitHubAgent = async (
-  githubContext?: { token: string; username: string; email?: string }
+  githubContext?: { token: string; username: string; email?: string },
+  sessionId?: string,
+  jobId?: string,
+  userId?: string,
+  taskDescription?: string
 ) => {
   console.log('[GitHubAgent] Initializing with LOCAL CACHE layer for 50-100x performance boost');
   
   try {
+    // Initialize state manager for session tracking
+    const stateManager = getAgentStateManager();
+    await stateManager.initialize();
+    
+    // Get or create session state
+    const state = sessionId && jobId && userId && taskDescription
+      ? await stateManager.getOrCreateState(sessionId, jobId, userId, taskDescription)
+      : null;
+    
+    if (state) {
+      console.log(`[GitHubAgent] Session state loaded: ${state.sessionId}`);
+      console.log(`[GitHubAgent] Previous operations: ${state.totalToolCalls} tool calls, ${state.modifiedFiles.length} files modified`);
+    }
+    
     // Initialize cache manager for faster operations
     const cacheManager = new AgentCacheManager();
     const cacheStats = cacheManager.getContextSummary();
@@ -82,7 +105,13 @@ export const GitHubAgent = async (
       console.log('[GitHubAgent] ✅ Initialized with CACHED tools (bot mode)');
       console.log('[GitHubAgent] Tool count:', cachedTools.tools.length);
       
+      // Build comprehensive system prompt with state info
+      const stateInfo = state 
+        ? `\n\n**📋 SESSION STATE (Prevent duplicates!):**\n${stateManager.getSummary(state)}`
+        : '';
+      
       const systemPrompt = GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + cacheStats + 
+        stateInfo +
         '\n\n**Performance Note:** Repository caching makes all file operations instant. ' +
         'Use search to find code, then read only what you need, then edit and commit.';
       
@@ -103,7 +132,12 @@ export const GitHubAgent = async (
         const octokit = new Octokit({ auth: githubContext.token });
         const cachedTools = createCachedGitHubTools(octokit);
         
+        const stateInfo = state 
+          ? `\n\n**📋 SESSION STATE (Prevent duplicates!):**\n${stateManager.getSummary(state)}`
+          : '';
+        
         const systemPrompt = GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + cacheStats +
+          stateInfo +
           '\n\n**Mode:** USER TOKEN (bot token not configured)';
         
         return AgentBuilder.create('GitHubAgent')

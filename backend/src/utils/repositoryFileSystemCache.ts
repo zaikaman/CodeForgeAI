@@ -416,6 +416,20 @@ export class RepositoryFileSystemCache {
 
       console.log(`[RepositoryFileSystemCache] Searching locally for "${pattern}" in ${owner}/${repo}...`);
 
+      // Convert glob pattern to regex-friendly pattern
+      const globToRegex = (glob: string): RegExp => {
+        // Escape special regex characters except for glob wildcards
+        let regexStr = glob
+          .replace(/\./g, '\\.')
+          .replace(/\//g, '[/\\\\]') // Allow both / and \ for path separators
+          .replace(/\?/g, '.')
+          .replace(/\*\*/g, '{{GLOBSTAR}}')
+          .replace(/\*/g, '[^/\\\\]*')
+          .replace(/\{\{GLOBSTAR\}\}/g, '.*');
+        
+        return new RegExp(`^${regexStr}$`, 'i');
+      };
+
       // Recursively search through cached files
       const searchDir = async (dirPath: string, relativePath: string = '') => {
         try {
@@ -432,8 +446,16 @@ export class RepositoryFileSystemCache {
               await searchDir(fullPath, relPath);
             } else {
               // Check file pattern if specified
-              if (filePattern && !relPath.match(new RegExp(filePattern))) {
-                continue;
+              if (filePattern) {
+                try {
+                  const fileRegex = globToRegex(filePattern);
+                  if (!fileRegex.test(relPath)) {
+                    continue;
+                  }
+                } catch (regexError: any) {
+                  console.warn(`[RepositoryFileSystemCache] Invalid file pattern "${filePattern}":`, regexError.message);
+                  continue;
+                }
               }
 
               try {

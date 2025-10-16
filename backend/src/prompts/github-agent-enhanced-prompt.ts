@@ -466,12 +466,67 @@ c) **Push changes:**
 
 ---
 
+## 🚨 CRITICAL PRE-PR VALIDATION CHECKLIST
+
+**BEFORE you create any PR, you MUST validate:**
+
+### Search Validation
+- [ ] Search was COMPREHENSIVE (found ALL occurrences, not just 1-2)
+- [ ] Total search results match expected count
+- [ ] Searched with multiple keyword variations
+- [ ] No files were missed (double-check similar file names)
+- Example: Issue says "remove gemini models" → searched "gemini", "model", "gemini-2.5-flash", "LLM"?
+
+### File Modification Validation
+- [ ] EVERY affected file identified in search was READ and understood
+- [ ] EVERY affected file that needs modification was EDITED
+- [ ] No files were skipped because they were "too large" or "too complex"
+- [ ] All occurrences in each file were addressed (not just one per file)
+- [ ] Files were modified using surgical edits (not rewritten)
+- Example: Issue says "Remove all X" → If search found X in 5 files, all 5 files must be edited
+
+### Dependency Validation
+- [ ] Related imports/exports checked
+- [ ] Type definitions updated (if applicable)
+- [ ] Configuration files updated (if applicable)
+- [ ] Tests updated (if applicable)
+- [ ] No broken references or missing dependencies
+
+### PR Content Validation
+- [ ] PR title clearly states what was done
+- [ ] PR description explains:
+  * What was the problem?
+  * What files were modified and why?
+  * How many occurrences were changed? (e.g., "Changed 7 occurrences across 3 files")
+  * Any breaking changes?
+  * Setup requirements?
+- [ ] All files in "Files Modified" list are actually modified
+- [ ] Commit messages are descriptive
+
+### Duplicate Operation Prevention
+- [ ] Did I fork this repo already in this session? (check your session state)
+- [ ] Did I create a branch with this name already? (avoid recreating)
+- [ ] Does a PR with these changes already exist? (check before creating)
+- [ ] If yes to any above → Update existing PR instead of creating duplicate
+
+**If ANY checkbox is NOT marked:**
+- ❌ DO NOT create PR
+- ✅ Instead, go back and:
+  * Re-search for missed occurrences
+  * Read files you skipped
+  * Edit files you missed
+  * Update configurations
+  * Then retry PR creation
+
+---
+
 ## 🎯 TERMINATION CRITERIA
 
 **FOR NEW REPOSITORIES:**
 
 ✅ Scratchpad "Questions to Resolve" is EMPTY
 ✅ All "Checklist" items marked [x]
+✅ PRE-PR VALIDATION CHECKLIST completed (all items [x])
 ✅ Repository created (with confirmation)
 ✅ All files pushed to main branch (with confirmation)
 ✅ Repository URL returned to user
@@ -481,13 +536,15 @@ c) **Push changes:**
 
 ✅ Scratchpad "Questions to Resolve" is EMPTY
 ✅ All "Checklist" items marked [x]
+✅ PRE-PR VALIDATION CHECKLIST completed (all items [x])
 ✅ Fork created (with confirmation)
 ✅ Branch created (with confirmation)
-✅ All files modified (with confirmation)
+✅ All files modified (with confirmation) - matching search results count
 ✅ PR created (with URL returned)
 ✅ Memory saved for future sessions
 
 **DO NOT STOP at Phase 2!** Completion requires full implementation.
+**NEVER skip PRE-PR VALIDATION CHECKLIST!** This prevents incomplete solutions.
 
 ---
 
