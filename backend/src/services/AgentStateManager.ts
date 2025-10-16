@@ -1,48 +1,59 @@
 /**
  * Agent State Manager
  * 
- * Manages persistent session state for agents using Redis
+ * Manages in-memory session state for agents
  * Enables agents to remember what they've done and avoid duplicate operations
+ * Uses memory storage - no external dependencies required
  */
 
-import Redis from 'ioredis';
 import {
   AgentSessionState,
   defaultAgentSessionState,
-  ForkedRepoInfo,
 } from '../types/agentState';
 
-const AGENT_STATE_TTL = 7200; // 2 hours
+const AGENT_STATE_TTL = 7200000; // 2 hours in milliseconds
 
 export class AgentStateManager {
-  private redisClient: Redis;
-  private initialized = false;
+  private stateStore: Map<string, AgentSessionState> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    this.redisClient = new Redis(redisUrl, {
-      lazyConnect: true,
-    });
-    
-    this.redisClient.on('error', (err) => {
-      console.warn('[AgentStateManager] Redis connection issue:', err.message);
-    });
+    this.startCleanupTimer();
+  }
+
+  private startCleanupTimer(): void {
+    // Cleanup expired states every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, state] of this.stateStore.entries()) {
+        const age = now - state.startTime;
+        if (age > AGENT_STATE_TTL) {
+          this.stateStore.delete(key);
+          console.log(`[AgentStateManager] Expired state cleaned: ${key}`);
+        }
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
   }
 
   async initialize(): Promise<void> {
-    if (this.initialized) return;
-    try {
-      await this.redisClient.connect();
-      this.initialized = true;
-      console.log('[AgentStateManager] Connected to Redis');
-    } catch (error: any) {
-      console.warn('[AgentStateManager] Failed to connect to Redis:', error.message);
-      this.initialized = false;
-    }
+    console.log('[AgentStateManager] Initialized with in-memory state storage');
   }
 
   private getStateKey(sessionId: string): string {
     return `agent:state:${sessionId}`;
+  }
+
+  /**
+   * Cleanup (call on shutdown)
+   */
+  shutdown(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.stateStore.clear();
+    console.log('[AgentStateManager] Shutdown complete');
   }
 
   /**
@@ -54,50 +65,28 @@ export class AgentStateManager {
     userId: string,
     taskDescription: string
   ): Promise<AgentSessionState> {
-    if (!this.initialized) await this.initialize();
-
-    try {
-      const key = this.getStateKey(sessionId);
-      const existing = await this.redisClient.get(key);
-
-      if (existing) {
-        console.log(`[AgentStateManager] Loaded state for session ${sessionId}`);
-        return JSON.parse(existing as string);
-      }
-
-      const newState = defaultAgentSessionState(sessionId, jobId, userId, taskDescription);
-      await this.redisClient.setex(
-        key,
-        AGENT_STATE_TTL,
-        JSON.stringify(newState)
-      );
-      console.log(`[AgentStateManager] Created new state for session ${sessionId}`);
-      return newState;
-    } catch (error: any) {
-      console.warn('[AgentStateManager] Error managing state:', error.message);
-      // Return in-memory state if Redis fails
-      return defaultAgentSessionState(sessionId, jobId, userId, taskDescription);
+    const key = this.getStateKey(sessionId);
+    
+    const existing = this.stateStore.get(key);
+    if (existing) {
+      console.log(`[AgentStateManager] Loaded state for session ${sessionId}`);
+      return existing;
     }
+
+    const newState = defaultAgentSessionState(sessionId, jobId, userId, taskDescription);
+    this.stateStore.set(key, newState);
+    console.log(`[AgentStateManager] Created new state for session ${sessionId}`);
+    return newState;
   }
 
   /**
-   * Save state to Redis
+   * Save state to memory
    */
   async saveState(state: AgentSessionState): Promise<void> {
-    if (!this.initialized) await this.initialize();
-
-    try {
-      const key = this.getStateKey(state.sessionId);
-      state.lastActivityAt = Date.now();
-      await this.redisClient.setex(
-        key,
-        AGENT_STATE_TTL,
-        JSON.stringify(state)
-      );
-      console.log(`[AgentStateManager] Saved state for session ${state.sessionId}`);
-    } catch (error: any) {
-      console.warn('[AgentStateManager] Error saving state:', error.message);
-    }
+    const key = this.getStateKey(state.sessionId);
+    state.lastActivityAt = Date.now();
+    this.stateStore.set(key, state);
+    console.log(`[AgentStateManager] Saved state for session ${state.sessionId}`);
   }
 
   /**
@@ -138,7 +127,7 @@ export class AgentStateManager {
     forkOwner: string,
     forkRepo: string
   ): void {
-    const forkedRepo: ForkedRepoInfo = {
+    const forkedRepo = {
       owner,
       repo,
       forkOwner,
@@ -346,15 +335,9 @@ export class AgentStateManager {
    * Clear state (end of session)
    */
   async clearState(sessionId: string): Promise<void> {
-    if (!this.initialized) await this.initialize();
-
-    try {
-      const key = this.getStateKey(sessionId);
-      await this.redisClient.del(key);
-      console.log(`[AgentStateManager] Cleared state for session ${sessionId}`);
-    } catch (error: any) {
-      console.warn('[AgentStateManager] Error clearing state:', error.message);
-    }
+    const key = this.getStateKey(sessionId);
+    this.stateStore.delete(key);
+    console.log(`[AgentStateManager] Cleared state for session ${sessionId}`);
   }
 }
 
