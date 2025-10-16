@@ -494,6 +494,15 @@ class ChatQueueManager {
             console.log(`[ChatQueue] Conversational response only, no file changes`);
           }
 
+          // 🔔 Emit realtime completion event for conversational responses
+          JobEventEmitter.emitComplete(job.userId, {
+            jobId: job.id,
+            sessionId: job.generationId,
+            success: true,
+            result: job.result,
+            timestamp: new Date().toISOString(),
+          });
+
           console.log(`[ChatQueue] Chat job ${job.id} completed successfully`);
           return;
         }
