@@ -38,9 +38,11 @@ export function getGitEnv(): NodeJS.ProcessEnv {
   if (isHeroku) {
     return {
       ...process.env,
+      PATH: '/app/bin:/app/bin/libexec/git-core:/app/bin/lib/git-core:' + (process.env.PATH || ''),
       LD_LIBRARY_PATH: '/app/bin/lib:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib',
       SSL_CERT_FILE: '/app/bin/etc/ssl/certs/ca-bundle.crt',
       SSL_CERT_DIR: '/app/bin/etc/ssl/certs',
+      GIT_EXEC_PATH: '/app/bin/libexec/git-core',
       GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || 'CodeForge Bot',
       GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'bot@codeforge.ai',
       GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME || 'CodeForge Bot',
@@ -63,9 +65,11 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
       // Set LD_LIBRARY_PATH to find git's dependencies
       const env = { 
         ...process.env,
+        PATH: '/app/bin:/app/bin/libexec/git-core:/app/bin/lib/git-core:' + (process.env.PATH || ''),
         LD_LIBRARY_PATH: '/app/bin/lib:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib',
         SSL_CERT_FILE: '/app/bin/etc/ssl/certs/ca-bundle.crt',
-        SSL_CERT_DIR: '/app/bin/etc/ssl/certs'
+        SSL_CERT_DIR: '/app/bin/etc/ssl/certs',
+        GIT_EXEC_PATH: '/app/bin/libexec/git-core'
       };
       const version = execSync('/app/bin/git --version', { encoding: 'utf-8', stdio: 'pipe', env }).trim();
       console.log(`[EnsureGitInstalled] ✅ Git found in slug: ${version}`);

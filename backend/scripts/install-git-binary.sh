@@ -83,6 +83,19 @@ if command -v git &> /dev/null; then
         fi
     done
     
+    # Copy git-core helpers (including git-remote-https!)
+    if [ -d "/usr/libexec/git-core" ]; then
+        mkdir -p bin/libexec/git-core
+        cp -r /usr/libexec/git-core/* bin/libexec/git-core/ 2>/dev/null || true
+        chmod +x bin/libexec/git-core/* 2>/dev/null || true
+        echo "✓ Copied git-core helpers"
+    elif [ -d "/usr/lib/git-core" ]; then
+        mkdir -p bin/lib/git-core
+        cp -r /usr/lib/git-core/* bin/lib/git-core/ 2>/dev/null || true
+        chmod +x bin/lib/git-core/* 2>/dev/null || true
+        echo "✓ Copied git-core helpers from /usr/lib/git-core"
+    fi
+    
     echo "✅ Git installed to /app/bin/git"
     ./bin/git --version
     
