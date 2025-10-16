@@ -12,6 +12,8 @@ gsap.registerPlugin(ScrollTrigger)
 export const HomePage: React.FC = () => {
   const [bootComplete, setBootComplete] = useState(false)
   const [currentSection, setCurrentSection] = useState(0)
+  const [showMobileWarning, setShowMobileWarning] = useState(false)
+  const [dismissedMobileWarning, setDismissedMobileWarning] = useState(false)
   const sectionsRef = useRef<(HTMLDivElement | null)[]>([])
   const wrapperRef = useRef<HTMLDivElement>(null)
   const homePageRef = useRef<HTMLDivElement>(null)
@@ -24,6 +26,25 @@ export const HomePage: React.FC = () => {
     }, 1500)
     return () => clearTimeout(timer)
   }, [])
+
+  // Detect mobile device and show warning
+  useEffect(() => {
+    const checkMobileAndShowWarning = () => {
+      if (dismissedMobileWarning) return
+
+      const isMobile = window.matchMedia('(max-width: 768px)').matches
+      if (isMobile) {
+        setShowMobileWarning(true)
+      }
+    }
+
+    // Check on mount
+    checkMobileAndShowWarning()
+
+    // Recheck on resize
+    window.addEventListener('resize', checkMobileAndShowWarning)
+    return () => window.removeEventListener('resize', checkMobileAndShowWarning)
+  }, [dismissedMobileWarning])
 
   useEffect(() => {
     if (!bootComplete) return
@@ -134,6 +155,11 @@ export const HomePage: React.FC = () => {
     }
   }
 
+  const handleContinueOnMobile = () => {
+    setShowMobileWarning(false)
+    setDismissedMobileWarning(true)
+  }
+
   if (!bootComplete) {
     return (
       <div className="home-page crt-screen auth-page full-height flex items-center justify-center">
@@ -154,6 +180,39 @@ export const HomePage: React.FC = () => {
   return (
     <div className="home-page crt-screen auth-page" ref={homePageRef}>
       <MatrixBackground />
+      
+      {/* Mobile Warning Modal */}
+      {showMobileWarning && (
+        <div className="mobile-warning-overlay">
+          <div className="mobile-warning-modal terminal-window">
+            <div className="terminal-header">
+              <div className="terminal-button close"></div>
+              <div className="terminal-button minimize"></div>
+              <div className="terminal-button maximize"></div>
+              <div className="terminal-title">DEVICE COMPATIBILITY WARNING</div>
+            </div>
+            <div className="terminal-content mobile-warning-content">
+              <div className="warning-icon phosphor-glow auth-page">⚠️</div>
+              <h2 className="warning-title phosphor-glow auth-page">DEVICE NOTICE</h2>
+              <p className="warning-message">
+                CodeForge AI is best used on desktop for the optimal experience.
+              </p>
+              <p className="warning-submessage">
+                Do you still want to continue?
+              </p>
+              <div className="warning-actions">
+                <button 
+                  className="btn btn-primary btn-large glow-button"
+                  onClick={handleContinueOnMobile}
+                >
+                  ► YES, CONTINUE
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="snap-container">
         <div className="snap-wrapper" ref={wrapperRef}>
           {/* Hero Section - Full Screen */}
