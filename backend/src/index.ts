@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { server } from './api/server';
 import { checkSupabaseConnection } from './storage/SupabaseClient';
 import { preloadAgentCaches } from './services/AgentInitService';
-import { startTelegramBot } from './services/TelegramBotService';
+import { setupTelegramWebhook } from './services/TelegramBotService';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -39,11 +39,12 @@ server.listen(PORT, async () => {
   });
   console.log('');
 
-  // Start Telegram bot if token is provided
+  // Setup Telegram webhook if token is provided
   try {
-    await startTelegramBot();
+    console.log('🔗 Setting up Telegram webhook...');
+    await setupTelegramWebhook();
   } catch (error: any) {
-    console.warn('⚠️  Telegram bot failed to start (non-critical):', error.message);
+    console.warn('⚠️  Telegram webhook setup failed (non-critical):', error.message);
   }
 });
 

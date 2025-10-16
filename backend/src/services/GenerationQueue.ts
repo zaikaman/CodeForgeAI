@@ -1,5 +1,6 @@
 import { GenerateWorkflow } from '../workflows/GenerateWorkflow';
 import { supabase } from '../storage/SupabaseClient';
+import JobEventEmitter from './JobEventEmitter';
 // PreviewServiceWithRetry removed - deployment is now manual via Deploy button
 
 interface GenerationJob {
@@ -67,6 +68,15 @@ class GenerationQueue {
     try {
       console.log(`[GenerationQueue] Processing job ${id}`);
 
+      // Fetch userId for WebSocket emission
+      const { data: generation } = await supabase
+        .from('generations')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+
+      const userId = generation?.user_id;
+
       // Update status to processing
       await supabase
         .from('generations')
@@ -75,6 +85,17 @@ class GenerationQueue {
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
+
+      // 🔔 Emit realtime start event
+      if (userId) {
+        JobEventEmitter.emitGenerationProgress(
+          userId,
+          id,
+          'GenerateWorkflow',
+          'Starting code generation...',
+          0
+        );
+      }
 
       // Run the generation workflow
       const generateWorkflow = new GenerateWorkflow();
@@ -100,12 +121,35 @@ class GenerationQueue {
 
       console.log(`[GenerationQueue] Job ${id} completed successfully`);
 
+      // 🔔 Emit realtime completion event
+      if (userId) {
+        JobEventEmitter.emitGenerationComplete(
+          userId,
+          id,
+          true,
+          {
+            files: result.files,
+            agentThoughts: result.agentThoughts,
+            targetLanguage: result.language || targetLanguage,
+          }
+        );
+      }
+
       // NOTE: Auto-deployment to fly.io is now DISABLED by default
       // Preview is handled by WebContainer in the frontend
       // Deployment only happens when user clicks "Deploy" button
       console.log(`[GenerationQueue] Files ready for WebContainer preview. Deployment will be triggered manually by user.`);
     } catch (error: any) {
       console.error(`[GenerationQueue] Job ${id} failed:`, error);
+
+      // Fetch userId for error emission
+      const { data: generation } = await supabase
+        .from('generations')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+
+      const userId = generation?.user_id;
 
       // Update with error
       await supabase
@@ -116,6 +160,17 @@ class GenerationQueue {
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
+
+      // 🔔 Emit realtime error event
+      if (userId) {
+        JobEventEmitter.emitGenerationComplete(
+          userId,
+          id,
+          false,
+          undefined,
+          error.message || 'Unknown error occurred'
+        );
+      }
     } finally {
       this.processing.delete(id);
     }

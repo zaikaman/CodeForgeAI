@@ -1,6 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
+/**
+ * @deprecated Use `useRealtimeJob` instead for better performance with WebSocket-based real-time updates.
+ * This hook is kept for fallback purposes only when WebSocket connection fails.
+ * 
+ * useChatJobPolling - Legacy polling-based job status tracker
+ * 
+ * ⚠️ WARNING: This hook uses polling which can:
+ * - Increase server load
+ * - Cause higher latency
+ * - Consume more bandwidth
+ * 
+ * Prefer using `useRealtimeJob` hook which provides:
+ * - Real-time updates via WebSocket
+ * - Lower server load
+ * - Better user experience
+ * - Automatic fallback to this hook if WebSocket fails
+ */
+
 export interface ChatJobStatus {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
@@ -173,6 +191,7 @@ export const useChatJobPolling = ({
       return;
     }
 
+    console.warn('⚠️ [useChatJobPolling] Using deprecated polling hook. Consider using useRealtimeJob for better performance.');
     console.log(`[useChatJobPolling] Starting polling for job: ${jobId}`);
     setIsPolling(true);
     attemptsRef.current = 0;

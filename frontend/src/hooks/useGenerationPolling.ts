@@ -1,6 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
+/**
+ * @deprecated This polling-based hook should be replaced with WebSocket-based real-time tracking.
+ * Consider creating `useRealtimeGeneration` hook similar to `useRealtimeJob`.
+ * 
+ * useGenerationPolling - Legacy polling-based generation status tracker
+ * 
+ * ⚠️ WARNING: This hook uses polling which can:
+ * - Increase server load with frequent database queries
+ * - Cause delays in status updates (polling interval dependent)
+ * - Consume more bandwidth
+ * 
+ * TODO: Implement WebSocket-based `useRealtimeGeneration` hook that:
+ * - Receives real-time updates via Socket.IO
+ * - Eliminates polling overhead
+ * - Provides instant status updates
+ * - Uses this hook as automatic fallback
+ */
+
 export interface GenerationStatus {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -162,6 +180,7 @@ export const useGenerationPolling = ({
       return;
     }
 
+    console.warn('⚠️ [useGenerationPolling] Using deprecated polling hook. WebSocket-based tracking should be implemented.');
     console.log(`[useGenerationPolling] Starting polling for generation: ${generationId}`);
     setIsPolling(true);
     attemptsRef.current = 0;

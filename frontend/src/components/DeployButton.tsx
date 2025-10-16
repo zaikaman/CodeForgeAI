@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../services/apiClient';
+import { useRealtimeDeployment } from '../hooks/useRealtimeDeployment';
 import './DeployButton.css';
 
 interface DeployButtonProps {
@@ -33,64 +34,31 @@ export function DeployButton({
     message?: string;
   }>>([]);
 
+  // Use WebSocket for realtime deployment tracking (no more polling!)
+  useRealtimeDeployment({
+    projectId: isDeploying ? projectId : null,
+    enabled: isDeploying,
+    onProgress: (progress) => {
+      setDeploymentProgress(prev => [...prev, progress]);
+    },
+    onComplete: (success, deploymentUrl, error) => {
+      setIsDeploying(false);
+      
+      if (success && deploymentUrl) {
+        updateStatus('success');
+        setDeployedUrl(deploymentUrl);
+        onDeployComplete?.(deploymentUrl);
+      } else {
+        updateStatus('error');
+        onDeployError?.(error || 'Deployment failed');
+      }
+    },
+  });
+
   // Helper to update status and notify parent
   const updateStatus = (status: 'idle' | 'deploying' | 'success' | 'error') => {
     setDeployStatus(status);
     onStatusChange?.(status);
-  };
-
-  const pollDeploymentStatus = async (projectId: string): Promise<void> => {
-    const maxAttempts = 60; // 5 minutes (5 seconds interval)
-    let attempts = 0;
-
-    while (attempts < maxAttempts) {
-      try {
-        const response = await apiClient.request({
-          method: 'GET',
-          url: `/api/deploy/${projectId}`,
-        });
-
-        if (response.success && response.data) {
-          const { deploymentStatus, deploymentUrl, error, progress } = response.data;
-
-          // Update progress if available
-          if (progress && Array.isArray(progress)) {
-            setDeploymentProgress(progress);
-          }
-
-          if (deploymentStatus === 'deployed' && deploymentUrl) {
-            updateStatus('success');
-            setIsDeploying(false);
-            setDeployedUrl(deploymentUrl);
-            onDeployComplete?.(deploymentUrl);
-            console.log('[DeployButton] Deployment successful:', deploymentUrl);
-            return;
-          }
-
-          if (deploymentStatus === 'failed') {
-            throw new Error(error || 'Deployment failed');
-          }
-
-          // Still deploying, wait and retry
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          attempts++;
-        } else {
-          throw new Error('Failed to get deployment status');
-        }
-      } catch (error) {
-        console.error('[DeployButton] Status check error:', error);
-        const message = error instanceof Error ? error.message : 'Failed to check deployment status';
-        updateStatus('error');
-        setIsDeploying(false);
-        onDeployError?.(message);
-        return;
-      }
-    }
-
-    // Timeout
-    updateStatus('error');
-    setIsDeploying(false);
-    onDeployError?.('Deployment timeout');
   };
 
   const handleDeploy = async () => {
@@ -119,9 +87,8 @@ export function DeployButton({
       });
 
       if (response.success && response.data) {
-        console.log('[DeployButton] Deployment started, polling for status...');
-        // Start polling for status
-        await pollDeploymentStatus(projectId);
+        console.log('[DeployButton] Deployment started');
+        // WebSocket will handle all updates automatically
       } else {
         throw new Error(response.error || 'Deployment failed');
       }
@@ -144,8 +111,7 @@ export function DeployButton({
       } else if (initialDeploymentStatus === 'deploying') {
         updateStatus('deploying');
         setIsDeploying(true);
-        // Start polling if deployment is in progress
-        pollDeploymentStatus(projectId);
+        // WebSocket will pick up progress automatically
       } else if (initialDeploymentStatus === 'failed') {
         updateStatus('error');
       }

@@ -27,7 +27,7 @@ interface TelegramUser {
 
 export class TelegramBotService {
   private bot: TelegramBot | null = null;
-  private isPolling = false;
+  private webhookUrl: string | null = null;
   
   constructor() {
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -38,35 +38,68 @@ export class TelegramBotService {
     }
     
     try {
+      // Initialize bot WITHOUT polling - we'll use webhook
       this.bot = new TelegramBot(token, { polling: false });
-      console.log('✅ Telegram bot initialized');
+      console.log('✅ Telegram bot initialized (webhook mode)');
     } catch (error: any) {
       console.error('❌ Failed to initialize Telegram bot:', error.message);
     }
   }
   
   /**
-   * Start the bot (begin polling for messages)
+   * Set up webhook for receiving updates from Telegram
+   * Auto-detects Heroku URL or uses provided URL
    */
-  async start() {
+  async setupWebhook(customUrl?: string) {
     if (!this.bot) {
-      console.warn('⚠️  Telegram bot not initialized - skipping start');
-      return;
-    }
-    
-    if (this.isPolling) {
-      console.log('⚠️  Telegram bot already polling');
+      console.warn('⚠️  Telegram bot not initialized - skipping webhook setup');
       return;
     }
     
     try {
-      // Start polling
-      await this.bot.startPolling();
-      this.isPolling = true;
+      // Auto-detect webhook URL from Heroku environment
+      let baseUrl = customUrl;
       
-      console.log('🤖 Telegram bot started polling');
+      if (!baseUrl) {
+        // Try Heroku app name first
+        const herokuAppName = process.env.HEROKU_APP_NAME;
+        if (herokuAppName) {
+          baseUrl = `https://${herokuAppName}.herokuapp.com`;
+        } else {
+          // Try to get from environment variable
+          baseUrl = process.env.APP_URL || process.env.BACKEND_URL;
+        }
+      }
       
-      // Set up command handlers
+      if (!baseUrl) {
+        console.error('❌ Cannot setup webhook: No URL provided and HEROKU_APP_NAME not set');
+        console.warn('💡 Set HEROKU_APP_NAME or APP_URL environment variable');
+        return;
+      }
+      
+      // Build webhook URL
+      this.webhookUrl = `${baseUrl}/api/telegram/webhook`;
+      
+      console.log(`🔗 Setting up Telegram webhook at: ${this.webhookUrl}`);
+      
+      // Set webhook with Telegram
+      const result = await this.bot.setWebHook(this.webhookUrl);
+      
+      if (result) {
+        console.log('✅ Telegram webhook configured successfully');
+        
+        // Verify webhook
+        const webhookInfo = await this.bot.getWebHookInfo();
+        console.log('📋 Webhook info:', {
+          url: webhookInfo.url,
+          has_custom_certificate: webhookInfo.has_custom_certificate,
+          pending_update_count: webhookInfo.pending_update_count,
+        });
+      } else {
+        console.error('❌ Failed to set webhook');
+      }
+      
+      // Set up command handlers (same as before, but they work with webhook too)
       this.setupHandlers();
       
       // Get bot info
@@ -74,24 +107,42 @@ export class TelegramBotService {
       console.log(`✅ Bot username: @${me.username}`);
       
     } catch (error: any) {
-      console.error('❌ Failed to start Telegram bot:', error.message);
+      console.error('❌ Failed to setup Telegram webhook:', error.message);
     }
   }
   
   /**
-   * Stop the bot
+   * Process incoming webhook update from Telegram
+   * This is called by the webhook endpoint when Telegram sends an update
    */
-  async stop() {
-    if (!this.bot || !this.isPolling) {
+  async processUpdate(update: any) {
+    if (!this.bot) {
+      console.warn('⚠️  Bot not initialized, cannot process update');
       return;
     }
     
     try {
-      await this.bot.stopPolling();
-      this.isPolling = false;
-      console.log('🛑 Telegram bot stopped');
+      // Process the update through node-telegram-bot-api
+      // This will trigger the appropriate handlers (onText, on('message'), etc.)
+      await this.bot.processUpdate(update);
     } catch (error: any) {
-      console.error('❌ Failed to stop Telegram bot:', error.message);
+      console.error('❌ Error processing Telegram update:', error.message);
+    }
+  }
+  
+  /**
+   * Remove webhook and delete pending updates
+   */
+  async removeWebhook() {
+    if (!this.bot) {
+      return;
+    }
+    
+    try {
+      await this.bot.deleteWebHook();
+      console.log('🗑️  Telegram webhook removed');
+    } catch (error: any) {
+      console.error('❌ Failed to remove webhook:', error.message);
     }
   }
   
@@ -714,14 +765,20 @@ export function getTelegramBot(): TelegramBotService {
   return botInstance;
 }
 
-export function startTelegramBot() {
+/**
+ * Setup Telegram webhook (replaces startTelegramBot for webhook mode)
+ */
+export async function setupTelegramWebhook(customUrl?: string) {
   const bot = getTelegramBot();
-  bot.start();
+  await bot.setupWebhook(customUrl);
   return bot;
 }
 
-export function stopTelegramBot() {
+/**
+ * Remove Telegram webhook
+ */
+export async function removeTelegramWebhook() {
   if (botInstance) {
-    botInstance.stop();
+    await botInstance.removeWebhook();
   }
 }

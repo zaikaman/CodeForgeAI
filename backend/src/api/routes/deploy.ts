@@ -3,6 +3,7 @@ import { supabase } from '../../storage/SupabaseClient';
 import { z } from 'zod';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/supabaseAuth';
 import { PreviewServiceWithRetry } from '../../services/preview/PreviewServiceWithRetry';
+import JobEventEmitter from '../../services/JobEventEmitter';
 
 const router = Router();
 
@@ -137,7 +138,7 @@ router.post('/deploy', optionalAuth, async (req, res) => {
 
     // Start deployment in background
     // Return immediately to user, they can poll for status
-    deployInBackground(projectId, files!, platform).catch((error) => {
+    deployInBackground(projectId, files!, platform, userId).catch((error) => {
       console.error(`[POST /deploy] Background deployment error:`, error);
     });
 
@@ -174,6 +175,7 @@ router.post('/deploy', optionalAuth, async (req, res) => {
 // Helper function to update deployment progress
 async function updateDeploymentProgress(
   projectId: string,
+  userId: string,
   step: string,
   status: 'running' | 'completed' | 'failed',
   message?: string
@@ -223,6 +225,9 @@ async function updateDeploymentProgress(
       .eq('id', projectId);
 
     console.log(`[Progress] ${step}: ${status}${message ? ` - ${message}` : ''}`);
+    
+    // 🔔 Emit realtime WebSocket event
+    JobEventEmitter.emitDeploymentProgress(userId, projectId, step, status, message);
   } catch (error) {
     console.error(`[updateDeploymentProgress] Error:`, error);
     // Don't throw - progress update failure shouldn't break deployment
@@ -233,22 +238,23 @@ async function updateDeploymentProgress(
 async function deployInBackground(
   projectId: string, 
   files: any[], 
-  platform: string
+  platform: string,
+  userId: string
 ): Promise<void> {
   try {
     console.log(`[deployInBackground] Starting deployment for ${projectId} to ${platform}`);
     
-    await updateDeploymentProgress(projectId, 'Preparing files', 'running', `Validating ${files.length} files`);
+    await updateDeploymentProgress(projectId, userId, 'Preparing files', 'running', `Validating ${files.length} files`);
     
-    await updateDeploymentProgress(projectId, 'Creating Dockerfile', 'running', 'Generating deployment configuration');
+    await updateDeploymentProgress(projectId, userId, 'Creating Dockerfile', 'running', 'Generating deployment configuration');
     
-    await updateDeploymentProgress(projectId, 'Building image', 'running', 'Building Docker container');
+    await updateDeploymentProgress(projectId, userId, 'Building image', 'running', 'Building Docker container');
     
     const previewService = new PreviewServiceWithRetry(3);
     
-    // Create a wrapper for the progress callback that includes projectId
+    // Create a wrapper for the progress callback that includes projectId and userId
     const progressCallback = async (step: string, status: 'running' | 'completed' | 'failed', message?: string) => {
-      await updateDeploymentProgress(projectId, step, status, message);
+      await updateDeploymentProgress(projectId, userId, step, status, message);
     };
     
     const previewResult = await previewService.generatePreviewWithRetry(
@@ -259,7 +265,7 @@ async function deployInBackground(
     );
 
     if (previewResult.success && previewResult.previewUrl) {
-      await updateDeploymentProgress(projectId, 'Deployment complete', 'completed', `App available at ${previewResult.previewUrl}`);
+      await updateDeploymentProgress(projectId, userId, 'Deployment complete', 'completed', `App available at ${previewResult.previewUrl}`);
       
       // Update with success
       await supabase
@@ -273,9 +279,19 @@ async function deployInBackground(
         })
         .eq('id', projectId);
       
+      // 🔔 Emit realtime completion event
+      JobEventEmitter.emitDeploymentComplete(
+        userId,
+        projectId,
+        true,
+        previewResult.previewUrl,
+        undefined,
+        previewResult.logs
+      );
+      
       console.log(`[deployInBackground] ✓ Deployment successful: ${previewResult.previewUrl}`);
     } else {
-      await updateDeploymentProgress(projectId, 'Deployment failed', 'failed', previewResult.error || 'Unknown error');
+      await updateDeploymentProgress(projectId, userId, 'Deployment failed', 'failed', previewResult.error || 'Unknown error');
       
       // Update with failure
       await supabase
@@ -289,12 +305,22 @@ async function deployInBackground(
         })
         .eq('id', projectId);
       
+      // 🔔 Emit realtime completion event (failed)
+      JobEventEmitter.emitDeploymentComplete(
+        userId,
+        projectId,
+        false,
+        undefined,
+        previewResult.error || 'Unknown deployment error',
+        previewResult.logs
+      );
+      
       console.warn(`[deployInBackground] ✗ Deployment failed:`, previewResult.error);
     }
   } catch (error: any) {
     console.error(`[deployInBackground] Deployment error:`, error);
     
-    await updateDeploymentProgress(projectId, 'Deployment failed', 'failed', error.message);
+    await updateDeploymentProgress(projectId, userId, 'Deployment failed', 'failed', error.message);
     
     // Update with failure
     await supabase
@@ -306,6 +332,15 @@ async function deployInBackground(
         updated_at: new Date().toISOString(),
       })
       .eq('id', projectId);
+    
+    // 🔔 Emit realtime completion event (error)
+    JobEventEmitter.emitDeploymentComplete(
+      userId,
+      projectId,
+      false,
+      undefined,
+      error.message
+    );
   }
 }
 

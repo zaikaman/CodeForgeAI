@@ -185,6 +185,131 @@ export class JobEventEmitter {
       console.error('❌ Error emitting chat progress:', error.message);
     }
   }
+
+  /**
+   * Emit deployment progress update
+   */
+  static emitDeploymentProgress(
+    userId: string,
+    projectId: string,
+    step: string,
+    status: 'running' | 'completed' | 'failed',
+    message?: string
+  ): void {
+    try {
+      const room = `user:${userId}`;
+      
+      io.to(room).emit('deployment:progress', {
+        projectId,
+        step,
+        status,
+        message,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log(`📡 Emitted deployment:progress to ${room}:`, {
+        projectId,
+        step,
+        status,
+      });
+    } catch (error: any) {
+      console.error('❌ Error emitting deployment progress:', error.message);
+    }
+  }
+
+  /**
+   * Emit deployment completion
+   */
+  static emitDeploymentComplete(
+    userId: string,
+    projectId: string,
+    success: boolean,
+    deploymentUrl?: string,
+    error?: string,
+    logs?: string
+  ): void {
+    try {
+      const room = `user:${userId}`;
+      
+      io.to(room).emit('deployment:complete', {
+        projectId,
+        success,
+        deploymentUrl,
+        error,
+        logs,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log(`📡 Emitted deployment:complete to ${room}:`, {
+        projectId,
+        success,
+        hasUrl: !!deploymentUrl,
+      });
+    } catch (error: any) {
+      console.error('❌ Error emitting deployment complete:', error.message);
+    }
+  }
+
+  /**
+   * Emit generation progress update
+   */
+  static emitGenerationProgress(
+    userId: string,
+    generationId: string,
+    agent: string,
+    message: string,
+    progress?: number
+  ): void {
+    try {
+      const room = `user:${userId}`;
+      
+      io.to(room).emit('generation:progress', {
+        generationId,
+        agent,
+        message,
+        progress,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log(`📡 Emitted generation:progress to ${room}:`, {
+        generationId,
+        agent,
+        progress,
+      });
+    } catch (error: any) {
+      console.error('❌ Error emitting generation progress:', error.message);
+    }
+  }
+
+  /**
+   * Emit generation completion
+   */
+  static emitGenerationComplete(
+    userId: string,
+    generationId: string,
+    success: boolean,
+    result?: any,
+    error?: string
+  ): void {
+    try {
+      const room = `user:${userId}`;
+      
+      io.to(room).emit('generation:complete', {
+        generationId,
+        success,
+        result,
+        error,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log(`📡 Emitted generation:complete to ${room}:`, {
+        generationId,
+        success,
+      });
+    } catch (error: any) {
+      console.error('❌ Error emitting generation complete:', error.message);
+    }
+  }
 }
 
 export default JobEventEmitter;

@@ -16,6 +16,36 @@ const completeAuthSchema = z.object({
 });
 
 /**
+ * POST /telegram/webhook
+ * Webhook endpoint for receiving Telegram updates
+ * This is called by Telegram servers when there's a new message/update
+ */
+router.post('/telegram/webhook', async (req, res): Promise<void> => {
+  try {
+    const update = req.body;
+    
+    console.log('[Telegram Webhook] Received update:', update.update_id);
+    
+    // Import TelegramBotService dynamically to avoid circular deps
+    const { getTelegramBot } = await import('../../services/TelegramBotService');
+    const bot = getTelegramBot();
+    
+    // Process the update
+    await bot.processUpdate(update);
+    
+    // Telegram expects 200 OK response quickly
+    res.sendStatus(200);
+    return;
+    
+  } catch (error: any) {
+    console.error('[Telegram Webhook] Error processing update:', error);
+    // Still return 200 to avoid Telegram retrying
+    res.sendStatus(200);
+    return;
+  }
+});
+
+/**
  * POST /telegram/complete-auth
  * Complete Telegram authentication by linking telegram_id to user_id
  */
