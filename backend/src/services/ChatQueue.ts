@@ -730,7 +730,8 @@ class ChatQueueManager {
           const { GenerateWorkflow } = await import('../workflows/GenerateWorkflow');
           const workflow = new GenerateWorkflow({
             githubContext: job.githubContext,
-            jobId: job.id // Pass job ID for progress tracking
+            jobId: job.id, // Pass job ID for progress tracking
+            userId: job.userId // Pass user ID for Socket.IO events
           });
           
           workflowResult = await workflow.run({

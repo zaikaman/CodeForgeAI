@@ -17,18 +17,21 @@ import { supabase } from '../storage/SupabaseClient'
 import { escapeAdkTemplateVariables } from '../utils/adkEscaping'
 import { cleanContent, hasEscapedCharacters } from '../utils/contentCleaner'
 import { fetchMultipleFilesAsBase64 } from '../utils/fileProcessing'
+import JobEventEmitter from '../services/JobEventEmitter'
 
 export class GenerateWorkflow {
   private readonly VALIDATION_ENABLED = true // Enable fast validation (< 2s overhead)
   private readonly qaAgent = createQualityAssuranceAgent()
   private githubContext: any = null
   private jobId: string | null = null // Track current job ID for progress updates
+  private userId: string | null = null // Track user ID for Socket.IO events
   private usedSimpleCoder: boolean = false // Track if SimpleCoder was used (skip validation)
 
-  constructor(options?: { githubContext?: any; jobId?: string }) {
+  constructor(options?: { githubContext?: any; jobId?: string; userId?: string }) {
     // Initialize with QA agent for validation
     this.githubContext = options?.githubContext || null
     this.jobId = options?.jobId || null
+    this.userId = options?.userId || null
     if (this.githubContext) {
       console.log('[GenerateWorkflow] GitHub context available:', this.githubContext.username)
     }
@@ -38,7 +41,7 @@ export class GenerateWorkflow {
   }
 
   /**
-   * Emit progress update to database for realtime frontend updates
+   * Emit progress update to database AND Socket.IO for realtime frontend updates
    */
   private async emitProgress(
     agent: string,
@@ -55,10 +58,10 @@ export class GenerateWorkflow {
         message,
       }
 
-      // Fetch current progress messages
+      // Fetch current progress messages and user_id
       const { data: job } = await supabase
         .from('chat_jobs')
-        .select('progress_messages')
+        .select('progress_messages, user_id')
         .eq('id', this.jobId)
         .single()
 
@@ -71,7 +74,13 @@ export class GenerateWorkflow {
         .update({ progress_messages: updatedMessages })
         .eq('id', this.jobId)
 
-      console.log(`[Progress] ${agent} - ${status}: ${message}`)
+      console.log(`[Workflow Progress] ${agent} - ${status}: ${message}`)
+      
+      // 🔔 Emit realtime Socket.IO event for immediate UI update
+      const userId = this.userId || job?.user_id
+      if (userId) {
+        JobEventEmitter.emitChatProgress(userId, this.jobId, updatedMessages)
+      }
     } catch (error) {
       console.error('[Progress] Failed to emit progress:', error)
     }
@@ -1174,11 +1183,19 @@ Return the result as JSON with the following structure:
         if (isSimple) {
           this.usedSimpleCoder = true
           console.log('⚡ SimpleCoder mode: Skipping validation for maximum speed')
+          await this.emitProgress(agentName, 'started', `⚡ SimpleCoder activated - generating lightweight ${targetLanguage} code...`)
+        } else {
+          await this.emitProgress(agentName, 'started', `🔨 ComplexCoder analyzing requirements for ${targetLanguage} project...`)
         }
         
         console.log(`\n[STEP 2] ${agentName} - Attempt ${attempt}/${MAX_RETRIES}`)
         console.log(`  Agent choice: ${request.agents ? request.agents.join(', ') : 'auto (ComplexCoder default)'}`)
         console.log(`  Language: ${targetLanguage} (${isSimple ? 'simple' : 'complex'})`)
+
+        // Progress update for image processing
+        if (request.imageUrls && request.imageUrls.length > 0) {
+          await this.emitProgress(agentName, 'started', `📎 Processing ${request.imageUrls.length} attached file(s)...`)
+        }
 
         // Use the appropriate agent
         const { runner } = isSimple
@@ -1228,11 +1245,27 @@ Return the result as JSON with the following structure:
           typeof message === 'string' ? message.substring(0, 200) : 'multipart message'
         )
 
+        // Progress update for AI generation
+        await this.emitProgress(
+          agentName, 
+          'started', 
+          `🤖 AI is now generating code... This may take a moment for complex projects.`
+        )
+
         const response = (await runner.ask(message)) as any
 
         console.log(`Raw response from ${agentName}:`, JSON.stringify(response, null, 2))
         console.log('Response type:', typeof response)
         console.log('Response has files:', response?.files ? 'yes' : 'no')
+
+        // Progress update for successful generation
+        if (response?.files?.length) {
+          await this.emitProgress(
+            agentName,
+            'completed',
+            `✅ Generated ${response.files.length} file(s) successfully!`
+          )
+        }
 
         // Validate response structure
         if (!response || !response.files || !Array.isArray(response.files)) {
@@ -1315,6 +1348,8 @@ Return the result as JSON with the following structure:
         
         if (!this.usedSimpleCoder) {
           console.log('\n[PRETTIER] Formatting generated code...')
+          await this.emitProgress('Prettier', 'started', '✨ Formatting code for better readability...')
+          
           const filesToFormat = validFiles.filter((file: any) => shouldFormatFile(file.path))
           const filesToSkip = validFiles.filter((file: any) => !shouldFormatFile(file.path))
 
@@ -1325,9 +1360,11 @@ Return the result as JSON with the following structure:
           try {
             formattedFiles = await formatCodeFiles(filesToFormat)
             console.log('[PRETTIER] ✅ Code formatting completed successfully')
+            await this.emitProgress('Prettier', 'completed', `✅ Formatted ${formattedFiles.length} file(s)`)
           } catch (error) {
             console.error('[PRETTIER] ⚠️ Formatting failed, using original code:', error)
             formattedFiles = filesToFormat // Fallback to original
+            await this.emitProgress('Prettier', 'error', '⚠️ Formatting skipped, using original code')
           }
 
           // Combine formatted and skipped files

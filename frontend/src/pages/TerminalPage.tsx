@@ -243,8 +243,26 @@ export const TerminalPage: React.FC = () => {
     enabled: isProcessing && !!currentJobId,
     fallbackToPolling: true, // Auto-fallback if WebSocket fails
     onProgress: (data) => {
-      if (data.progressMessages) {
+      console.log('📊 Progress update received:', data);
+      
+      // Handle progress messages array (from chat:progress event)
+      if (data.progressMessages && Array.isArray(data.progressMessages)) {
+        console.log('📝 Updating progress messages:', data.progressMessages.length);
         setProgressMessages(data.progressMessages);
+      }
+      
+      // Handle individual progress updates (from job:progress event)
+      if (data.message && data.agent) {
+        console.log('📝 Adding individual progress message:', { agent: data.agent, message: data.message });
+        const newProgress = {
+          timestamp: data.timestamp || new Date().toISOString(),
+          agent: data.agent,
+          status: data.status || 'processing',
+          message: data.message,
+        };
+        
+        // Append to existing progress messages
+        setProgressMessages(prev => [...prev, newProgress]);
       }
     },
     onComplete: (result) => {
