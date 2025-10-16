@@ -61,11 +61,11 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     }),
 
     /**
-     * Search files using git grep - extremely fast
+     * Search files using local filesystem search - extremely fast
      */
     createTool({
       name: 'bot_github_search_cached',
-      description: `Search repository files using git grep (local + fast). 
+      description: `Search repository files using local filesystem search (local + fast). 
         Supports regex patterns and file filtering. Much faster than API search.`,
       schema: z.object({
         owner: z.string().describe('Repository owner'),
@@ -91,7 +91,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             success: true,
             results: results.slice(0, 50), // Limit to first 50 for display
             totalMatches: results.length,
-            message: `✅ Found ${results.length} matches using git grep`,
+            message: `✅ Found ${results.length} matches using local search`,
           };
         } catch (error: any) {
           return {

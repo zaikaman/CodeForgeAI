@@ -4,13 +4,13 @@
  * 
  * Strategies:
  * 1. GitHub Code Search API (cloud-based, fastest for repos on GitHub)
- * 2. Local git grep (if repo is cloned locally)
- * 3. Pure JavaScript fallback (glob + regex)
+ * 2. Local file search (if repo is cached locally)
+ * 3. Pure JavaScript fallback (via API)
  */
 
 import { Octokit } from '@octokit/rest';
-import { spawn } from 'child_process';
-import { EOL } from 'os';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * Parameters for GitHub search
@@ -149,98 +149,84 @@ async function searchWithGitHubAPI(
 }
 
 /**
- * Strategy 2: Local git grep (if repo is cloned)
+ * Strategy 2: Local file search (if repo is cached locally)
  * - Very fast for local repos
- * - Requires git to be installed
- * - Limited to cloned repositories
+ * - No external commands required (pure Node.js)
+ * - Works with cached repositories
  */
-async function searchWithGitGrep(
+async function searchWithLocalFiles(
   repoPath: string,
   params: GitHubSearchParams
 ): Promise<SearchResult | null> {
   try {
-    const gitArgs = [
-      'grep',
-      '-n', // Show line numbers
-      '-E', // Extended regex
-      '--ignore-case',
-      params.pattern,
-    ];
+    console.log('🔍 Local file search in:', repoPath);
 
-    if (params.include) {
-      gitArgs.push('--', params.include);
-    }
-
-    console.log('🔍 Git grep command:', 'git', gitArgs.join(' '));
-
-    const output = await new Promise<string>((resolve, reject) => {
-      const child = spawn('git', gitArgs, {
-        cwd: repoPath,
-        windowsHide: true,
-      });
-
-      const stdoutChunks: Buffer[] = [];
-      const stderrChunks: Buffer[] = [];
-
-      child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
-      child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
-      
-      child.on('error', (err) => {
-        reject(new Error(`Failed to start git grep: ${err.message}`));
-      });
-
-      child.on('close', (code) => {
-        const stdoutData = Buffer.concat(stdoutChunks).toString('utf8');
-        const stderrData = Buffer.concat(stderrChunks).toString('utf8');
-        
-        if (code === 0) {
-          resolve(stdoutData);
-        } else if (code === 1) {
-          resolve(''); // No matches
-        } else {
-          reject(new Error(`Git grep exited with code ${code}: ${stderrData}`));
-        }
-      });
-    });
-
-    // Parse git grep output
     const matchesByFile: Record<string, SearchMatch[]> = {};
     let totalMatches = 0;
+    const regex = new RegExp(params.pattern, 'i'); // Case-insensitive regex
 
-    if (output) {
-      const lines = output.split(EOL);
-      
-      for (const line of lines) {
-        if (!line.trim()) continue;
+    // Recursively search through files
+    const searchDir = async (dirPath: string, relativePath: string = '') => {
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-        // Format: file:lineNumber:lineContent
-        const firstColonIndex = line.indexOf(':');
-        if (firstColonIndex === -1) continue;
+        for (const entry of entries) {
+          // Skip hidden files and git directory
+          if (entry.name.startsWith('.')) continue;
 
-        const secondColonIndex = line.indexOf(':', firstColonIndex + 1);
-        if (secondColonIndex === -1) continue;
+          const fullPath = path.join(dirPath, entry.name);
+          const relPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
 
-        const filePath = line.substring(0, firstColonIndex);
-        const lineNumberStr = line.substring(firstColonIndex + 1, secondColonIndex);
-        const lineContent = line.substring(secondColonIndex + 1);
+          if (entry.isDirectory()) {
+            await searchDir(fullPath, relPath);
+          } else {
+            // Check file pattern if specified
+            if (params.include && !relPath.match(new RegExp(params.include))) {
+              continue;
+            }
 
-        const lineNumber = parseInt(lineNumberStr, 10);
-        if (isNaN(lineNumber)) continue;
+            // Check path filter if specified
+            if (params.path && !relPath.startsWith(params.path)) {
+              continue;
+            }
 
-        if (!matchesByFile[filePath]) {
-          matchesByFile[filePath] = [];
+            try {
+              // Read file content
+              const content = await fs.readFile(fullPath, 'utf-8');
+              const lines = content.split('\n');
+
+              // Search for pattern in each line
+              for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                const line = lines[lineNum];
+                if (regex.test(line)) {
+                  if (!matchesByFile[relPath]) {
+                    matchesByFile[relPath] = [];
+                  }
+
+                  matchesByFile[relPath].push({
+                    filePath: relPath,
+                    lineNumber: lineNum + 1, // 1-indexed
+                    line: line.trim(),
+                  });
+                  totalMatches++;
+                }
+              }
+            } catch (error: any) {
+              // Skip binary files or read errors
+              if (!error.message.includes('ENOENT')) {
+                console.warn(`Could not read ${relPath}: ${error.message}`);
+              }
+            }
+          }
         }
-
-        matchesByFile[filePath].push({
-          filePath,
-          lineNumber,
-          line: lineContent.trim(),
-        });
-        totalMatches++;
+      } catch (error) {
+        console.warn(`Error scanning directory:`, error);
       }
-    }
+    };
 
-    console.log('✓ Git grep: found', totalMatches, 'matches');
+    await searchDir(repoPath);
+
+    console.log(`✓ Local search: found ${totalMatches} matches`);
 
     return {
       success: true,
@@ -249,7 +235,7 @@ async function searchWithGitGrep(
       matchesByFile,
     };
   } catch (error: any) {
-    console.log('Git grep failed:', error.message);
+    console.log('Local file search failed:', error.message);
     return null; // Fallback to next strategy
   }
 }
@@ -396,11 +382,11 @@ export async function performGitHubSearch(
     return apiResult;
   }
 
-  // Strategy 2: Local git grep (if repo is cloned)
+  // Strategy 2: Local file search (if repo is cached locally)
   if (localRepoPath) {
-    const gitResult = await searchWithGitGrep(localRepoPath, params);
-    if (gitResult && gitResult.totalMatches > 0) {
-      return gitResult;
+    const localResult = await searchWithLocalFiles(localRepoPath, params);
+    if (localResult && localResult.totalMatches > 0) {
+      return localResult;
     }
   }
 
@@ -455,8 +441,8 @@ export function createGitHubSearchTool() {
 
 **SEARCH STRATEGIES (Automatic):**
 1. **GitHub API** - Fast cloud-based search (tries first)
-2. **Git Grep** - Local search if repo is cloned (fallback)
-3. **JavaScript** - Pure JS fallback (always works)
+2. **Local Search** - Fast local filesystem search if repo is cached (fallback)
+3. **JavaScript** - Pure JS fallback via API (always works)
 
 **FEATURES:**
 - ✅ Regex pattern support

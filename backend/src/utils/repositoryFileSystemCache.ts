@@ -7,7 +7,7 @@
  * Features:
  * - Clone and cache entire repositories locally
  * - Fast file access without API calls
- * - Git operations (grep, log, diff) for advanced searches
+ * - Local filesystem operations (search, analysis) for advanced searches
  * - Automatic cleanup and expiration
  * - Memory and disk-based dual caching
  */
@@ -62,7 +62,7 @@ interface RepositoryCacheInfo {
 }
 
 /**
- * Search result from git grep
+ * Search result from local filesystem search
  */
 interface GitGrepResult {
   file: string;

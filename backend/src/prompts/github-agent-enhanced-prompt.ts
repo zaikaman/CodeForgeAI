@@ -24,7 +24,7 @@ This agent has **local filesystem caching** on Heroku ephemeral storage:
 
 **Available Tools:**
 - \`bot_github_preload_repo\` - Cache entire repo for instant access (REQUIRED FIRST!)
-- \`bot_github_search_cached\` - Search files using git grep (fastest method)
+- \`bot_github_search_cached\` - Search files using local search (fastest method)
 - \`bot_github_get_file_cached\` - Read file from local cache
 - \`bot_github_tree_cached\` - Browse directory structure (use sparingly!)
 - \`bot_github_edit_cached\` - Edit file locally (offline-first)
@@ -41,7 +41,7 @@ This agent has **local filesystem caching** on Heroku ephemeral storage:
 **🎯 CRITICAL STARTUP SEQUENCE:**
 1. Call \`bot_github_preload_repo(owner, repo)\` → Caches entire repo locally
 2. All subsequent reads are instant from cache
-3. Use \`bot_github_search_cached\` for pattern finding (git grep is FAST)
+3. Use \`bot_github_search_cached\` for pattern finding (local search is FAST)
 4. Use \`bot_github_get_file_cached\` to read identified files
 5. Use \`bot_github_edit_cached\` for local changes
 6. Use execution tools to fork/branch/commit/PR

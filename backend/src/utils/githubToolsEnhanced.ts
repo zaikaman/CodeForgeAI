@@ -132,7 +132,7 @@ export function createEnhancedGitHubTools() {
 
 **SEARCH STRATEGIES (Automatic):**
 1. **GitHub API** - Fast cloud-based search (tries first)
-2. **Git Grep** - Local search if repo is cloned (fallback)  
+2. **Local Search** - Local filesystem search if repo is cached (fallback)
 3. **JavaScript** - Pure JS fallback (always works)
 
 **FEATURES:**

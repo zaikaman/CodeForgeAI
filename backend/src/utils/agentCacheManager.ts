@@ -192,7 +192,7 @@ export class AgentCacheManager {
 - **Memory Usage:** ${memoryUsage}
 - **Available Tools:**
   - \`bot_github_get_file_cached\` - Read files instantly from cache
-  - \`bot_github_search_cached\` - Search using git grep (10x faster)
+  - \`bot_github_search_cached\` - Search using local filesystem (10x faster)
   - \`bot_github_tree_cached\` - Browse repository structure
   - \`bot_github_edit_cached\` - Edit files locally
   - \`bot_github_modified_cached\` - View local changes
