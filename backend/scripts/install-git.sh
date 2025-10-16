@@ -15,6 +15,7 @@ if command -v git &> /dev/null; then
     GIT_VERSION=$(git --version)
     echo "✅ Git is already installed!"
     echo "📍 Version: $GIT_VERSION"
+    echo "📍 Location: $(which git)"
     exit 0
 fi
 
@@ -24,17 +25,28 @@ if apt-get update -qq 2>/dev/null && apt-get install -y -qq git 2>/dev/null; the
     GIT_VERSION=$(git --version)
     echo "✅ Git installed successfully!"
     echo "📍 Version: $GIT_VERSION"
+    echo "📍 Location: $(which git)"
+    
+    # Ensure git is in PATH
+    GIT_LOCATION=$(which git)
+    if [ ! -z "$GIT_LOCATION" ]; then
+        echo "✓ Git is in PATH"
+    fi
 else
     echo "⚠️  Could not install git via apt, checking if already available..."
     if command -v git &> /dev/null; then
         echo "✅ Git is available on the system"
+        echo "📍 Location: $(which git)"
     else
         echo "⚠️  Git installation encountered issues but continuing..."
     fi
 fi
 
 # Configure git for safe use in container
-git config --global --add safe.directory /tmp 2>/dev/null || true
-git config --global --add safe.directory /app 2>/dev/null || true
+if command -v git &> /dev/null; then
+    git config --global --add safe.directory /tmp 2>/dev/null || true
+    git config --global --add safe.directory /app 2>/dev/null || true
+    echo "✓ Git global config updated"
+fi
 
-echo "✓ Git configuration complete"
+echo "✓ Git installation complete"

@@ -36,9 +36,15 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
   try {
     const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
     console.log(`[EnsureGitInstalled] ✅ Git is available: ${version}`);
+    try {
+      const location = execSync('which git', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+      console.log(`[EnsureGitInstalled] 📍 Git location: ${location}`);
+    } catch {
+      // which command might not be available, that's ok
+    }
     return { available: true, version };
   } catch (error: any) {
-    console.warn(`[EnsureGitInstalled] ⚠️ Git not found: ${error.message}`);
+    console.warn(`[EnsureGitInstalled] ⚠️ Git not found in PATH: ${error.message}`);
     console.log(`[EnsureGitInstalled] 📦 Attempting to install git...`);
 
     const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
@@ -49,57 +55,55 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
       return { available: false, error: 'Git not available' };
     }
 
-    // Try apt-get (Debian/Ubuntu-based systems)
+    // Try to install git on Heroku (Linux-based)
     try {
-      console.log(`[EnsureGitInstalled] Attempting apt-get install...`);
+      console.log('[EnsureGitInstalled] 🔄 Running apt-get update...');
+      execSync('apt-get update -qq', { stdio: 'ignore' });
       
-      // First try to update (may fail silently in some Heroku environments)
-      try {
-        execSync('apt-get update', { 
-          encoding: 'utf-8', 
-          stdio: 'pipe',
-          timeout: 30000,
-        });
-      } catch (e) {
-        console.warn(`[EnsureGitInstalled] apt-get update skipped (may not be available)`);
-      }
-
-      // Install git
-      execSync('apt-get install -y git', {
-        encoding: 'utf-8',
-        stdio: 'inherit',
-        timeout: 60000,
-      });
-
-      // Verify installation
-      const version = execSync('git --version', { encoding: 'utf-8' }).trim();
+      console.log('[EnsureGitInstalled] 🔄 Installing git via apt-get...');
+      execSync('apt-get install -y -qq git', { stdio: 'pipe' });
+      
+      const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
       console.log(`[EnsureGitInstalled] ✅ Git installed successfully: ${version}`);
-      return { available: true, version };
-    } catch (aptError: any) {
-      console.error(`[EnsureGitInstalled] ❌ apt-get installation failed: ${aptError.message}`);
       
-      // Try yum (RedHat/CentOS-based systems) as fallback
+      // Configure git for safe use in container
       try {
-        console.log(`[EnsureGitInstalled] Attempting yum install as fallback...`);
-        execSync('yum install -y git', {
-          encoding: 'utf-8',
-          stdio: 'inherit',
-          timeout: 60000,
-        });
-
-        const version = execSync('git --version', { encoding: 'utf-8' }).trim();
-        console.log(`[EnsureGitInstalled] ✅ Git installed via yum: ${version}`);
+        execSync('git config --global --add safe.directory /tmp', { stdio: 'ignore' });
+        execSync('git config --global --add safe.directory /app', { stdio: 'ignore' });
+        console.log('[EnsureGitInstalled] ✓ Git global config updated');
+      } catch (configError) {
+        console.warn('[EnsureGitInstalled] ⚠️ Could not configure git globally');
+      }
+      
+      return { available: true, version };
+    } catch (installError: any) {
+      console.error(`[EnsureGitInstalled] ❌ Failed to install git: ${installError.message}`);
+      
+      // Check if git is available despite the error
+      try {
+        const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        console.log(`[EnsureGitInstalled] ℹ️ Git is available after installation attempt: ${version}`);
         return { available: true, version };
-      } catch (yumError: any) {
-        console.error(`[EnsureGitInstalled] ❌ yum installation also failed`);
-        console.error(`[EnsureGitInstalled] 💡 Solution options:`);
-        console.error(`[EnsureGitInstalled]   1. Add Heroku apt-buildpack via: heroku buildpacks:add https://github.com/heroku-community/apt-buildpack`);
-        console.error(`[EnsureGitInstalled]   2. Add Aptfile with 'git' in backend folder`);
-        console.error(`[EnsureGitInstalled]   3. Use buildpacks config: .buildpacks file`);
-        
-        return { available: false, error: 'Could not install git via apt or yum' };
+      } catch {
+        console.error(`[EnsureGitInstalled] ❌ Git installation failed and git is not available`);
+        return { available: false, error: installError.message };
       }
     }
+  }
+}
+
+/**
+ * Initialize git at startup
+ */
+export function ensureGitReady(): void {
+  const result = checkGitInstallation();
+  if (result.available) {
+    console.log('[EnsureGitInstalled] ✅ Git is ready for repository operations');
+  } else {
+    console.warn(
+      `[EnsureGitInstalled] ⚠️ Git is not available. Repository operations will use API-only mode.`
+    );
+    console.log('[EnsureGitInstalled] 💡 This is OK - the system will fall back to GitHub API for file operations.');
   }
 }
 
@@ -108,16 +112,6 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
  */
 export async function initializeGit(): Promise<void> {
   console.log('[EnsureGitInstalled] Initializing git...');
-
-  const available = isGitAvailable();
-
-  if (available) {
-    console.log(`[EnsureGitInstalled] ✅ Git is ready for repository operations`);
-  } else {
-    console.error(
-      `[EnsureGitInstalled] ❌ Git could not be installed. Cache will use API-only fallback mode.`
-    );
-    console.error(`[EnsureGitInstalled] 💡 Performance will be slower, but operations will still work.`);
-  }
+  ensureGitReady();
 }
 
