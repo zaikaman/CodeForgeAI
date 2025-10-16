@@ -751,8 +751,8 @@ B. FOR EXISTING REPOSITORIES:
 ============================================
 These tools REQUIRE specific parameters. Do NOT omit any:
 
-1. bot_github_smart_edit REQUIRES: owner, repo, filePath, oldString, newString, instruction
-   - filePath example: "README.md" or "src/app.ts"
+1. bot_github_smart_edit REQUIRES: owner, repo, path, oldString, newString, instruction
+   - path example: "README.md" or "src/app.ts"
    - oldString: exact code block WITH context lines
    - newString: replacement code
    - instruction: what change you're making (e.g., "update import statements")
@@ -781,12 +781,12 @@ c) Use PATCH TOOLS (RECOMMENDED):
    
    **Option A - Smart Edit (BEST - has auto-retry):**
    Tool: bot_github_smart_edit
-   Parameters REQUIRED: owner, repo, filePath, oldString, newString, instruction
+   Parameters REQUIRED: owner, repo, path, oldString, newString, instruction
    Example call:
    {
      owner: "zaikaman",
      repo: "Narrato",
-     filePath: "src/main.ts",
+     path: "src/main.ts",
      oldString: "import { gemini } from 'google-ai';\nconst model = gemini('gemini-1.5-pro');",
      newString: "import { gemini } from 'google-ai';\nconst model = gemini('gemini-2.5-flash');",
      instruction: "Update gemini model to gemini-2.5-flash"

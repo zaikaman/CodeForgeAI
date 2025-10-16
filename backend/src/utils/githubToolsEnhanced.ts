@@ -57,7 +57,7 @@ export function createEnhancedGitHubTools() {
       schema: z.object({
         owner: z.string().describe('Repository owner username'),
         repo: z.string().describe('Repository name'),
-        filePath: z.string().describe('Path to file to edit (e.g., src/index.ts, README.md)'),
+        path: z.string().describe('Path to file to edit (e.g., src/index.ts, README.md)'),
         oldString: z.string().describe('Exact code block to find and replace (must include 3+ lines of context to be unique)'),
         newString: z.string().describe('New code to replace oldString with'),
         instruction: z.string().describe('High-level goal (e.g., "Replace old gemini imports with gemini-2.5-flash")'),
@@ -68,8 +68,8 @@ export function createEnhancedGitHubTools() {
           // Validate required parameters
           if (!args.owner) throw new Error('REQUIRED: owner parameter missing (repository owner username)');
           if (!args.repo) throw new Error('REQUIRED: repo parameter missing (repository name)');
-          if (!args.filePath) {
-            throw new Error('REQUIRED: filePath parameter missing (path to file like src/index.ts or README.md)');
+          if (!args.path) {
+            throw new Error('REQUIRED: path parameter missing (path to file like src/index.ts or README.md)');
           }
           if (!args.oldString) throw new Error('REQUIRED: oldString parameter missing (exact code block to find)');
           if (!args.newString) throw new Error('REQUIRED: newString parameter missing (replacement code)');
@@ -78,7 +78,7 @@ export function createEnhancedGitHubTools() {
           const params: SmartEditParams = {
             owner: args.owner,
             repo: args.repo,
-            filePath: args.filePath,
+            filePath: args.path, // Map path to filePath for the internal function
             oldString: args.oldString,
             newString: args.newString,
             instruction: args.instruction,
