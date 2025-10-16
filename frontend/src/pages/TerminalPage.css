@@ -13,6 +13,11 @@
   display: none;
 }
 
+/* Mobile action bar - hidden on desktop */
+.mobile-action-bar {
+  display: none;
+}
+
 .chat-history-sidebar {
   width: 260px;
   min-width: 260px;
@@ -1550,6 +1555,49 @@
     border-radius: var(--border-radius);
     font-weight: bold;
     display: block;
+  }
+
+  /* Mobile action bar - show on mobile */
+  .mobile-action-bar {
+    position: fixed;
+    top: 10px;
+    left: 60px;
+    z-index: 1001;
+    display: flex;
+    gap: var(--spacing-sm);
+  }
+
+  .mobile-action-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--color-terminal-bg);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    border-radius: var(--border-radius);
+    transition: all 0.2s ease;
+    font-size: 1.2rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-action-btn:hover {
+    background: rgba(0, 255, 0, 0.05);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .mobile-action-btn.mobile-settings-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .mobile-action-btn.mobile-logout-btn:hover {
+    background: rgba(255, 0, 0, 0.1);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
   }
 
   .terminal-main-content {

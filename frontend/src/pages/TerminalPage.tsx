@@ -1101,6 +1101,32 @@ export const TerminalPage: React.FC = () => {
         >
           ☰
         </button>
+
+        {/* Mobile action bar - Settings and Logout buttons for mobile */}
+        <div className="mobile-action-bar">
+          {/* <button 
+            className="mobile-action-btn mobile-settings-btn"
+            onClick={() => {
+              playClick();
+              setShowSettings(!showSettings);
+            }}
+            title="Settings"
+          >
+            ⚙
+          </button> */}
+            <button 
+            className="mobile-action-btn mobile-logout-btn"
+            style={{ paddingTop: '0.5rem' }}
+            onClick={async () => {
+              playClick();
+              await supabase.auth.signOut();
+              navigate('/');
+            }}
+            title="Logout"
+            >
+            🚪
+            </button>
+        </div>
         {/* Chat Interface */}
         <div className="chat-interface-area">
           <div className="chat-messages-container" onScroll={handleChatScroll}>
