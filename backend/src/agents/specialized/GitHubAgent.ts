@@ -83,8 +83,8 @@ export const GitHubAgent = async (
       console.log('[GitHubAgent] Tool count:', cachedTools.tools.length);
       
       const systemPrompt = GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + cacheStats + 
-        '\n\n**Performance Note:** This agent now uses local filesystem caching for file operations. ' +
-        'Repository cloning and caching happens automatically - expect 10-100x faster response times for file reads and searches.';
+        '\n\n**Performance Note:** Repository caching makes all file operations instant. ' +
+        'Use search to find code, then read only what you need, then edit and commit.';
       
       return AgentBuilder.create('GitHubAgent')
         .withModel('gpt-5-nano-2025-08-07')

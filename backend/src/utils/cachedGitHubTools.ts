@@ -8,7 +8,6 @@
 import { createTool } from '@iqai/adk';
 import { z } from 'zod';
 import { RepositoryFileSystemCache } from './repositoryFileSystemCache';
-import { IssueAnalyzer } from './issueAnalyzer';
 import { Octokit } from '@octokit/rest';
 
 /**
@@ -340,36 +339,226 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     }),
 
     /**
-     * Analyze GitHub issue to understand problem before exploring code
-     * This MUST be called first to prevent aimless exploration
+     * Fork repository to bot account
      */
     createTool({
-      name: 'bot_github_analyze_issue',
-      description: `Analyze a GitHub issue URL to understand the problem BEFORE exploring the code.
-        Returns: issue type, priority, affected areas, and specific search patterns.
-        CALL THIS FIRST to guide your investigation!`,
+      name: 'bot_github_fork_repo',
+      description: `Fork a repository to codeforge-ai-bot account. Use this when modifying someone else's repo.
+        Returns: fork URL and owner info.`,
       schema: z.object({
-        issueURL: z
-          .string()
-          .describe(
-            'Full GitHub issue URL (e.g., https://github.com/owner/repo/issues/123)'
-          ),
+        owner: z.string().describe('Original repository owner'),
+        repo: z.string().describe('Original repository name'),
       }),
       fn: async (args) => {
         try {
-          const analyzer = new IssueAnalyzer(_octokit);
-          const analysis = await analyzer.analyzeIssueURL(args.issueURL);
+          const fork = await _octokit.rest.repos.createFork({
+            owner: args.owner,
+            repo: args.repo,
+          });
 
           return {
             success: true,
-            analysis,
-            message: `✅ Issue analyzed: Type=${analysis.issueType}, Priority=${analysis.priority}, Complexity=${analysis.estimatedComplexity}`,
+            forkURL: fork.data.html_url,
+            forkOwner: fork.data.owner.login,
+            forkRepo: fork.data.name,
+            message: `✅ Repository forked to ${fork.data.owner.login}/${fork.data.name}`,
+          };
+        } catch (error: any) {
+          // Fork might already exist
+          if (error.status === 422) {
+            return {
+              success: true,
+              forkExists: true,
+              forkOwner: 'codeforge-ai-bot',
+              forkRepo: args.repo,
+              message: `✅ Fork already exists: codeforge-ai-bot/${args.repo}`,
+            };
+          }
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to fork: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Create branch in forked repository
+     */
+    createTool({
+      name: 'bot_github_create_branch',
+      description: `Create a new branch in forked repository (in codeforge-ai-bot account).`,
+      schema: z.object({
+        repo: z.string().describe('Repository name'),
+        branchName: z.string().describe('New branch name (e.g., "fix-issue-123")'),
+        baseBranch: z
+          .string()
+          .optional()
+          .describe('Base branch to branch from (default: main)'),
+      }),
+      fn: async (args) => {
+        try {
+          // Get the current main branch SHA
+          const mainRef = await _octokit.rest.git.getRef({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            ref: `heads/${args.baseBranch || 'main'}`,
+          });
+
+          // Create new branch
+          await _octokit.rest.git.createRef({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            ref: `refs/heads/${args.branchName}`,
+            sha: mainRef.data.object.sha,
+          });
+
+          return {
+            success: true,
+            branch: args.branchName,
+            message: `✅ Branch created: codeforge-ai-bot/${args.repo}/${args.branchName}`,
           };
         } catch (error: any) {
           return {
             success: false,
             error: error.message,
-            message: `❌ Failed to analyze issue: ${error.message}`,
+            message: `❌ Failed to create branch: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Commit and push files to forked repository
+     */
+    createTool({
+      name: 'bot_github_commit_files',
+      description: `Commit modified files and push to a branch in forked repository (codeforge-ai-bot).
+        Use this after making local edits to push them to GitHub.`,
+      schema: z.object({
+        repo: z.string().describe('Repository name'),
+        branch: z.string().describe('Branch to push to'),
+        files: z
+          .array(
+            z.object({
+              path: z.string().describe('File path'),
+              content: z.string().describe('New file content'),
+            })
+          )
+          .describe('Files to commit'),
+        message: z.string().describe('Commit message'),
+      }),
+      fn: async (args) => {
+        try {
+          // Get current branch tree
+          const { data: branchRef } = await _octokit.rest.git.getRef({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            ref: `heads/${args.branch}`,
+          });
+
+          const { data: commit } = await _octokit.rest.git.getCommit({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            commit_sha: branchRef.object.sha,
+          });
+
+          let treeEntries: any[] = [];
+          for (const file of args.files) {
+            // Create blob for each file
+            const { data: blob } = await _octokit.rest.git.createBlob({
+              owner: 'codeforge-ai-bot',
+              repo: args.repo,
+              content: file.content,
+              encoding: 'utf-8',
+            });
+
+            treeEntries.push({
+              path: file.path,
+              mode: '100644',
+              type: 'blob',
+              sha: blob.sha,
+            });
+          }
+
+          // Create tree
+          const { data: tree } = await _octokit.rest.git.createTree({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            base_tree: commit.tree.sha,
+            tree: treeEntries,
+          });
+
+          // Create commit
+          const { data: newCommit } = await _octokit.rest.git.createCommit({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            message: args.message,
+            tree: tree.sha,
+            parents: [branchRef.object.sha],
+          });
+
+          // Update branch reference
+          await _octokit.rest.git.updateRef({
+            owner: 'codeforge-ai-bot',
+            repo: args.repo,
+            ref: `heads/${args.branch}`,
+            sha: newCommit.sha,
+          });
+
+          return {
+            success: true,
+            filesCommitted: args.files.length,
+            commit: newCommit.sha,
+            message: `✅ Committed ${args.files.length} files to ${args.branch}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to commit files: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Create pull request from fork to original repo
+     */
+    createTool({
+      name: 'bot_github_create_pr',
+      description: `Create a pull request from forked repository (codeforge-ai-bot) to original repository.
+        Use this to submit your changes for review.`,
+      schema: z.object({
+        owner: z.string().describe('Original repository owner'),
+        repo: z.string().describe('Original repository name'),
+        branch: z.string().describe('Branch in forked repo to create PR from'),
+        title: z.string().describe('PR title'),
+        body: z.string().describe('PR description (markdown supported)'),
+      }),
+      fn: async (args) => {
+        try {
+          const pr = await _octokit.rest.pulls.create({
+            owner: args.owner,
+            repo: args.repo,
+            title: args.title,
+            body: args.body,
+            head: `codeforge-ai-bot:${args.branch}`,
+            base: 'main',
+          });
+
+          return {
+            success: true,
+            prNumber: pr.data.number,
+            prURL: pr.data.html_url,
+            message: `✅ PR created: ${pr.data.html_url}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to create PR: ${error.message}`,
           };
         }
       },

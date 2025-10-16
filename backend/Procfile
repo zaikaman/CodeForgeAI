@@ -1,2 +1,2 @@
-release: bash scripts/install-git-binary.sh && node_modules/.bin/ts-node src/cli/migrate.ts || true
+release: node_modules/.bin/ts-node src/cli/migrate.ts || true
 web: npm start
