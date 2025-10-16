@@ -1,0 +1,28 @@
+/* DeployButton Terminal-style Progress Tooltip */
+
+/* Terminal-style scrollbar for deployment progress */
+.scrollbar-terminal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-terminal::-webkit-scrollbar-track {
+  background: #0a0e0f;
+  border-left: 1px solid #4fc3f7;
+}
+
+.scrollbar-terminal::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #4fc3f7 0%, #00ff41 100%);
+  border-radius: 2px;
+  box-shadow: 0 0 5px rgba(79, 195, 247, 0.5);
+}
+
+.scrollbar-terminal::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #81d4fa 0%, #33ff66 100%);
+  box-shadow: 0 0 8px rgba(79, 195, 247, 0.8);
+}
+
+/* Firefox scrollbar */
+.scrollbar-terminal {
+  scrollbar-width: thin;
+  scrollbar-color: #4fc3f7 #0a0e0f;
+}

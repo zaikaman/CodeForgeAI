@@ -119,12 +119,18 @@ router.post('/deploy', optionalAuth, async (req, res) => {
       return;
     }
 
-    // Update deployment status to 'deploying'
+    // Update deployment status to 'deploying' with initial progress
     await supabase
       .from('generations')
       .update({
         deployment_status: 'deploying',
         deployment_started_at: new Date().toISOString(),
+        deployment_progress: JSON.stringify([{
+          step: 'Initializing',
+          status: 'running',
+          timestamp: new Date().toISOString(),
+          message: 'Starting deployment process...'
+        }]),
         updated_at: new Date().toISOString(),
       })
       .eq('id', projectId);
@@ -165,6 +171,64 @@ router.post('/deploy', optionalAuth, async (req, res) => {
   }
 });
 
+// Helper function to update deployment progress
+async function updateDeploymentProgress(
+  projectId: string,
+  step: string,
+  status: 'running' | 'completed' | 'failed',
+  message?: string
+): Promise<void> {
+  try {
+    // Get current progress
+    const { data: generation } = await supabase
+      .from('generations')
+      .select('deployment_progress')
+      .eq('id', projectId)
+      .single();
+
+    let progress: any[] = [];
+    if (generation?.deployment_progress) {
+      try {
+        progress = typeof generation.deployment_progress === 'string' 
+          ? JSON.parse(generation.deployment_progress)
+          : generation.deployment_progress;
+      } catch (e) {
+        console.warn('Failed to parse existing deployment_progress:', e);
+      }
+    }
+
+    // Mark previous running step as completed if this is a new step
+    if (status === 'running' && progress.length > 0) {
+      const lastStep = progress[progress.length - 1];
+      if (lastStep.status === 'running') {
+        lastStep.status = 'completed';
+      }
+    }
+
+    // Add new progress step
+    progress.push({
+      step,
+      status,
+      timestamp: new Date().toISOString(),
+      ...(message && { message })
+    });
+
+    // Update database
+    await supabase
+      .from('generations')
+      .update({
+        deployment_progress: JSON.stringify(progress),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', projectId);
+
+    console.log(`[Progress] ${step}: ${status}${message ? ` - ${message}` : ''}`);
+  } catch (error) {
+    console.error(`[updateDeploymentProgress] Error:`, error);
+    // Don't throw - progress update failure shouldn't break deployment
+  }
+}
+
 // Background deployment function
 async function deployInBackground(
   projectId: string, 
@@ -174,14 +238,29 @@ async function deployInBackground(
   try {
     console.log(`[deployInBackground] Starting deployment for ${projectId} to ${platform}`);
     
+    await updateDeploymentProgress(projectId, 'Preparing files', 'running', `Validating ${files.length} files`);
+    
+    await updateDeploymentProgress(projectId, 'Creating Dockerfile', 'running', 'Generating deployment configuration');
+    
+    await updateDeploymentProgress(projectId, 'Building image', 'running', 'Building Docker container');
+    
     const previewService = new PreviewServiceWithRetry(3);
+    
+    // Create a wrapper for the progress callback that includes projectId
+    const progressCallback = async (step: string, status: 'running' | 'completed' | 'failed', message?: string) => {
+      await updateDeploymentProgress(projectId, step, status, message);
+    };
+    
     const previewResult = await previewService.generatePreviewWithRetry(
       projectId,
       files,
-      3 // max retries
+      3, // max retries
+      progressCallback // Pass progress callback
     );
 
     if (previewResult.success && previewResult.previewUrl) {
+      await updateDeploymentProgress(projectId, 'Deployment complete', 'completed', `App available at ${previewResult.previewUrl}`);
+      
       // Update with success
       await supabase
         .from('generations')
@@ -189,12 +268,15 @@ async function deployInBackground(
           preview_url: previewResult.previewUrl,
           deployment_status: 'deployed',
           deployment_completed_at: new Date().toISOString(),
+          deployment_logs: previewResult.logs || '',
           updated_at: new Date().toISOString(),
         })
         .eq('id', projectId);
       
       console.log(`[deployInBackground] ✓ Deployment successful: ${previewResult.previewUrl}`);
     } else {
+      await updateDeploymentProgress(projectId, 'Deployment failed', 'failed', previewResult.error || 'Unknown error');
+      
       // Update with failure
       await supabase
         .from('generations')
@@ -202,6 +284,7 @@ async function deployInBackground(
           deployment_status: 'failed',
           deployment_error: previewResult.error || 'Unknown deployment error',
           deployment_completed_at: new Date().toISOString(),
+          deployment_logs: previewResult.logs || '',
           updated_at: new Date().toISOString(),
         })
         .eq('id', projectId);
@@ -210,6 +293,8 @@ async function deployInBackground(
     }
   } catch (error: any) {
     console.error(`[deployInBackground] Deployment error:`, error);
+    
+    await updateDeploymentProgress(projectId, 'Deployment failed', 'failed', error.message);
     
     // Update with failure
     await supabase
@@ -244,7 +329,7 @@ router.get('/deploy/:id', optionalAuth, async (req, res) => {
     // Fetch deployment status
     const { data: generation, error } = await supabase
       .from('generations')
-      .select('id, user_id, deployment_status, preview_url, deployment_error, deployment_started_at, deployment_completed_at')
+      .select('id, user_id, deployment_status, preview_url, deployment_error, deployment_started_at, deployment_completed_at, deployment_progress, deployment_logs')
       .eq('id', id)
       .single();
 
@@ -264,6 +349,18 @@ router.get('/deploy/:id', optionalAuth, async (req, res) => {
       return;
     }
 
+    // Parse deployment progress
+    let progress: any[] = [];
+    if (generation.deployment_progress) {
+      try {
+        progress = typeof generation.deployment_progress === 'string'
+          ? JSON.parse(generation.deployment_progress)
+          : generation.deployment_progress;
+      } catch (e) {
+        console.warn('Failed to parse deployment_progress:', e);
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -273,6 +370,8 @@ router.get('/deploy/:id', optionalAuth, async (req, res) => {
         error: generation.deployment_error,
         startedAt: generation.deployment_started_at,
         completedAt: generation.deployment_completed_at,
+        progress: progress,
+        logs: generation.deployment_logs,
       },
     });
     return;

@@ -53,7 +53,8 @@ export interface IPreviewServiceWithRetry {
   generatePreviewWithRetry(
     generationId: string, 
     files: Array<{ path: string; content: string }>,
-    maxRetries?: number
+    maxRetries?: number,
+    onProgress?: (step: string, status: 'running' | 'completed' | 'failed', message?: string) => Promise<void>
   ): Promise<DeploymentResult>;
 }
 
@@ -89,7 +90,8 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   async generatePreviewWithRetry(
     generationId: string, 
     files: Array<{ path: string; content: string }>,
-    maxRetries?: number
+    maxRetries?: number,
+    onProgress?: (step: string, status: 'running' | 'completed' | 'failed', message?: string) => Promise<void>
   ): Promise<DeploymentResult> {
     const retries = maxRetries ?? 10; // Default 10 attempts with safety measures
   let currentFiles = this.sanitizeGeneratedFiles(files);
@@ -109,8 +111,16 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
     for (let attempt = 1; attempt <= retries; attempt++) {
       console.log(`\n=== Deployment Attempt ${attempt} ===`);
       
+      if (onProgress) {
+        await onProgress(
+          attempt === 1 ? 'Starting deployment' : `Retry attempt ${attempt}`,
+          'running',
+          attempt === 1 ? 'Validating files and preparing deployment' : `Retrying with fixes from previous attempt`
+        ).catch(err => console.warn('Progress callback error:', err));
+      }
+      
       try {
-  const result = await this.attemptDeployment(generationId, currentFiles, attempt);
+  const result = await this.attemptDeployment(generationId, currentFiles, attempt, onProgress);
         
         if (result.success) {
           console.log(`✓ Deployment successful on attempt ${attempt}`);
@@ -292,7 +302,8 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
   private async attemptDeployment(
     generationId: string,
     files: Array<{ path: string; content: string }>,
-    attempt: number
+    attempt: number,
+    onProgress?: (step: string, status: 'running' | 'completed' | 'failed', message?: string) => Promise<void>
   ): Promise<DeploymentResult> {
     const tmpDir = tmp.dirSync({ unsafeCleanup: true });
     const appName = `preview-${generationId.replace(/_/g, "-")}`.toLowerCase();
@@ -302,7 +313,15 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
       const language = detectLanguageFromFiles(files);
       console.log(`[Attempt ${attempt}] Detected language: ${language} for generation ${generationId}`);
 
+      if (onProgress) {
+        await onProgress('Detecting project language', 'completed', `Detected: ${language}`).catch(err => console.warn('Progress callback error:', err));
+      }
+
       // 2. Write files to temp directory
+      if (onProgress) {
+        await onProgress('Writing files', 'running', `Processing ${files.length} files`).catch(err => console.warn('Progress callback error:', err));
+      }
+      
       for (const file of files) {
         const filePath = path.join(tmpDir.name, file.path);
         const dirName = path.dirname(filePath);
@@ -382,19 +401,43 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         fs.writeFileSync(filePath, contentToWrite);
       }
 
+      if (onProgress) {
+        await onProgress('Writing files', 'completed', `${files.length} files written successfully`).catch(err => console.warn('Progress callback error:', err));
+      }
+
       // 3. Create Dockerfile based on detected language
+      if (onProgress) {
+        await onProgress('Creating Dockerfile', 'running', 'Generating deployment configuration').catch(err => console.warn('Progress callback error:', err));
+      }
+      
       const dockerfileContent = generateDockerfile(files);
       fs.writeFileSync(path.join(tmpDir.name, 'Dockerfile'), dockerfileContent);
+
+      if (onProgress) {
+        await onProgress('Creating Dockerfile', 'completed', 'Dockerfile created').catch(err => console.warn('Progress callback error:', err));
+      }
 
       // 4. Create a fly.toml file
       const flyTomlContent = this.createFlyToml(appName, language);
       fs.writeFileSync(path.join(tmpDir.name, 'fly.toml'), flyTomlContent);
 
       // 5. Deploy using flyctl
-      await this.deployWithFlyctl(tmpDir.name, appName);
+      if (onProgress) {
+        await onProgress('Building Docker image', 'running', 'Building and uploading container to Fly.io').catch(err => console.warn('Progress callback error:', err));
+      }
+      
+      await this.deployWithFlyctl(tmpDir.name, appName, onProgress);
+
+      if (onProgress) {
+        await onProgress('Verifying deployment', 'running', 'Checking deployment logs').catch(err => console.warn('Progress callback error:', err));
+      }
 
       // 6. Verify deployment by checking logs
       const verificationLogs = await this.getDeploymentLogs(appName);
+      
+      if (onProgress) {
+        await onProgress('Verifying deployment', 'completed', 'Deployment verified successfully').catch(err => console.warn('Progress callback error:', err));
+      }
       
       return {
         success: true,
@@ -1165,7 +1208,11 @@ FIXING INSTRUCTIONS:
     });
   }
 
-  private async deployWithFlyctl(workDir: string, appName: string): Promise<void> {
+  private async deployWithFlyctl(
+    workDir: string, 
+    appName: string,
+    onProgress?: (step: string, status: 'running' | 'completed' | 'failed', message?: string) => Promise<void>
+  ): Promise<void> {
     console.log(`\n${'='.repeat(80)}`);
     console.log(`🚀 Starting Fly.io deployment for app: ${appName}`);
     console.log(`📂 Working directory: ${workDir}`);
@@ -1173,6 +1220,11 @@ FIXING INSTRUCTIONS:
     
     // Check if app already exists
     console.log('📋 Checking if app exists...');
+    
+    if (onProgress) {
+      await onProgress('Checking Fly.io app', 'running', `Verifying app ${appName}`).catch(err => console.warn('Progress callback error:', err));
+    }
+    
     const listResult = await this.runCommand('flyctl', ['apps', 'list', '--json'], workDir, { checkBuildErrors: false });
     
     let appExists = false;
@@ -1188,6 +1240,11 @@ FIXING INSTRUCTIONS:
     // Only create app if it doesn't exist
     if (!appExists) {
       console.log(`\n✨ Creating new Fly.io app: ${appName}`);
+      
+      if (onProgress) {
+        await onProgress('Creating Fly.io app', 'running', `Creating app ${appName}`).catch(err => console.warn('Progress callback error:', err));
+      }
+      
       const createResult = await this.runCommand('flyctl', ['apps', 'create', appName, '--org', 'personal'], workDir, { checkBuildErrors: false });
 
       if (createResult.code !== 0) {
@@ -1199,15 +1256,28 @@ FIXING INSTRUCTIONS:
         console.log(`✓ App ${appName} already exists (race condition), proceeding with deployment`);
       } else {
         console.log(`✓ App created successfully`);
+        
+        if (onProgress) {
+          await onProgress('Creating Fly.io app', 'completed', `App ${appName} created`).catch(err => console.warn('Progress callback error:', err));
+        }
       }
     } else {
       console.log(`\n♻️  App ${appName} already exists, updating deployment`);
+      
+      if (onProgress) {
+        await onProgress('Checking Fly.io app', 'completed', `App exists, updating`).catch(err => console.warn('Progress callback error:', err));
+      }
     }
 
     // Deploy (this will update existing app or deploy new one)
     // Enable build error checking to stop deployment if build fails
     // Set 15 minute timeout for deployment (building can take time)
     console.log('🚀 Starting deployment with flyctl...');
+    
+    if (onProgress) {
+      await onProgress('Deploying to Fly.io', 'running', 'Building and pushing Docker image (this may take several minutes)').catch(err => console.warn('Progress callback error:', err));
+    }
+    
     const deployResult = await this.runCommand('flyctl', ['deploy', '--remote-only'], workDir, { 
       checkBuildErrors: true,
       timeout: 15 * 60 * 1000 // 15 minutes
@@ -1245,6 +1315,10 @@ FIXING INSTRUCTIONS:
     );
     
     if (deployResult.code !== 0 || hasError) {
+        if (onProgress) {
+          await onProgress('Deploying to Fly.io', 'failed', 'Deployment failed - see logs for details').catch(err => console.warn('Progress callback error:', err));
+        }
+        
         // Create a detailed error with both stdout and stderr
         const error: any = new Error(
           hasError 
@@ -1253,6 +1327,10 @@ FIXING INSTRUCTIONS:
         );
         error.deploymentLogs = fullOutput;
         throw error;
+    }
+    
+    if (onProgress) {
+      await onProgress('Deploying to Fly.io', 'completed', 'Docker image built and deployed successfully').catch(err => console.warn('Progress callback error:', err));
     }
     
     console.log(`\n${'='.repeat(80)}`);
