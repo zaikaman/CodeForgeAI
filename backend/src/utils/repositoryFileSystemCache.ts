@@ -15,9 +15,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync } from 'child_process';
 import crypto from 'crypto';
-import { isGitAvailable, getGitEnv } from './ensureGitInstalled';
 
 /**
  * Configuration for filesystem cache
@@ -74,6 +72,28 @@ interface GitGrepResult {
 }
 
 /**
+ * File index entry for fast lookup
+ */
+interface FileIndexEntry {
+  path: string;
+  size: number;
+  hash: string;
+  type: 'file' | 'directory';
+  modifiedAt?: number;
+}
+
+/**
+ * Repository file index
+ */
+interface RepositoryFileIndex {
+  owner: string;
+  repo: string;
+  branch: string;
+  indexedAt: number;
+  files: Map<string, FileIndexEntry>;
+}
+
+/**
  * Main repository filesystem cache class
  */
 export class RepositoryFileSystemCache {
@@ -81,6 +101,7 @@ export class RepositoryFileSystemCache {
   private config: FileCacheConfig;
   private memoryCache: Map<string, { data: any; entry: CacheEntry }> = new Map();
   private repositoryIndex: Map<string, RepositoryCacheInfo> = new Map();
+  private fileIndex: Map<string, RepositoryFileIndex> = new Map(); // File index for fast lookup
   private cleanupInterval: NodeJS.Timeout | null = null;
   private octokit: any = null;
 
@@ -115,13 +136,14 @@ export class RepositoryFileSystemCache {
       await fs.mkdir(this.cacheDir, { recursive: true });
       console.log(`[RepositoryFileSystemCache] Initialized at ${this.cacheDir}`);
       await this.loadRepositoryIndex();
+      await this.loadFileIndex(); // Load file index for fast lookups
     } catch (error) {
       console.error('[RepositoryFileSystemCache] Initialization error:', error);
     }
   }
 
   /**
-   * Clone or update a repository
+   * Fetch and cache repository via GitHub API (no git required)
    */
   async ensureRepository(
     owner: string,
@@ -131,7 +153,7 @@ export class RepositoryFileSystemCache {
     const repoKey = `${owner}/${repo}`;
     const localPath = path.join(this.cacheDir, 'repos', owner, repo);
 
-    // Check if already cached
+    // Check if already cached and fresh
     const cached = this.repositoryIndex.get(repoKey);
     if (cached && cached.branch === branch) {
       const ageMs = Date.now() - cached.lastPulledAt;
@@ -143,70 +165,36 @@ export class RepositoryFileSystemCache {
       }
     }
 
-    console.log(`[RepositoryFileSystemCache] Preparing ${repoKey}@${branch}...`);
+    console.log(`[RepositoryFileSystemCache] Preparing ${repoKey}@${branch} via API...`);
 
     try {
+      if (!this.octokit) {
+        throw new Error('Octokit instance required for GitHub API access');
+      }
+
       // Ensure directory exists
       await fs.mkdir(localPath, { recursive: true });
 
-      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
-
-      // Check if git is available
-      const gitAvailable = isGitAvailable();
-
-      // Check if already cloned
-      const gitDir = path.join(localPath, '.git');
-      const isCloned = await this.fileExists(gitDir);
-
-      let sha = 'api-mode'; // Default for API-only mode
       let fileCount = 0;
       let totalSize = 0;
+      let sha = 'api-mode';
 
-      if (gitAvailable) {
-        if (isCloned) {
-          try {
-            // Update existing repo with git
-            this.execGit(localPath, ['fetch', 'origin', branch]);
-            this.execGit(localPath, ['checkout', branch]);
-            sha = this.execGit(localPath, ['rev-parse', 'HEAD']).trim();
-            const analyzed = await this.analyzeRepoSize(localPath);
-            fileCount = analyzed.fileCount;
-            totalSize = analyzed.totalSize;
-            console.log(`[RepositoryFileSystemCache] ✅ Updated via git: ${repoKey}@${branch}`);
-          } catch (error: any) {
-            console.error(`[RepositoryFileSystemCache] Git update failed:`, error.message);
-            throw error;
-          }
-        } else {
-          try {
-            // Clone repo with git
-            this.execGit('', ['clone', '--depth', '1', '--branch', branch, cloneUrl, localPath]);
-            sha = this.execGit(localPath, ['rev-parse', 'HEAD']).trim();
-            const analyzed = await this.analyzeRepoSize(localPath);
-            fileCount = analyzed.fileCount;
-            totalSize = analyzed.totalSize;
-            console.log(`[RepositoryFileSystemCache] ✅ Cloned via git: ${repoKey}@${branch}`);
-          } catch (error: any) {
-            console.error(`[RepositoryFileSystemCache] Git clone failed:`, error.message);
-            throw error;
-          }
-        }
-      } else {
-        console.log(`[RepositoryFileSystemCache] ⚠️ Git not available, using API-only mode for ${repoKey}`);
-        if (this.octokit) {
-          try {
-            const analyzed = await this.fetchFilesViaAPI(owner, repo, branch, localPath);
-            fileCount = analyzed.fileCount;
-            totalSize = analyzed.totalSize;
-            console.log(`[RepositoryFileSystemCache] ✅ Fetched via API: ${repoKey}@${branch} (${fileCount} files)`);
-          } catch (error: any) {
-            console.error(`[RepositoryFileSystemCache] API fetch failed:`, error.message);
-            // Continue without files - allow graceful degradation
-          }
-        } else {
-          console.warn(`[RepositoryFileSystemCache] No Octokit instance provided, cannot fetch files via API`);
-        }
+      // Get branch info to get commit SHA
+      try {
+        const branchInfo = await this.octokit.repos.getBranch({
+          owner,
+          repo,
+          branch,
+        });
+        sha = branchInfo.data.commit.sha;
+      } catch (error: any) {
+        console.warn(`[RepositoryFileSystemCache] Could not get branch info: ${error.message}`);
       }
+
+      // Fetch all files via GitHub API
+      const analyzed = await this.fetchFilesViaAPI(owner, repo, branch, localPath);
+      fileCount = analyzed.fileCount;
+      totalSize = analyzed.totalSize;
 
       const info: RepositoryCacheInfo = {
         owner,
@@ -223,8 +211,10 @@ export class RepositoryFileSystemCache {
       this.repositoryIndex.set(repoKey, info);
       await this.saveRepositoryIndex();
 
-      const mode = sha === 'api-mode' ? '(API-only mode)' : `(${fileCount} files)`;
-      console.log(`[RepositoryFileSystemCache] Ready: ${repoKey}@${branch} ${mode}`);
+      // Build file index for fast lookup
+      await this.buildFileIndex(owner, repo, branch, localPath);
+
+      console.log(`[RepositoryFileSystemCache] ✅ Ready: ${repoKey}@${branch} (${fileCount} files, ${this.formatBytes(totalSize)})`);
 
       return info;
     } catch (error: any) {
@@ -408,7 +398,7 @@ export class RepositoryFileSystemCache {
   }
 
   /**
-   * Search files using git grep (very fast)
+   * Search files locally in cached repository (fast, no API calls)
    */
   async searchFiles(
     owner: string,
@@ -418,51 +408,75 @@ export class RepositoryFileSystemCache {
     filePattern?: string
   ): Promise<GitGrepResult[]> {
     try {
+      // Ensure repo is cached locally first
       const repoInfo = await this.ensureRepository(owner, repo, branch);
 
-      // Build grep command
-      const args = ['grep', '-n', '--color=never'];
+      const results: GitGrepResult[] = [];
+      const regex = new RegExp(pattern, 'i'); // Case-insensitive regex
 
-      if (filePattern) {
-        args.push('--', filePattern);
-      }
+      console.log(`[RepositoryFileSystemCache] Searching locally for "${pattern}" in ${owner}/${repo}...`);
 
-      args.push(pattern);
+      // Recursively search through cached files
+      const searchDir = async (dirPath: string, relativePath: string = '') => {
+        try {
+          const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-      try {
-        const output = this.execGit(repoInfo.localPath, args);
-        const results: GitGrepResult[] = [];
+          for (const entry of entries) {
+            // Skip hidden files and git directory
+            if (entry.name.startsWith('.')) continue;
 
-        // Parse output: file:line:content
-        for (const line of output.split('\n')) {
-          if (!line.trim()) continue;
+            const fullPath = path.join(dirPath, entry.name);
+            const relPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
 
-          const match = line.match(/^([^:]+):(\d+):(.*)$/);
-          if (match) {
-            results.push({
-              file: match[1],
-              line: parseInt(match[2]),
-              content: match[3],
-              match: pattern,
-            });
+            if (entry.isDirectory()) {
+              await searchDir(fullPath, relPath);
+            } else {
+              // Check file pattern if specified
+              if (filePattern && !relPath.match(new RegExp(filePattern))) {
+                continue;
+              }
+
+              try {
+                // Read file content
+                const content = await fs.readFile(fullPath, 'utf-8');
+                const lines = content.split('\n');
+
+                // Search for pattern in each line
+                for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                  const line = lines[lineNum];
+                  if (regex.test(line)) {
+                    results.push({
+                      file: relPath,
+                      line: lineNum + 1, // 1-indexed
+                      content: line.trim(),
+                      match: pattern,
+                    });
+                  }
+                }
+              } catch (error: any) {
+                // Skip binary files or read errors
+                if (!error.message.includes('ENOENT')) {
+                  console.warn(`[RepositoryFileSystemCache] Could not read ${relPath}`);
+                }
+              }
+            }
           }
+        } catch (error) {
+          console.warn(`[RepositoryFileSystemCache] Error scanning directory:`, error);
         }
+      };
 
-        console.log(
-          `[RepositoryFileSystemCache] Found ${results.length} matches for "${pattern}" in ${owner}/${repo}`
-        );
+      await searchDir(repoInfo.localPath);
 
-        return results;
-      } catch (error: any) {
-        // git grep returns non-zero if no matches found
-        if (error.status === 1) {
-          return [];
-        }
-        throw error;
-      }
-    } catch (error) {
-      console.error(`[RepositoryFileSystemCache] Search error:`, error);
-      throw error;
+      console.log(
+        `[RepositoryFileSystemCache] Found ${results.length} matches for "${pattern}" in ${owner}/${repo} (local search)`
+      );
+
+      return results;
+    } catch (error: any) {
+      console.error(`[RepositoryFileSystemCache] Search error:`, error.message);
+      // Return empty array instead of throwing
+      return [];
     }
   }
 
@@ -594,7 +608,7 @@ export class RepositoryFileSystemCache {
   }
 
   /**
-   * Get list of all modified files in working directory
+   * Get list of all modified files using GitHub Compare API
    */
   async getModifiedFiles(
     owner: string,
@@ -608,39 +622,46 @@ export class RepositoryFileSystemCache {
       newContent?: string;
     }>
   > {
-    try {
-      const repoInfo = await this.ensureRepository(owner, repo, branch);
+    if (!this.octokit) {
+      throw new Error('Octokit instance required');
+    }
 
-      // Get diff
-      const diffOutput = this.execGit(repoInfo.localPath, [
-        'diff',
-        '--name-status',
-        'HEAD',
-      ]);
+    try {
+      // Get default branch first
+      const repoInfo = await this.octokit.repos.get({
+        owner,
+        repo,
+      });
+
+      const defaultBranch = repoInfo.data.default_branch;
+
+      // Compare branches
+      const comparison = await this.octokit.repos.compareCommits({
+        owner,
+        repo,
+        base: defaultBranch,
+        head: branch,
+      });
 
       const results = [];
 
-      for (const line of diffOutput.split('\n')) {
-        if (!line.trim()) continue;
-
-        const [status, filePath] = line.split('\t');
+      for (const file of comparison.data.files || []) {
         results.push({
-          path: filePath,
-          status: (status === 'M' ? 'modified' : status === 'A' ? 'added' : 'deleted') as
-            | 'modified'
-            | 'added'
-            | 'deleted',
+          path: file.filename,
+          status: (file.status as 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'changed' | 'unchanged') 
+            === 'renamed' ? 'modified' : 
+            file.status as 'modified' | 'added' | 'deleted',
         });
       }
 
       console.log(
-        `[RepositoryFileSystemCache] Found ${results.length} modified files in ${owner}/${repo}`
+        `[RepositoryFileSystemCache] Found ${results.length} modified files in ${owner}/${repo}@${branch}`
       );
 
       return results;
-    } catch (error) {
-      console.error(`[RepositoryFileSystemCache] Modified files error:`, error);
-      throw error;
+    } catch (error: any) {
+      console.error(`[RepositoryFileSystemCache] Modified files error:`, error.message);
+      return [];
     }
   }
 
@@ -719,32 +740,133 @@ export class RepositoryFileSystemCache {
   // ============ Private methods ============
 
   /**
-   * Execute git command
+   * Build file index for fast lookups
    */
-  private execGit(cwd: string, args: string[]): string {
-    try {
-      const command = `git ${args.join(' ')}`;
-      const options: any = {
-        cwd: cwd || process.cwd(),
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024, // 10MB
-        shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/bash',
-        env: getGitEnv(), // Use environment with proper HTTPS support
-      };
-      
-      const output = execSync(command, options);
-      return output;
-    } catch (error: any) {
-      // On Heroku or systems without git, throw with clear message
-      const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
-      if (isHeroku || error.message.includes('ENOENT') || error.message.includes('not found')) {
-        const gitNotAvailable = new Error(`Git not available: ${error.message}`);
-        (gitNotAvailable as any).isGitMissing = true;
-        throw gitNotAvailable;
+  private async buildFileIndex(
+    owner: string,
+    repo: string,
+    branch: string,
+    localPath: string
+  ): Promise<void> {
+    const repoKey = `${owner}/${repo}@${branch}`;
+    const files = new Map<string, FileIndexEntry>();
+
+    console.log(`[RepositoryFileSystemCache] Building file index for ${repoKey}...`);
+
+    const scanDir = async (dirPath: string, relativePath: string = '') => {
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+          // Skip hidden files and git directory
+          if (entry.name.startsWith('.')) continue;
+
+          const fullPath = path.join(dirPath, entry.name);
+          const relPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+          if (entry.isDirectory()) {
+            // Index directory
+            files.set(relPath, {
+              path: relPath,
+              size: 0,
+              hash: '',
+              type: 'directory',
+            });
+            // Recursively scan subdirectory
+            await scanDir(fullPath, relPath);
+          } else {
+            // Index file with hash
+            try {
+              const stat = await fs.stat(fullPath);
+              const content = await fs.readFile(fullPath, 'utf-8');
+              const hash = this.hashContent(content);
+
+              files.set(relPath, {
+                path: relPath,
+                size: stat.size,
+                hash,
+                type: 'file',
+                modifiedAt: stat.mtimeMs,
+              });
+            } catch (error) {
+              console.warn(`[RepositoryFileSystemCache] Could not index ${relPath}:`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`[RepositoryFileSystemCache] Error scanning directory:`, error);
       }
-      error.status = error.status || 1;
-      throw error;
+    };
+
+    await scanDir(localPath);
+
+    // Store in file index
+    const index: RepositoryFileIndex = {
+      owner,
+      repo,
+      branch,
+      indexedAt: Date.now(),
+      files,
+    };
+
+    this.fileIndex.set(repoKey, index);
+    await this.saveFileIndex();
+
+    console.log(`[RepositoryFileSystemCache] File index built: ${files.size} entries for ${repoKey}`);
+  }
+
+  /**
+   * Get file index for repository
+   */
+  private getFileIndex(owner: string, repo: string, branch: string): RepositoryFileIndex | null {
+    const repoKey = `${owner}/${repo}@${branch}`;
+    return this.fileIndex.get(repoKey) || null;
+  }
+
+  /**
+   * List files in directory using index
+   */
+  async listFilesInDirectory(
+    owner: string,
+    repo: string,
+    dirPath: string = '',
+    branch: string = 'main'
+  ): Promise<FileIndexEntry[]> {
+    const index = this.getFileIndex(owner, repo, branch);
+    if (!index) {
+      throw new Error(`No file index for ${owner}/${repo}@${branch}`);
     }
+
+    const results: FileIndexEntry[] = [];
+    const prefix = dirPath ? `${dirPath}/` : '';
+
+    for (const [path, entry] of index.files) {
+      if (path.startsWith(prefix)) {
+        // Check if it's a direct child (not nested deeper)
+        const remainder = path.slice(prefix.length);
+        if (!remainder.includes('/')) {
+          results.push(entry);
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Check if file exists using index (fast O(1) lookup)
+   */
+  fileExistsInIndex(
+    owner: string,
+    repo: string,
+    filePath: string,
+    branch: string = 'main'
+  ): boolean {
+    const index = this.getFileIndex(owner, repo, branch);
+    if (!index) {
+      return false;
+    }
+    return index.files.has(filePath);
   }
 
   /**
@@ -783,39 +905,6 @@ export class RepositoryFileSystemCache {
         this.memoryCache.delete(key);
       }
     }
-  }
-
-  /**
-   * Analyze repository size
-   */
-  private async analyzeRepoSize(
-    repoPath: string
-  ): Promise<{ fileCount: number; totalSize: number }> {
-    let fileCount = 0;
-    let totalSize = 0;
-
-    const scanDir = async (dir: string) => {
-      try {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (entry.name === '.git') continue;
-
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            await scanDir(fullPath);
-          } else {
-            fileCount++;
-            const stat = await fs.stat(fullPath);
-            totalSize += stat.size;
-          }
-        }
-      } catch (error) {
-        console.warn(`[RepositoryFileSystemCache] Error scanning ${dir}:`, error);
-      }
-    };
-
-    await scanDir(repoPath);
-    return { fileCount, totalSize };
   }
 
   /**
@@ -859,7 +948,7 @@ export class RepositoryFileSystemCache {
       const data = Array.from(this.repositoryIndex.values());
       await fs.writeFile(indexPath, JSON.stringify(data, null, 2));
     } catch (error) {
-      console.warn('[RepositoryFileSystemCache] Error saving index:', error);
+      console.warn('[RepositoryFileSystemCache] Error saving repo index:', error);
     }
   }
 
@@ -880,7 +969,63 @@ export class RepositoryFileSystemCache {
         );
       }
     } catch (error) {
-      console.warn('[RepositoryFileSystemCache] Error loading index:', error);
+      console.warn('[RepositoryFileSystemCache] Error loading repo index:', error);
+    }
+  }
+
+  /**
+   * Save file index to disk for persistence
+   */
+  private async saveFileIndex() {
+    try {
+      const indexPath = path.join(this.cacheDir, 'file-index.json');
+      const data = Array.from(this.fileIndex.values()).map((index) => ({
+        owner: index.owner,
+        repo: index.repo,
+        branch: index.branch,
+        indexedAt: index.indexedAt,
+        files: Array.from(index.files.entries()).map(([filePath, entry]) => ({
+          filePath,
+          ...entry,
+        })),
+      }));
+      await fs.writeFile(indexPath, JSON.stringify(data, null, 2));
+      console.log(`[RepositoryFileSystemCache] Saved file index (${this.fileIndex.size} repos)`);
+    } catch (error) {
+      console.warn('[RepositoryFileSystemCache] Error saving file index:', error);
+    }
+  }
+
+  /**
+   * Load file index from disk
+   */
+  private async loadFileIndex() {
+    try {
+      const indexPath = path.join(this.cacheDir, 'file-index.json');
+      if (await this.fileExists(indexPath)) {
+        const data = await fs.readFile(indexPath, 'utf-8');
+        const indices = JSON.parse(data);
+
+        for (const index of indices) {
+          const files = new Map<string, FileIndexEntry>(
+            index.files.map((f: any) => {
+              const { filePath, ...entry } = f;
+              return [filePath as string, entry as FileIndexEntry];
+            })
+          );
+          this.fileIndex.set(`${index.owner}/${index.repo}@${index.branch}`, {
+            owner: index.owner,
+            repo: index.repo,
+            branch: index.branch,
+            indexedAt: index.indexedAt,
+            files,
+          });
+        }
+
+        console.log(`[RepositoryFileSystemCache] Loaded file index (${this.fileIndex.size} repos)`);
+      }
+    } catch (error) {
+      console.warn('[RepositoryFileSystemCache] Error loading file index:', error);
     }
   }
 
