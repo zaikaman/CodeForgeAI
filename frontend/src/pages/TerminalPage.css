@@ -414,7 +414,7 @@
   color: var(--color-success);
   font-weight: bold;
   text-shadow: 0 0 10px var(--color-success);
-  animation: iconPulse 2s ease-in-out infinite;
+  /* animation: iconPulse 2s ease-in-out infinite; */
 }
 
 @keyframes iconPulse {
