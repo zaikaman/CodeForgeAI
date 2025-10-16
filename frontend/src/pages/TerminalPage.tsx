@@ -56,6 +56,7 @@ export const TerminalPage: React.FC = () => {
   const [backgroundMode, setBackgroundMode] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   
   // Chat State
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -144,20 +145,32 @@ export const TerminalPage: React.FC = () => {
     }
   }, [messages, autoScroll]);
 
-  // Keyboard shortcut for saving (Ctrl+S)
+  // Close sidebar when clicking outside (on mobile)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (hasUnsavedChanges && !isSaving && selectedFile) {
-          handleSaveFile();
-        }
+    const handleClickOutside = (e: MouseEvent) => {
+      const sidebar = document.querySelector('.chat-history-sidebar');
+      const button = document.querySelector('.btn-menu-toggle');
+      
+      if (isSidebarVisible && sidebar && button && 
+          !sidebar.contains(e.target as Node) && 
+          !button.contains(e.target as Node)) {
+        setIsSidebarVisible(false);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hasUnsavedChanges, isSaving, selectedFile]);
+    // Add backdrop class to body
+    if (isSidebarVisible) {
+      document.body.classList.add('sidebar-open');
+      document.addEventListener('click', handleClickOutside);
+    } else {
+      document.body.classList.remove('sidebar-open');
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.body.classList.remove('sidebar-open');
+    };
+  }, [isSidebarVisible]);
 
   // Matrix rain effect for welcome screen
   useEffect(() => {
@@ -635,6 +648,7 @@ export const TerminalPage: React.FC = () => {
 
   const handleSelectChat = (chatId: string) => {
     navigate(`/terminal/${chatId}`);
+    setIsSidebarVisible(false); // Close sidebar after selecting chat on mobile
   };
 
   // Send message - AI will auto-route to correct agent
@@ -921,7 +935,7 @@ export const TerminalPage: React.FC = () => {
   return (
     <div className="terminal-page">
       {/* Left Sidebar - Chat History */}
-      <div className="chat-history-sidebar">
+      <div className={`chat-history-sidebar ${isSidebarVisible ? 'visible' : ''}`}>
         <div className="sidebar-header">
           <div className="logo-section" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <span className="logo-icon phosphor-glow">⬡</span>
@@ -1076,6 +1090,17 @@ export const TerminalPage: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="terminal-main-content">
+        {/* Menu toggle button for mobile */}
+        <button
+          className="btn-menu-toggle"
+          onClick={() => {
+            playClick();
+            setIsSidebarVisible(!isSidebarVisible);
+          }}
+          title="Toggle menu"
+        >
+          ☰
+        </button>
         {/* Chat Interface */}
         <div className="chat-interface-area">
           <div className="chat-messages-container" onScroll={handleChatScroll}>

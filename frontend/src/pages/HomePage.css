@@ -130,6 +130,8 @@
   justify-content: center;
   flex-wrap: wrap;
   margin-bottom: var(--spacing-lg);
+  flex-direction: column;
+  align-items: center;
 }
 
 .glow-button {
@@ -138,6 +140,9 @@
   position: relative;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
 }
 
 .glow-button::before {
@@ -763,7 +768,7 @@
   .github-section,
   .agents-section,
   .cta-section {
-    padding: var(--spacing-md) var(--spacing-md) 60px var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-sm) 60px var(--spacing-sm);
   }
 
   .hero-ascii {
@@ -779,25 +784,123 @@
     font-size: var(--font-size-sm);
   }
 
+  .hero-actions {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .glow-button {
+    width: 100%;
+    max-width: 300px;
+  }
+
   .section-title {
     font-size: var(--font-size-lg);
     letter-spacing: 2px;
   }
 
-  .stats-grid,
-  .channels-grid,
-  .github-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-sm);
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs);
   }
 
-  .agent-row {
+  .stat-card {
+    padding: var(--spacing-md);
+  }
+
+  .stat-icon {
+    font-size: 2rem;
+  }
+
+  .stat-title {
+    font-size: var(--font-size-sm);
+  }
+
+  .stat-description {
+    font-size: 0.65rem;
+    line-height: 1.4;
+  }
+
+  .channels-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: var(--spacing-xs);
   }
 
+  .channel-card {
+    padding: var(--spacing-md);
+  }
+
+  .channel-icon {
+    font-size: 2rem;
+  }
+
+  .channel-card h3 {
+    font-size: var(--font-size-sm);
+  }
+
+  .channel-card p {
+    font-size: 0.65rem;
+    line-height: 1.4;
+  }
+
+  .channel-badges {
+    gap: var(--spacing-xs);
+  }
+
+  .badge {
+    font-size: 0.6rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .github-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .github-card {
+    padding: var(--spacing-lg);
+  }
+
+  .github-icon {
+    font-size: 2.5rem;
+  }
+
+  .github-card h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .github-card p {
+    font-size: var(--font-size-xs);
+  }
+
+  .agent-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .agent-card {
+    padding: var(--spacing-md);
+  }
+
+  .agent-icon {
+    font-size: 1.5rem;
+  }
+
+  .agent-card h4 {
+    font-size: var(--font-size-xs);
+  }
+
+  .agent-card p {
+    font-size: 0.6rem;
+  }
+
   .cta-ascii {
     font-size: 0.4rem;
+  }
+
+  .cta-terminal {
+    padding: var(--spacing-lg);
   }
 
   .footer-content {
@@ -814,13 +917,25 @@
   }
 
   .scroll-nav {
-    right: var(--spacing-sm);
-    gap: var(--spacing-sm);
+    display: none;
   }
 
   .scroll-dot {
     width: 10px;
     height: 10px;
+  }
+
+  /* Better touch targets for mobile */
+  .snap-section {
+    scroll-snap-align: start;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Disable default scroll-behavior for snap effect */
+  html {
+    scroll-behavior: auto;
   }
 }
 
@@ -835,12 +950,39 @@
   }
 
   .stat-icon {
-    font-size: 2.5rem;
+    font-size: 2rem;
+  }
+
+  .stat-card {
+    padding: var(--spacing-lg);
+  }
+
+  .stat-title {
+    font-size: var(--font-size-base);
+  }
+
+  .stat-description {
+    font-size: var(--font-size-xs);
   }
 
   .channel-icon,
   .github-icon {
     font-size: 2rem;
+  }
+
+  .channel-card,
+  .github-card {
+    padding: var(--spacing-lg);
+  }
+
+  .channel-card h3,
+  .github-card h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .channel-card p,
+  .github-card p {
+    font-size: var(--font-size-xs);
   }
 
   .agent-icon {
@@ -849,10 +991,55 @@
 
   .agent-row {
     grid-template-columns: 1fr;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .agent-card {
+    padding: var(--spacing-md);
+  }
+
+  .agent-card h4 {
+    font-size: var(--font-size-xs);
+  }
+
+  .agent-card p {
+    font-size: 0.7rem;
+  }
+
+  .cta-ascii {
+    font-size: 0.32rem;
+  }
+
+  .cta-terminal {
+    padding: var(--spacing-lg);
+  }
+
+  .cta-title {
+    font-size: var(--font-size-lg);
+  }
+
+  .cta-text {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .cta-terminal .glow-button {
+    margin: var(--spacing-lg) auto var(--spacing-md) auto;
+  }
+
+  .text-muted {
+    font-size: var(--font-size-xs);
+    margin-bottom: var(--spacing-xl) !important;
   }
 
   .scroll-nav {
     display: none;
+  }
+
+  /* Ensure proper touch handling */
+  .snap-container {
+    touch-action: manipulation;
   }
 }
 

@@ -1491,3 +1491,242 @@
     height: 50%;
   }
 }
+
+@media (max-width: 768px) {
+  .terminal-page {
+    flex-direction: column;
+    position: relative;
+    height: 100vh;
+  }
+
+  /* Hide sidebar by default on mobile - full screen */
+  .chat-history-sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s ease;
+    box-shadow: none;
+    overflow-y: auto;
+    border-right: none;
+    background: var(--color-terminal-bg);
+  }
+
+  .chat-history-sidebar.visible {
+    left: 0;
+  }
+
+  /* Backdrop overlay - full opaque */
+  body.sidebar-open::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 1);
+    z-index: 999;
+    pointer-events: all;
+  }
+
+  /* Menu toggle button */
+  .btn-menu-toggle {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1001;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-primary);
+    background: var(--color-terminal-bg);
+    border: 1px solid var(--color-border);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-weight: bold;
+    display: block;
+  }
+
+  .terminal-main-content {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    padding-top: 50px;
+  }
+
+  .sidebar-header {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+  }
+
+  .logo-icon {
+    font-size: 1.5rem;
+    display: none;
+  }
+
+  .logo-text {
+    font-size: 1rem;
+    letter-spacing: 2px;
+    display: none;
+  }
+
+  .logo-section {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: 0;
+  }
+
+  .btn-new-chat {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.8rem;
+    width: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    justify-content: center;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .btn-new-chat .icon {
+    font-size: 1rem;
+  }
+
+  .btn-new-chat .text {
+    font-size: 0.8rem;
+  }
+
+  /* Search section */
+  .search-section {
+    padding: var(--spacing-md);
+  }
+
+  .search-input {
+    font-size: 0.9rem;
+    padding: var(--spacing-md);
+  }
+
+  /* Chat sessions list */
+  .chat-sessions-list {
+    padding: var(--spacing-md);
+  }
+
+  .group-label {
+    font-size: 0.8rem;
+  }
+
+  .chat-session-item {
+    padding: var(--spacing-md);
+    font-size: 0.9rem;
+  }
+
+  .session-title {
+    font-size: 0.9rem;
+  }
+
+  .session-preview {
+    font-size: 0.8rem;
+  }
+
+  /* Sidebar footer */
+  .sidebar-footer {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+
+  .btn-jobs,
+  .btn-settings,
+  .btn-logout {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 0.9rem;
+    width: 100%;
+  }
+
+  .btn-icon {
+    font-size: 1.2rem;
+  }
+
+  .btn-text {
+    font-size: 0.85rem;
+  }
+
+  /* Chat interface scaling */
+  .message-agent {
+    font-size: 0.75rem;
+  }
+
+  .message-timestamp {
+    font-size: 0.65rem;
+  }
+
+  .message-text {
+    font-size: 0.85rem;
+  }
+
+  .chat-input {
+    font-size: 0.85rem;
+  }
+
+  /* ASCII art scaling */
+  .ascii-logo {
+    font-size: 0.4rem;
+    line-height: 1;
+  }
+
+  .welcome-features {
+    font-size: 0.75rem;
+  }
+
+  .welcome-prompt {
+    font-size: 0.75rem;
+  }
+
+  /* Toolbar buttons scaling */
+  .toolbar-btn {
+    font-size: 0.75rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  /* File tree scaling */
+  .file-tree-title {
+    font-size: 0.75rem;
+  }
+
+  .file-name {
+    font-size: 0.8rem;
+  }
+
+  /* Code editor scaling */
+  .active-file-tab {
+    font-size: 0.75rem;
+  }
+
+  .tabs button {
+    font-size: 0.75rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  /* Progress messages */
+  .agent-progress-message {
+    font-size: 0.8rem;
+  }
+
+  .progress-header {
+    gap: var(--spacing-xs);
+  }
+
+  /* Reduce gap and padding throughout */
+  .chat-messages {
+    gap: var(--spacing-xs);
+  }
+
+  .chat-message {
+    padding: var(--spacing-sm);
+  }
+}

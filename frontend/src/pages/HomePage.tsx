@@ -39,6 +39,10 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     if (!bootComplete || !homePageRef.current || !wrapperRef.current) return
 
+    let touchStartY = 0
+    let touchEndY = 0
+    const SCROLL_THRESHOLD = 50 // Minimum distance to trigger scroll
+
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
@@ -70,11 +74,57 @@ export const HomePage: React.FC = () => {
       })
     }
 
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      touchEndY = e.changedTouches[0].clientY
+      handleSwipe()
+    }
+
+    const handleSwipe = () => {
+      if (isScrolling.current) return
+
+      const difference = touchStartY - touchEndY
+      const isSwipeDown = difference > SCROLL_THRESHOLD
+      const isSwipeUp = difference < -SCROLL_THRESHOLD
+
+      if (!isSwipeDown && !isSwipeUp) return
+
+      setCurrentSection((prevSection) => {
+        const direction = isSwipeDown ? 1 : -1
+        const nextSection = prevSection + direction
+
+        if (nextSection >= 0 && nextSection < totalSections) {
+          isScrolling.current = true
+
+          gsap.to(wrapperRef.current, {
+            y: -nextSection * window.innerHeight,
+            duration: 1.2,
+            ease: 'power2.inOut',
+            onComplete: () => {
+              isScrolling.current = false
+            },
+          })
+
+          return nextSection
+        } else {
+          isScrolling.current = false
+          return prevSection
+        }
+      })
+    }
+
     const homePage = homePageRef.current
     homePage.addEventListener('wheel', handleWheel, { passive: false })
+    homePage.addEventListener('touchstart', handleTouchStart, { passive: true })
+    homePage.addEventListener('touchend', handleTouchEnd, { passive: true })
     
     return () => {
       homePage.removeEventListener('wheel', handleWheel)
+      homePage.removeEventListener('touchstart', handleTouchStart)
+      homePage.removeEventListener('touchend', handleTouchEnd)
     }
   }, [bootComplete, totalSections])
 
