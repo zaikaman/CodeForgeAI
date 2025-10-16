@@ -8,6 +8,7 @@
 import { createTool } from '@iqai/adk';
 import { z } from 'zod';
 import { RepositoryFileSystemCache } from './repositoryFileSystemCache';
+import { IssueAnalyzer } from './issueAnalyzer';
 import { Octokit } from '@octokit/rest';
 
 /**
@@ -333,6 +334,42 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             repo: args.repo,
             error: error.message,
             message: `❌ Failed to preload: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Analyze GitHub issue to understand problem before exploring code
+     * This MUST be called first to prevent aimless exploration
+     */
+    createTool({
+      name: 'bot_github_analyze_issue',
+      description: `Analyze a GitHub issue URL to understand the problem BEFORE exploring the code.
+        Returns: issue type, priority, affected areas, and specific search patterns.
+        CALL THIS FIRST to guide your investigation!`,
+      schema: z.object({
+        issueURL: z
+          .string()
+          .describe(
+            'Full GitHub issue URL (e.g., https://github.com/owner/repo/issues/123)'
+          ),
+      }),
+      fn: async (args) => {
+        try {
+          const analyzer = new IssueAnalyzer(_octokit);
+          const analysis = await analyzer.analyzeIssueURL(args.issueURL);
+
+          return {
+            success: true,
+            analysis,
+            message: `✅ Issue analyzed: Type=${analysis.issueType}, Priority=${analysis.priority}, Complexity=${analysis.estimatedComplexity}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to analyze issue: ${error.message}`,
           };
         }
       },
