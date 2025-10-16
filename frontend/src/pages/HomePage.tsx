@@ -14,6 +14,7 @@ export const HomePage: React.FC = () => {
   const [currentSection, setCurrentSection] = useState(0)
   const [showMobileWarning, setShowMobileWarning] = useState(false)
   const [dismissedMobileWarning, setDismissedMobileWarning] = useState(false)
+  const [isSmallScreen, setIsSmallScreen] = useState(false)
   const sectionsRef = useRef<(HTMLDivElement | null)[]>([])
   const wrapperRef = useRef<HTMLDivElement>(null)
   const homePageRef = useRef<HTMLDivElement>(null)
@@ -25,6 +26,18 @@ export const HomePage: React.FC = () => {
       setBootComplete(true)
     }, 1500)
     return () => clearTimeout(timer)
+  }, [])
+
+  // Detect small screen for mobile scrolling behavior
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const isSmall = window.matchMedia('(max-width: 768px)').matches
+      setIsSmallScreen(isSmall)
+    }
+
+    checkScreenSize()
+    window.addEventListener('resize', checkScreenSize)
+    return () => window.removeEventListener('resize', checkScreenSize)
   }, [])
 
   // Detect mobile device and show warning
@@ -60,6 +73,17 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     if (!bootComplete || !homePageRef.current || !wrapperRef.current) return
 
+    // Small screens (phones): Use native scroll
+    // Desktop: Use GSAP snap-on-scroll effect
+    if (isSmallScreen) {
+      // Enable native scroll on small screens
+      homePageRef.current.style.overflowY = 'auto'
+      homePageRef.current.style.overflowX = 'hidden'
+      wrapperRef.current.style.transform = 'none'
+      return
+    }
+
+    // Desktop: Enable GSAP custom scroll snap effect
     let touchStartY = 0
     let touchEndY = 0
     const SCROLL_THRESHOLD = 50 // Minimum distance to trigger scroll
@@ -147,7 +171,7 @@ export const HomePage: React.FC = () => {
       homePage.removeEventListener('touchstart', handleTouchStart)
       homePage.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [bootComplete, totalSections])
+  }, [bootComplete, totalSections, isSmallScreen])
 
   const addToRefs = (el: HTMLElement | null, index: number) => {
     if (el && el instanceof HTMLDivElement) {
@@ -178,7 +202,7 @@ export const HomePage: React.FC = () => {
   }
 
   return (
-    <div className="home-page crt-screen auth-page" ref={homePageRef}>
+    <div className={`home-page crt-screen auth-page ${isSmallScreen ? 'mobile-native-scroll' : ''}`} ref={homePageRef}>
       <MatrixBackground />
       
       {/* Mobile Warning Modal */}
