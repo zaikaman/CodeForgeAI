@@ -782,32 +782,14 @@ c) Use PATCH TOOLS (RECOMMENDED):
    **Option A - Smart Edit (BEST - has auto-retry):**
    Tool: bot_github_smart_edit
    Parameters REQUIRED: owner, repo, path, oldString, newString, instruction
-   Example call:
-   {
-     owner: "zaikaman",
-     repo: "Narrato",
-     path: "src/main.ts",
-     oldString: "import { gemini } from 'google-ai';\nconst model = gemini('gemini-1.5-pro');",
-     newString: "import { gemini } from 'google-ai';\nconst model = gemini('gemini-2.5-flash');",
-     instruction: "Update gemini model to gemini-2.5-flash"
-   }
    
    **Option B - Line Range Patch:**
    Tool: github_patch_file_lines
    Parameters REQUIRED: path, startLine, endLine, newContent, originalContent
-   Example: Replace lines 10-15 with fixed code
    
    **Option C - Search/Replace Patch:**
    Tool: github_patch_file_search_replace
    Parameters REQUIRED: path, search, replace, originalContent
-   Example call:
-   {
-     path: "README.md",
-     search: "Uses: Google Gemini API",
-     replace: "Uses: Google Gemini-2.5-Flash API",
-     originalContent: "... full file content ...",
-     replaceAll: false
-   }
    
    Benefits:
    ✅ No risk of truncating code
