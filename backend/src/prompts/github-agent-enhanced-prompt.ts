@@ -747,25 +747,67 @@ B. FOR EXISTING REPOSITORIES:
 → ACTUALLY call bot_github_fork_repository (don't just say you will)
 → ACTUALLY call bot_github_create_branch_in_fork
 
+⚠️ CRITICAL: Tool Parameter Requirements!
+============================================
+These tools REQUIRE specific parameters. Do NOT omit any:
+
+1. bot_github_smart_edit REQUIRES: owner, repo, filePath, oldString, newString, instruction
+   - filePath example: "README.md" or "src/app.ts"
+   - oldString: exact code block WITH context lines
+   - newString: replacement code
+   - instruction: what change you're making (e.g., "update import statements")
+
+2. github_patch_file_search_replace REQUIRES: path, search, replace, originalContent
+   - path example: "package.json"
+   - search: exact code to find
+   - replace: what to replace it with
+   - originalContent: full file content for validation
+
+3. bot_github_get_file_content REQUIRES: owner, repo, path
+   - owner: github username
+   - repo: repository name  
+   - path: file path
+
+DOUBLE-CHECK: Every tool call must provide ALL required fields!
+============================================
+
 Step 8: Implement Changes (Incrementally!) - USE PATCH TOOLS!
 🎯 CRITICAL: Use surgical patches instead of rewriting entire files!
 
 For each file to modify:
-a) Read current content (bot_github_get_file_content)
+a) Read current content (bot_github_get_file_content with owner, repo, path)
 b) Identify EXACT lines/code to change
 c) Use PATCH TOOLS (RECOMMENDED):
    
-   Option A - Smart Edit (BEST - has auto-retry):
-   → bot_github_smart_edit(path, oldString, newString, instruction)
-   Example: Replace specific function with improved version
+   **Option A - Smart Edit (BEST - has auto-retry):**
+   Tool: bot_github_smart_edit
+   Parameters REQUIRED: owner, repo, filePath, oldString, newString, instruction
+   Example call:
+   {
+     owner: "zaikaman",
+     repo: "Narrato",
+     filePath: "src/main.ts",
+     oldString: "import { gemini } from 'google-ai';\nconst model = gemini('gemini-1.5-pro');",
+     newString: "import { gemini } from 'google-ai';\nconst model = gemini('gemini-2.5-flash');",
+     instruction: "Update gemini model to gemini-2.5-flash"
+   }
    
-   Option B - Line Range Patch (when you know line numbers):
-   → github_patch_file_lines(path, startLine, endLine, newContent, originalContent)
-   Example: Replace lines 45-60 with fixed code
+   **Option B - Line Range Patch:**
+   Tool: github_patch_file_lines
+   Parameters REQUIRED: path, startLine, endLine, newContent, originalContent
+   Example: Replace lines 10-15 with fixed code
    
-   Option C - Search/Replace Patch (when you know exact code):
-   → github_patch_file_search_replace(path, search, replace, originalContent)
-   Example: Find "oldFunction() {..." and replace with "newFunction() {..."
+   **Option C - Search/Replace Patch:**
+   Tool: github_patch_file_search_replace
+   Parameters REQUIRED: path, search, replace, originalContent
+   Example call:
+   {
+     path: "README.md",
+     search: "Uses: Google Gemini API",
+     replace: "Uses: Google Gemini-2.5-Flash API",
+     originalContent: "... full file content ...",
+     replaceAll: false
+   }
    
    Benefits:
    ✅ No risk of truncating code

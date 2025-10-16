@@ -39,6 +39,13 @@ Benefits:
       }),
       fn: async (args) => {
         try {
+          // Validate required parameters
+          if (!args.path) throw new Error('REQUIRED: path parameter missing (file path like src/main.ts)');
+          if (typeof args.startLine !== 'number') throw new Error('REQUIRED: startLine parameter missing (first line number, 1-indexed)');
+          if (typeof args.endLine !== 'number') throw new Error('REQUIRED: endLine parameter missing (last line number, 1-indexed)');
+          if (!args.newContent) throw new Error('REQUIRED: newContent parameter missing (replacement code)');
+          if (!args.originalContent) throw new Error('REQUIRED: originalContent parameter missing (complete file content)');
+          
           // Validate patch
           const patch = FilePatcher.createLineRangePatch(
             args.path,
@@ -99,29 +106,22 @@ Benefits:
 
     createTool({
       name: 'github_patch_file_search_replace',
-      description: `🔍 RECOMMENDED: Find and replace exact text in a file.
-
-Search for specific code block and replace it.
-
-Use this when:
-- You know the exact code to change
-- Replacing a specific function/method
-- Updating specific values/strings
-
-Benefits:
-- No need to count line numbers
-- Works even if file changes
-- Very precise
-- Safe (fails if text not found)`,
+      description: `Find and replace exact text in a file. Provide the file path, exact code to find, and replacement code. Fails safely if text not found.`,
       schema: z.object({
-        path: z.string().describe('File path relative to repo root'),
-        search: z.string().describe('Exact text to find (must be unique in file)'),
-        replace: z.string().describe('Text to replace with'),
-        originalContent: z.string().describe('Current full file content (for validation)'),
-        replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences (default: first only)'),
+        path: z.string().describe('File path relative to repo root (e.g., src/main.ts, README.md)'),
+        search: z.string().describe('Exact text to find - must be unique and complete block including surrounding context'),
+        replace: z.string().describe('Text to replace search with'),
+        originalContent: z.string().describe('Complete current file content for validation'),
+        replaceAll: z.boolean().optional().default(false).describe('Replace all occurrences or just first'),
       }),
       fn: async (args) => {
         try {
+          // Validate required parameters
+          if (!args.path) throw new Error('REQUIRED: path parameter missing (file path like src/main.ts or README.md)');
+          if (!args.search) throw new Error('REQUIRED: search parameter missing (exact code block to find)');
+          if (!args.replace) throw new Error('REQUIRED: replace parameter missing (replacement code)');
+          if (!args.originalContent) throw new Error('REQUIRED: originalContent parameter missing (complete file content for validation)');
+          
           // Create patch
           const patch = FilePatcher.createSearchReplacePatch(
             args.path,

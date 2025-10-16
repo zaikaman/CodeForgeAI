@@ -53,45 +53,28 @@ export function createEnhancedGitHubTools() {
     // Smart Edit Tool - Uses 3 strategies + self-correction
     createTool({
       name: 'bot_github_smart_edit',
-      description: `🎯 INTELLIGENT FILE EDITING: Smart search-and-replace with 3 fallback strategies + self-correction
-
-**WHY USE THIS?**
-- ✅ Prevents code truncation issues
-- ✅ Automatically handles whitespace/indentation differences
-- ✅ Self-corrects when initial edit fails
-- ✅ Much more reliable than rewriting entire files
-
-**HOW IT WORKS:**
-1. **Exact Match** - Tries exact string matching first (fastest)
-2. **Flexible Match** - Tolerates whitespace/indentation differences
-3. **Regex Match** - Token-level matching with flexible whitespace
-4. **Self-Correction** - If all fail, uses LLM to fix search parameters
-
-**WHEN TO USE:**
-- Making targeted code changes
-- Fixing bugs in specific functions
-- Updating configuration values
-- Refactoring specific code blocks
-
-**PARAMETERS:**
-- owner/repo/filePath: Target file location
-- oldString: The exact code to find (include 3+ lines of context!)
-- newString: The replacement code
-- instruction: High-level goal (e.g., "Fix null pointer in getUserProfile")
-- branch: Branch to edit (optional)
-
-**IMPORTANT:** Include sufficient context in oldString to uniquely identify the code to change!`,
+      description: `Smart search-and-replace with 3 fallback strategies + self-correction. Use for targeted code changes. Automatically handles whitespace differences and self-corrects if initial edit fails.`,
       schema: z.object({
-        owner: z.string().describe('Repository owner'),
+        owner: z.string().describe('Repository owner username'),
         repo: z.string().describe('Repository name'),
-        filePath: z.string().describe('Path to file to edit'),
-        oldString: z.string().describe('Exact code to replace (include 3+ lines context)'),
-        newString: z.string().describe('Replacement code'),
-        instruction: z.string().describe('High-level goal of this edit (for self-correction)'),
-        branch: z.string().optional().describe('Branch to edit (defaults to default branch)'),
+        filePath: z.string().describe('Path to file to edit (e.g., src/index.ts, README.md)'),
+        oldString: z.string().describe('Exact code block to find and replace (must include 3+ lines of context to be unique)'),
+        newString: z.string().describe('New code to replace oldString with'),
+        instruction: z.string().describe('High-level goal (e.g., "Replace old gemini imports with gemini-2.5-flash")'),
+        branch: z.string().optional().describe('Branch to edit (defaults to main/default branch)'),
       }),
       fn: async (args, context) => {
         try {
+          // Validate required parameters
+          if (!args.owner) throw new Error('REQUIRED: owner parameter missing (repository owner username)');
+          if (!args.repo) throw new Error('REQUIRED: repo parameter missing (repository name)');
+          if (!args.filePath) {
+            throw new Error('REQUIRED: filePath parameter missing (path to file like src/index.ts or README.md)');
+          }
+          if (!args.oldString) throw new Error('REQUIRED: oldString parameter missing (exact code block to find)');
+          if (!args.newString) throw new Error('REQUIRED: newString parameter missing (replacement code)');
+          if (!args.instruction) throw new Error('REQUIRED: instruction parameter missing (what you are changing, e.g., "update imports")');
+          
           const params: SmartEditParams = {
             owner: args.owner,
             repo: args.repo,
