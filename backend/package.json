@@ -11,7 +11,7 @@
     "dev": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" tsx watch src/index.ts",
     "start": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" tsx src/index.ts",
     "build": "echo 'Skipping TypeScript compilation - running with tsx instead'",
-    "heroku-postbuild": "bash scripts/install-git.sh && bash scripts/install-flyctl.sh || echo 'Installation skipped'",
+    "heroku-postbuild": "bash scripts/install-git.sh; bash scripts/install-flyctl.sh || echo 'Installation completed with warnings'",
     "vercel-build": "echo 'Backend ready for deployment'",
     "test": "jest",
     "test:watch": "jest --watch",
