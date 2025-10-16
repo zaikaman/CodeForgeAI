@@ -122,11 +122,16 @@ export class TelegramBotService {
     }
     
     try {
+      console.log('[TelegramBot] Processing update type:', update.message ? 'message' : update.callback_query ? 'callback_query' : 'unknown');
+      
       // Process the update through node-telegram-bot-api
       // This will trigger the appropriate handlers (onText, on('message'), etc.)
       await this.bot.processUpdate(update);
+      
+      console.log('[TelegramBot] ✅ Update processed successfully');
     } catch (error: any) {
       console.error('❌ Error processing Telegram update:', error.message);
+      console.error('Update details:', JSON.stringify(update, null, 2));
     }
   }
   
@@ -152,35 +157,45 @@ export class TelegramBotService {
   private setupHandlers() {
     if (!this.bot) return;
     
+    console.log('[TelegramBot] Setting up message handlers...');
+    
     // /start command - Show welcome and login button
     this.bot.onText(/\/start/, async (msg) => {
+      console.log('[TelegramBot] /start command received');
       await this.handleStartCommand(msg);
     });
     
     // /login command - Show login button
     this.bot.onText(/\/login/, async (msg) => {
+      console.log('[TelegramBot] /login command received');
       await this.handleLoginCommand(msg);
     });
     
     // /status command - Show active jobs
     this.bot.onText(/\/status/, async (msg) => {
+      console.log('[TelegramBot] /status command received');
       await this.handleStatusCommand(msg);
     });
     
     // /help command - Show help
     this.bot.onText(/\/help/, async (msg) => {
+      console.log('[TelegramBot] /help command received');
       await this.handleHelpCommand(msg);
     });
     
     // /background command - Toggle background mode for next request
     this.bot.onText(/\/background/, async (msg) => {
+      console.log('[TelegramBot] /background command received');
       await this.handleBackgroundCommand(msg);
     });
     
     // Handle all other messages (chat messages)
     this.bot.on('message', async (msg) => {
+      console.log('[TelegramBot] Message received:', msg.text?.substring(0, 50));
+      
       // Skip if it's a command
       if (msg.text?.startsWith('/')) {
+        console.log('[TelegramBot] Skipping command message (already handled)');
         return;
       }
       
@@ -189,8 +204,11 @@ export class TelegramBotService {
     
     // Handle callback queries (button clicks)
     this.bot.on('callback_query', async (query) => {
+      console.log('[TelegramBot] Callback query received:', query.data);
       await this.handleCallbackQuery(query);
     });
+    
+    console.log('[TelegramBot] ✅ All handlers registered');
   }
   
   /**
