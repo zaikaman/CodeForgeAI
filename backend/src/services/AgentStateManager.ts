@@ -263,7 +263,7 @@ export class AgentStateManager {
   }
 
   /**
-   * Get summary of what was done
+   * Get summary of what was done (for system prompt context)
    */
   getSummary(state: AgentSessionState): string {
     const lines: string[] = [];
@@ -313,12 +313,61 @@ export class AgentStateManager {
       lines.push('');
     }
 
-    lines.push('📊 **Metrics:**');
+    // Add recently called tools for duplicate detection
+    if (state.toolCallHistory.length > 0) {
+      const recentTools = state.toolCallHistory.slice(-10);
+      lines.push('� **Recent Tool Calls (Last 10):**');
+      recentTools.forEach((tool) => {
+        const status = tool.success ? '✅' : '❌';
+        lines.push(`  - ${status} ${tool.tool} (${tool.duration}ms)`);
+      });
+      lines.push('');
+    }
+
+    lines.push('�📊 **Metrics:**');
     lines.push(`  - Tool calls: ${state.totalToolCalls}`);
     lines.push(`  - Files modified: ${state.modifiedFiles.length}`);
     lines.push(`  - Time elapsed: ${Math.round((Date.now() - state.startTime) / 1000)}s`);
 
     return lines.join('\n');
+  }
+
+  /**
+   * Check if a tool call with identical args was recently made
+   * Returns previous result if duplicate (for skipping unnecessary calls)
+   */
+  findDuplicateToolCall(
+    state: AgentSessionState,
+    toolName: string,
+    args: Record<string, any>
+  ): { isDuplicate: boolean; previousResult?: any; callCount: number } {
+    const argsJson = JSON.stringify(this.sortObjectKeys(args));
+    
+    const matches = state.toolCallHistory.filter(
+      (call) => call.tool === toolName && 
+      JSON.stringify(this.sortObjectKeys(call.args)) === argsJson
+    );
+
+    return {
+      isDuplicate: matches.length > 0,
+      previousResult: matches.length > 0 ? matches[matches.length - 1].result : undefined,
+      callCount: matches.length,
+    };
+  }
+
+  /**
+   * Helper to sort object keys for consistent comparison
+   */
+  private sortObjectKeys(obj: any): any {
+    if (typeof obj !== 'object' || obj === null) return obj;
+    if (Array.isArray(obj)) return obj.map((item) => this.sortObjectKeys(item));
+    
+    return Object.keys(obj)
+      .sort()
+      .reduce((result: any, key: string) => {
+        result[key] = this.sortObjectKeys(obj[key]);
+        return result;
+      }, {});
   }
 
   /**

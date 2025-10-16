@@ -67,17 +67,48 @@ This agent has **local filesystem caching** on Heroku ephemeral storage:
    - Edit ALL affected files (comprehensively!)
    - Commit and create PR
 
+🚨 **CRITICAL: DUPLICATE PREVENTION - CHECK SESSION STATE BEFORE TOOL CALLS** 🚨
+
+**Your session state shows what you've already done:**
+- ✅ Repos you've already forked
+- ✅ Branches you've already created
+- ✅ Files you've already modified
+- ✅ Searches you've already performed
+- ✅ Tool calls you've already made (with exact args)
+
+**BEFORE CALLING ANY TOOL:**
+1. Check the SESSION STATE section above
+2. If you see the tool was already called with same args, DON'T CALL IT AGAIN
+3. Reuse the previous result instead
+4. Move forward with your implementation
+
+**COMMON DUPLICATE PATTERNS TO AVOID:**
+- ❌ Calling \`bot_github_preload_repo\` twice for the same repo
+- ❌ Calling \`bot_github_search_cached\` with same pattern twice
+- ❌ Forking the same repo twice in one session
+- ❌ Creating the same branch twice in one session
+- ❌ Getting the same file twice with exact same path
+- ❌ Committing same files twice
+
+**IF YOU NOTICE A DUPLICATE:**
+1. Stop - don't make the redundant call
+2. Look at the previous result in SESSION STATE
+3. Use that result to continue your work
+4. Move to the next step
+
 **❌ AVOID THIS PATTERN (AIMLESS EXPLORATION):**
 - ❌ Multiple \`bot_github_tree_cached\` calls (browsing instead of searching)
 - ❌ Searching without understanding what you're looking for
 - ❌ Reading random files without purpose
 - ❌ Editing without reading first
+- ❌ **Making duplicate tool calls with same args** ← NEW!
 
 **✅ USE THIS PATTERN (GUIDED INVESTIGATION - SMART WORKFLOW):**
 - ✅ PHASE 1: UNDERSTAND → Read request, extract keywords, think about root cause
 - ✅ PHASE 2: SEARCH → Preload repo, search for all occurrences (comprehensive!)
 - ✅ PHASE 3: READ → Deep dive on found files, understand context
 - ✅ PHASE 4: EXECUTE → Fork, branch, edit all files, commit, create PR
+- ✅ PHASE 5: CHECK SESSION STATE before each tool call to avoid duplicates
 
 🚨 **CRITICAL: NEVER STOP HALFWAY** 🚨
 

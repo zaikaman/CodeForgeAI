@@ -571,7 +571,14 @@ class ChatQueueManager {
           // await this.emitFakeGitHubProgress(job.id, job.message);
           
           const { GitHubAgent } = await import('../agents/specialized/GitHubAgent');
-          const builtAgent = await GitHubAgent(job.githubContext);
+          // Pass session context to enable state tracking and duplicate prevention
+          const builtAgent = await GitHubAgent(
+            job.githubContext,
+            job.generationId, // sessionId
+            job.id,            // jobId
+            job.userId,        // userId
+            job.message        // taskDescription
+          );
           
           // Use streaming API to get real-time agent thoughts
           const response = await safeAgentCallWithStreaming(builtAgent, contextMessage, {
