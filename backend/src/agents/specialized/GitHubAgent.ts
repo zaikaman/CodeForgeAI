@@ -29,9 +29,11 @@
 import { AgentBuilder } from '@iqai/adk';
 import { z } from 'zod';
 import { GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT } from '../../prompts/github-agent-enhanced-prompt';
+import { generateStateAwarenessSection } from '../../prompts/github-agent-state-awareness';
 import { createCachedGitHubTools } from '../../utils/cachedGitHubTools';
 import { AgentCacheManager } from '../../utils/agentCacheManager';
 import { getAgentStateManager } from '../../services/AgentStateManager';
+import { createTaskManagerForIssue } from '../../services/GitHubTaskManager';
 import { Octokit } from '@octokit/rest';
 
 const githubAgentResponseSchema = z.object({
@@ -69,7 +71,7 @@ export const GitHubAgent = async (
   userId?: string,
   taskDescription?: string
 ) => {
-  console.log('[GitHubAgent] Initializing with LOCAL CACHE layer for 50-100x performance boost');
+  console.log('[GitHubAgent] Initializing with LOCAL CACHE + STATE AWARENESS + TASK MANAGEMENT');
   
   try {
     // Initialize state manager for session tracking
@@ -84,6 +86,29 @@ export const GitHubAgent = async (
     if (state) {
       console.log(`[GitHubAgent] Session state loaded: ${state.sessionId}`);
       console.log(`[GitHubAgent] Previous operations: ${state.totalToolCalls} tool calls, ${state.modifiedFiles.length} files modified`);
+    }
+    
+    // Initialize task manager for workflow guidance
+    let taskManager = null;
+    let taskChecklist = '';
+    let executionGuidance = '';
+    
+    if (taskDescription) {
+      // Detect issue type from task description
+      let issueType: 'bug' | 'feature' | 'refactor' | 'replace' = 'bug';
+      if (taskDescription.toLowerCase().includes('replace') || taskDescription.toLowerCase().includes('remove all')) {
+        issueType = 'replace';
+      } else if (taskDescription.toLowerCase().includes('feature') || taskDescription.toLowerCase().includes('add')) {
+        issueType = 'feature';
+      } else if (taskDescription.toLowerCase().includes('refactor')) {
+        issueType = 'refactor';
+      }
+      
+      taskManager = createTaskManagerForIssue(taskDescription, issueType);
+      taskChecklist = taskManager.getTaskChecklist();
+      executionGuidance = taskManager.getExecutionGuidance();
+      
+      console.log('[GitHubAgent] Task manager initialized for issue type:', issueType);
     }
     
     // Initialize cache manager for faster operations
@@ -105,13 +130,14 @@ export const GitHubAgent = async (
       console.log('[GitHubAgent] ✅ Initialized with CACHED tools (bot mode)');
       console.log('[GitHubAgent] Tool count:', cachedTools.tools.length);
       
-      // Build comprehensive system prompt with state info
-      const stateInfo = state 
-        ? `\n\n**📋 SESSION STATE (Prevent duplicates!):**\n${stateManager.getSummary(state)}`
+      // Build comprehensive system prompt with state info AND task guidance
+      const stateAwareness = state 
+        ? generateStateAwarenessSection(state, taskChecklist, executionGuidance)
         : '';
       
-      const systemPrompt = GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + cacheStats + 
-        stateInfo +
+      const systemPrompt = stateAwareness + '\n\n' +
+        GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + 
+        cacheStats + 
         '\n\n**Performance Note:** Repository caching makes all file operations instant. ' +
         'Use search to find code, then read only what you need, then edit and commit.';
       
@@ -132,12 +158,13 @@ export const GitHubAgent = async (
         const octokit = new Octokit({ auth: githubContext.token });
         const cachedTools = createCachedGitHubTools(octokit);
         
-        const stateInfo = state 
-          ? `\n\n**📋 SESSION STATE (Prevent duplicates!):**\n${stateManager.getSummary(state)}`
+        const stateAwareness = state 
+          ? generateStateAwarenessSection(state, taskChecklist, executionGuidance)
           : '';
         
-        const systemPrompt = GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + cacheStats +
-          stateInfo +
+        const systemPrompt = stateAwareness + '\n\n' +
+          GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + 
+          cacheStats +
           '\n\n**Mode:** USER TOKEN (bot token not configured)';
         
         return AgentBuilder.create('GitHubAgent')
