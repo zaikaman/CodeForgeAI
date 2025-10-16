@@ -339,6 +339,75 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     }),
 
     /**
+     * Get GitHub issue details (title, body, comments, etc.)
+     */
+    createTool({
+      name: 'bot_github_get_issue_cached',
+      description: `Get GitHub issue details by issue number. Returns title, body, comments, and metadata.
+        This is essential for understanding what needs to be fixed.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        issueNumber: z.number().describe('Issue number (e.g., 1 for #1)'),
+      }),
+      fn: async (args) => {
+        try {
+          if (!_octokit) {
+            return {
+              success: false,
+              error: 'Octokit not configured',
+              message: '❌ Cannot fetch issue: GitHub API not configured',
+            };
+          }
+
+          // Get issue details
+          const issue = await _octokit.rest.issues.get({
+            owner: args.owner,
+            repo: args.repo,
+            issue_number: args.issueNumber,
+          });
+
+          // Get issue comments
+          const comments = await _octokit.rest.issues.listComments({
+            owner: args.owner,
+            repo: args.repo,
+            issue_number: args.issueNumber,
+            per_page: 100,
+          });
+
+          const issueData = {
+            number: issue.data.number,
+            title: issue.data.title,
+            body: issue.data.body || '',
+            state: issue.data.state,
+            labels: issue.data.labels?.map((l: any) => l.name) || [],
+            assignees: issue.data.assignees?.map((a: any) => a.login) || [],
+            author: issue.data.user?.login || 'unknown',
+            createdAt: issue.data.created_at,
+            updatedAt: issue.data.updated_at,
+            comments: comments.data.map((c: any) => ({
+              author: c.user?.login || 'unknown',
+              body: c.body,
+              createdAt: c.created_at,
+            })),
+          };
+
+          return {
+            success: true,
+            issue: issueData,
+            message: `✅ Retrieved issue #${args.issueNumber}: ${issue.data.title}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to get issue #${args.issueNumber}: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
      * Fork repository to bot account
      */
     createTool({
@@ -559,6 +628,1102 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             success: false,
             error: error.message,
             message: `❌ Failed to create PR: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Get repository info
+     */
+    createTool({
+      name: 'bot_github_repo_info',
+      description: `Get detailed information about a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.repos.get({
+            owner: args.owner,
+            repo: args.repo,
+          });
+
+          return {
+            success: true,
+            info: {
+              name: data.name,
+              fullName: data.full_name,
+              description: data.description || '',
+              language: data.language || 'Unknown',
+              stars: data.stargazers_count,
+              forks: data.forks_count,
+              openIssues: data.open_issues_count,
+              defaultBranch: data.default_branch,
+              url: data.html_url,
+              private: data.private,
+              createdAt: data.created_at,
+              updatedAt: data.updated_at,
+            },
+            message: `✅ Retrieved repository info for ${args.owner}/${args.repo}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to get repo info: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * List pull requests
+     */
+    createTool({
+      name: 'bot_github_list_pull_requests',
+      description: `List pull requests in a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        state: z.enum(['open', 'closed', 'all']).optional().describe('PR state filter (default: open)'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.pulls.list({
+            owner: args.owner,
+            repo: args.repo,
+            state: args.state || 'open',
+          });
+
+          return {
+            success: true,
+            pullRequests: data.map((pr: any) => ({
+              number: pr.number,
+              title: pr.title,
+              body: pr.body || '',
+              state: pr.state,
+              url: pr.html_url,
+              createdAt: pr.created_at,
+              updatedAt: pr.updated_at,
+              author: pr.user?.login,
+            })),
+            count: data.length,
+            message: `✅ Found ${data.length} pull requests`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to list pull requests: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Create issue
+     */
+    createTool({
+      name: 'bot_github_create_issue',
+      description: `Create a new issue in a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        title: z.string().describe('Issue title'),
+        body: z.string().describe('Issue description'),
+        labels: z.array(z.string()).optional().describe('Issue labels'),
+        assignees: z.array(z.string()).optional().describe('GitHub usernames to assign'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.issues.create({
+            owner: args.owner,
+            repo: args.repo,
+            title: args.title,
+            body: args.body,
+            labels: args.labels,
+            assignees: args.assignees,
+          });
+
+          return {
+            success: true,
+            issue: {
+              number: data.number,
+              title: data.title,
+              body: data.body,
+              state: data.state,
+              url: data.html_url,
+              createdAt: data.created_at,
+            },
+            message: `✅ Issue #${data.number} created`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to create issue: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * List issues
+     */
+    createTool({
+      name: 'bot_github_list_issues',
+      description: `List issues in a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        state: z.enum(['open', 'closed', 'all']).optional().describe('Issue state filter (default: open)'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.issues.listForRepo({
+            owner: args.owner,
+            repo: args.repo,
+            state: args.state || 'open',
+          });
+
+          return {
+            success: true,
+            issues: data.map((issue: any) => ({
+              number: issue.number,
+              title: issue.title,
+              body: issue.body || '',
+              state: issue.state,
+              labels: issue.labels?.map((l: any) => typeof l === 'string' ? l : l.name) || [],
+              url: issue.html_url,
+              createdAt: issue.created_at,
+              author: issue.user?.login,
+            })),
+            count: data.length,
+            message: `✅ Found ${data.length} issues`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to list issues: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * List commits
+     */
+    createTool({
+      name: 'bot_github_list_commits',
+      description: `List commits in a repository or file path.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        path: z.string().optional().describe('File path (optional)'),
+        author: z.string().optional().describe('Filter by author'),
+        perPage: z.number().optional().describe('Commits per page (default: 30)'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.repos.listCommits({
+            owner: args.owner,
+            repo: args.repo,
+            path: args.path,
+            author: args.author,
+            per_page: args.perPage || 30,
+          });
+
+          return {
+            success: true,
+            commits: data.map((commit: any) => ({
+              sha: commit.sha,
+              message: commit.commit.message,
+              author: commit.commit.author?.name || 'Unknown',
+              date: commit.commit.author?.date,
+              url: commit.html_url,
+              author_login: commit.author?.login,
+            })),
+            count: data.length,
+            message: `✅ Found ${data.length} commits`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to list commits: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Create comment on issue or PR
+     */
+    createTool({
+      name: 'bot_github_create_comment',
+      description: `Create a comment on an issue or pull request.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        issueNumber: z.number().describe('Issue or PR number'),
+        body: z.string().describe('Comment body (markdown supported)'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.issues.createComment({
+            owner: args.owner,
+            repo: args.repo,
+            issue_number: args.issueNumber,
+            body: args.body,
+          });
+
+          return {
+            success: true,
+            comment: {
+              id: data.id,
+              body: data.body,
+              author: data.user?.login,
+              url: data.html_url,
+              createdAt: data.created_at,
+            },
+            message: `✅ Comment created on issue #${args.issueNumber}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to create comment: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Get authenticated user
+     */
+    createTool({
+      name: 'bot_github_get_authenticated_user',
+      description: `Get current authenticated GitHub user information.`,
+      schema: z.object({}),
+      fn: async () => {
+        try {
+          const { data } = await _octokit.rest.users.getAuthenticated();
+
+          return {
+            success: true,
+            user: {
+              login: data.login,
+              name: data.name || '',
+              email: data.email || '',
+              url: data.html_url,
+              company: data.company || '',
+              location: data.location || '',
+              bio: data.bio || '',
+              publicRepos: data.public_repos,
+              followers: data.followers,
+            },
+            message: `✅ Retrieved user info for ${data.login}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to get authenticated user: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Create or update file
+     */
+    createTool({
+      name: 'bot_github_create_or_update_file',
+      description: `Create or update a file in a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        path: z.string().describe('File path'),
+        content: z.string().describe('File content'),
+        message: z.string().describe('Commit message'),
+        branch: z.string().optional().describe('Target branch (default: main)'),
+      }),
+      fn: async (args) => {
+        try {
+          // Get existing file SHA if it exists
+          let sha: string | undefined;
+          try {
+            const { data: existing } = await _octokit.rest.repos.getContent({
+              owner: args.owner,
+              repo: args.repo,
+              path: args.path,
+              ref: args.branch,
+            });
+            if (!Array.isArray(existing) && existing.type === 'file') {
+              sha = existing.sha;
+            }
+          } catch {
+            // File doesn't exist, that's okay
+          }
+
+          const { data } = await _octokit.rest.repos.createOrUpdateFileContents({
+            owner: args.owner,
+            repo: args.repo,
+            path: args.path,
+            message: args.message,
+            content: Buffer.from(args.content).toString('base64'),
+            sha,
+            branch: args.branch,
+          });
+
+          return {
+            success: true,
+            file: {
+              path: args.path,
+              sha: data.content?.sha,
+              message: args.message,
+            },
+            message: `✅ File ${args.path} created/updated`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to create/update file: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * List branches
+     */
+    createTool({
+      name: 'bot_github_list_branches',
+      description: `List all branches in a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.repos.listBranches({
+            owner: args.owner,
+            repo: args.repo,
+          });
+
+          return {
+            success: true,
+            branches: data.map((branch: any) => ({
+              name: branch.name,
+              protected: branch.protected,
+              sha: branch.commit.sha,
+            })),
+            count: data.length,
+            message: `✅ Found ${data.length} branches`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to list branches: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Delete branch
+     */
+    createTool({
+      name: 'bot_github_delete_branch',
+      description: `Delete a branch from a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().describe('Branch name to delete'),
+      }),
+      fn: async (args) => {
+        try {
+          await _octokit.rest.git.deleteRef({
+            owner: args.owner,
+            repo: args.repo,
+            ref: `heads/${args.branch}`,
+          });
+
+          return {
+            success: true,
+            branch: args.branch,
+            message: `✅ Branch ${args.branch} deleted`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to delete branch: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Merge pull request
+     */
+    createTool({
+      name: 'bot_github_merge_pr',
+      description: `Merge a pull request.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        prNumber: z.number().describe('Pull request number'),
+        mergeMethod: z.enum(['merge', 'squash', 'rebase']).optional().describe('Merge method (default: merge)'),
+        message: z.string().optional().describe('Commit message'),
+      }),
+      fn: async (args) => {
+        try {
+          await _octokit.rest.pulls.merge({
+            owner: args.owner,
+            repo: args.repo,
+            pull_number: args.prNumber,
+            merge_method: args.mergeMethod || 'merge',
+            commit_message: args.message,
+          });
+
+          return {
+            success: true,
+            prNumber: args.prNumber,
+            message: `✅ PR #${args.prNumber} merged`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to merge PR: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Review pull request
+     */
+    createTool({
+      name: 'bot_github_review_pr',
+      description: `Add a review to a pull request.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        prNumber: z.number().describe('Pull request number'),
+        event: z.enum(['APPROVE', 'REQUEST_CHANGES', 'COMMENT']).describe('Review event type'),
+        body: z.string().optional().describe('Review comment'),
+      }),
+      fn: async (args) => {
+        try {
+          await _octokit.rest.pulls.createReview({
+            owner: args.owner,
+            repo: args.repo,
+            pull_number: args.prNumber,
+            event: args.event,
+            body: args.body,
+          });
+
+          return {
+            success: true,
+            prNumber: args.prNumber,
+            event: args.event,
+            message: `✅ Review added to PR #${args.prNumber}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to add review: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Get pull request files
+     */
+    createTool({
+      name: 'bot_github_get_pr_files',
+      description: `Get files changed in a pull request.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        prNumber: z.number().describe('Pull request number'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.pulls.listFiles({
+            owner: args.owner,
+            repo: args.repo,
+            pull_number: args.prNumber,
+          });
+
+          return {
+            success: true,
+            files: data.map((file: any) => ({
+              filename: file.filename,
+              status: file.status,
+              additions: file.additions,
+              deletions: file.deletions,
+              changes: file.changes,
+              patch: file.patch,
+            })),
+            count: data.length,
+            message: `✅ Found ${data.length} files in PR #${args.prNumber}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to get PR files: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Search code
+     */
+    createTool({
+      name: 'bot_github_search_code',
+      description: `Search code across GitHub repositories.`,
+      schema: z.object({
+        query: z.string().describe('Search query'),
+        owner: z.string().optional().describe('Repository owner (optional, to limit to specific repo)'),
+        repo: z.string().optional().describe('Repository name (optional, to limit to specific repo)'),
+      }),
+      fn: async (args) => {
+        try {
+          let searchQuery = args.query;
+          if (args.owner && args.repo) {
+            searchQuery = `${args.query} repo:${args.owner}/${args.repo}`;
+          }
+
+          const { data } = await _octokit.rest.search.code({
+            q: searchQuery,
+            per_page: 50,
+          });
+
+          return {
+            success: true,
+            results: (data.items || []).map((item: any) => ({
+              name: item.name,
+              path: item.path,
+              repository: item.repository?.full_name,
+              url: item.html_url,
+            })),
+            totalCount: data.total_count,
+            message: `✅ Found ${data.total_count} code matches`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to search code: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Search issues
+     */
+    createTool({
+      name: 'bot_github_search_issues',
+      description: `Search for issues and pull requests.`,
+      schema: z.object({
+        query: z.string().describe('Search query'),
+        owner: z.string().optional().describe('Repository owner (optional)'),
+        repo: z.string().optional().describe('Repository name (optional)'),
+      }),
+      fn: async (args) => {
+        try {
+          let searchQuery = args.query;
+          if (args.owner && args.repo) {
+            searchQuery = `${args.query} repo:${args.owner}/${args.repo}`;
+          }
+
+          const { data } = await _octokit.rest.search.issuesAndPullRequests({
+            q: searchQuery,
+            per_page: 50,
+          });
+
+          return {
+            success: true,
+            results: (data.items || []).map((item: any) => ({
+              number: item.number,
+              title: item.title,
+              state: item.state,
+              url: item.html_url,
+              type: item.pull_request ? 'PR' : 'Issue',
+              author: item.user?.login,
+            })),
+            totalCount: data.total_count,
+            message: `✅ Found ${data.total_count} results`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to search issues: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * List workflow runs
+     */
+    createTool({
+      name: 'bot_github_list_workflow_runs',
+      description: `List GitHub Actions workflow runs for a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.actions.listWorkflowRunsForRepo({
+            owner: args.owner,
+            repo: args.repo,
+          });
+
+          return {
+            success: true,
+            workflows: (data.workflow_runs || []).map((run: any) => ({
+              id: run.id,
+              name: run.name,
+              status: run.status,
+              conclusion: run.conclusion,
+              url: run.html_url,
+              createdAt: run.created_at,
+            })),
+            count: (data.workflow_runs || []).length,
+            message: `✅ Found ${(data.workflow_runs || []).length} workflow runs`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to list workflow runs: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Trigger workflow dispatch
+     */
+    createTool({
+      name: 'bot_github_trigger_workflow',
+      description: `Trigger a GitHub Actions workflow.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        workflowId: z.union([z.string(), z.number()]).describe('Workflow ID or filename'),
+        ref: z.string().describe('Git ref (branch, tag, or commit SHA)'),
+        inputs: z.record(z.string(), z.any()).optional().describe('Workflow input parameters'),
+      }),
+      fn: async (args) => {
+        try {
+          await _octokit.rest.actions.createWorkflowDispatch({
+            owner: args.owner,
+            repo: args.repo,
+            workflow_id: args.workflowId,
+            ref: args.ref,
+            inputs: args.inputs,
+          });
+
+          return {
+            success: true,
+            workflowId: args.workflowId,
+            message: `✅ Workflow triggered`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to trigger workflow: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Update issue
+     */
+    createTool({
+      name: 'bot_github_update_issue',
+      description: `Update an issue (title, body, state, labels, assignees).`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        issueNumber: z.number().describe('Issue number'),
+        title: z.string().optional().describe('New issue title'),
+        body: z.string().optional().describe('New issue body'),
+        state: z.enum(['open', 'closed']).optional().describe('New issue state'),
+        labels: z.array(z.string()).optional().describe('New labels'),
+        assignees: z.array(z.string()).optional().describe('New assignees'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.issues.update({
+            owner: args.owner,
+            repo: args.repo,
+            issue_number: args.issueNumber,
+            title: args.title,
+            body: args.body,
+            state: args.state,
+            labels: args.labels,
+            assignees: args.assignees,
+          });
+
+          return {
+            success: true,
+            issue: {
+              number: data.number,
+              title: data.title,
+              state: data.state,
+              url: data.html_url,
+            },
+            message: `✅ Issue #${args.issueNumber} updated`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to update issue: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Get pull request details
+     */
+    createTool({
+      name: 'bot_github_get_pr',
+      description: `Get detailed information about a pull request.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        prNumber: z.number().describe('Pull request number'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.pulls.get({
+            owner: args.owner,
+            repo: args.repo,
+            pull_number: args.prNumber,
+          });
+
+          return {
+            success: true,
+            pr: {
+              number: data.number,
+              title: data.title,
+              body: data.body,
+              state: data.state,
+              url: data.html_url,
+              createdAt: data.created_at,
+              updatedAt: data.updated_at,
+              mergeable: data.mergeable,
+              merged: data.merged,
+              author: data.user?.login,
+              head: data.head?.ref,
+              base: data.base?.ref,
+            },
+            message: `✅ Retrieved PR #${args.prNumber}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to get PR: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * List collaborators
+     */
+    createTool({
+      name: 'bot_github_list_collaborators',
+      description: `List collaborators on a repository.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.repos.listCollaborators({
+            owner: args.owner,
+            repo: args.repo,
+          });
+
+          return {
+            success: true,
+            collaborators: data.map((collab: any) => ({
+              login: collab.login,
+              name: collab.name || '',
+              role: (collab as any).role_name || 'unknown',
+              permissions: {
+                admin: collab.permissions?.admin || false,
+                maintain: (collab.permissions as any)?.maintain || false,
+                push: collab.permissions?.push || false,
+                triage: (collab.permissions as any)?.triage || false,
+                pull: collab.permissions?.pull || false,
+              },
+            })),
+            count: data.length,
+            message: `✅ Found ${data.length} collaborators`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to list collaborators: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Get commit diff
+     */
+    createTool({
+      name: 'bot_github_get_commit_diff',
+      description: `Get the diff for a specific commit.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        commitSha: z.string().describe('Commit SHA'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.repos.getCommit({
+            owner: args.owner,
+            repo: args.repo,
+            ref: args.commitSha,
+          });
+
+          return {
+            success: true,
+            commit: {
+              sha: data.sha,
+              message: data.commit.message,
+              author: data.commit.author?.name,
+              date: data.commit.author?.date,
+              url: data.html_url,
+            },
+            files: (data.files || []).map((file: any) => ({
+              filename: file.filename,
+              status: file.status,
+              additions: file.additions,
+              deletions: file.deletions,
+              changes: file.changes,
+              patch: file.patch,
+            })),
+            fileCount: (data.files || []).length,
+            message: `✅ Retrieved commit diff for ${args.commitSha}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to get commit diff: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Create repository
+     */
+    createTool({
+      name: 'bot_github_create_repository',
+      description: `Create a new repository in the authenticated user's account.`,
+      schema: z.object({
+        name: z.string().describe('Repository name'),
+        description: z.string().optional().describe('Repository description'),
+        private: z.boolean().optional().describe('Make repository private (default: false)'),
+        autoInit: z.boolean().optional().describe('Auto-initialize with README (default: true)'),
+        gitignoreTemplate: z.string().optional().describe('Gitignore template'),
+        licenseTemplate: z.string().optional().describe('License template'),
+      }),
+      fn: async (args) => {
+        try {
+          const { data } = await _octokit.rest.repos.createForAuthenticatedUser({
+            name: args.name,
+            description: args.description,
+            private: args.private || false,
+            auto_init: args.autoInit !== false,
+            gitignore_template: args.gitignoreTemplate,
+            license_template: args.licenseTemplate,
+          });
+
+          return {
+            success: true,
+            repo: {
+              name: data.name,
+              fullName: data.full_name,
+              url: data.html_url,
+              cloneUrl: data.clone_url,
+              private: data.private,
+              defaultBranch: data.default_branch,
+            },
+            message: `✅ Repository ${data.full_name} created`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to create repository: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Delete repository
+     */
+    createTool({
+      name: 'bot_github_delete_repository',
+      description: `Delete a repository (use with caution!).`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+      }),
+      fn: async (args) => {
+        try {
+          await _octokit.rest.repos.delete({
+            owner: args.owner,
+            repo: args.repo,
+          });
+
+          return {
+            success: true,
+            repo: `${args.owner}/${args.repo}`,
+            message: `✅ Repository ${args.owner}/${args.repo} deleted`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to delete repository: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Push multiple files (batch commit)
+     */
+    createTool({
+      name: 'bot_github_push_files',
+      description: `Commit and push multiple files to a repository in one operation.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        files: z.array(z.object({
+          path: z.string().describe('File path'),
+          content: z.string().describe('File content'),
+        })).describe('Files to commit'),
+        message: z.string().describe('Commit message'),
+        branch: z.string().optional().describe('Target branch (default: main)'),
+      }),
+      fn: async (args) => {
+        try {
+          // Get repository info first to get default branch
+          const repoInfo = await _octokit.rest.repos.get({
+            owner: args.owner,
+            repo: args.repo,
+          });
+
+          const targetBranch = args.branch || repoInfo.data.default_branch;
+
+          // Get current branch ref
+          const { data: refData } = await _octokit.rest.git.getRef({
+            owner: args.owner,
+            repo: args.repo,
+            ref: `heads/${targetBranch}`,
+          });
+
+          const currentCommitSha = refData.object.sha;
+
+          // Get current commit tree
+          const { data: commitData } = await _octokit.rest.git.getCommit({
+            owner: args.owner,
+            repo: args.repo,
+            commit_sha: currentCommitSha,
+          });
+
+          const baseTreeSha = commitData.tree.sha;
+
+          // Create blobs for each file
+          const blobs = await Promise.all(
+            args.files.map(async (file) => {
+              const { data: blob } = await _octokit.rest.git.createBlob({
+                owner: args.owner,
+                repo: args.repo,
+                content: Buffer.from(file.content).toString('base64'),
+                encoding: 'base64',
+              });
+
+              return {
+                path: file.path,
+                mode: '100644' as const,
+                type: 'blob' as const,
+                sha: blob.sha,
+              };
+            })
+          );
+
+          // Create new tree
+          const { data: newTree } = await _octokit.rest.git.createTree({
+            owner: args.owner,
+            repo: args.repo,
+            base_tree: baseTreeSha,
+            tree: blobs,
+          });
+
+          // Create new commit
+          const { data: newCommit } = await _octokit.rest.git.createCommit({
+            owner: args.owner,
+            repo: args.repo,
+            message: args.message,
+            tree: newTree.sha,
+            parents: [currentCommitSha],
+          });
+
+          // Update branch reference
+          await _octokit.rest.git.updateRef({
+            owner: args.owner,
+            repo: args.repo,
+            ref: `heads/${targetBranch}`,
+            sha: newCommit.sha,
+          });
+
+          return {
+            success: true,
+            commitSha: newCommit.sha,
+            filesCount: args.files.length,
+            branch: targetBranch,
+            message: `✅ Pushed ${args.files.length} files to ${targetBranch}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to push files: ${error.message}`,
           };
         }
       },
