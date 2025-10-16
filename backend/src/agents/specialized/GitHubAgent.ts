@@ -29,11 +29,13 @@
 import { AgentBuilder } from '@iqai/adk';
 import { z } from 'zod';
 import { GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT } from '../../prompts/github-agent-enhanced-prompt';
+import { GITHUB_AGENT_OPTIMIZED_PROMPT } from '../../prompts/github-agent-optimized-prompt';
 import { generateStateAwarenessSection } from '../../prompts/github-agent-state-awareness';
 import { createCachedGitHubTools } from '../../utils/cachedGitHubTools';
 import { AgentCacheManager } from '../../utils/agentCacheManager';
 import { getAgentStateManager } from '../../services/AgentStateManager';
 import { createTaskManagerForIssue } from '../../services/GitHubTaskManager';
+import { PerformanceTracker } from '../../utils/PerformanceTracker';
 import { Octokit } from '@octokit/rest';
 
 const githubAgentResponseSchema = z.object({
@@ -62,6 +64,13 @@ const githubAgentResponseSchema = z.object({
     name: z.string(),
     url: z.string(),
   }).optional().nullable().describe('Details of the repository that was created'),
+  metrics: z.object({
+    executionTimeSeconds: z.number().describe('Total execution time in seconds'),
+    toolCalls: z.number().describe('Actual number of tool calls used'),
+    toolCallsExpected: z.number().optional().describe('Expected number of tool calls (for optimization)'),
+    efficiency: z.string().describe('Efficiency percentage (expected / actual)'),
+    redundantOperations: z.number().optional().describe('Number of redundant operations detected'),
+  }).optional().describe('Performance metrics for optimization tracking'),
 });
 
 export const GitHubAgent = async (
@@ -71,9 +80,24 @@ export const GitHubAgent = async (
   userId?: string,
   taskDescription?: string
 ) => {
-  console.log('[GitHubAgent] Initializing with LOCAL CACHE + STATE AWARENESS + TASK MANAGEMENT');
+  console.log('[GitHubAgent] Initializing with LOCAL CACHE + STATE AWARENESS + TASK MANAGEMENT + PERFORMANCE TRACKING');
   
   try {
+    // Determine task type for budget allocation
+    let budgetType: 'simpleReplace' | 'prWithChanges' | 'complexRefactor' | 'largeRefactor' = 'simpleReplace';
+    if (taskDescription) {
+      if (taskDescription.toLowerCase().includes('refactor') && taskDescription.length > 200) {
+        budgetType = 'largeRefactor';
+      } else if (taskDescription.toLowerCase().includes('refactor')) {
+        budgetType = 'complexRefactor';
+      } else if (taskDescription.toLowerCase().includes('replace') && taskDescription.length > 100) {
+        budgetType = 'prWithChanges';
+      }
+    }
+    
+    const performanceTracker = new PerformanceTracker(budgetType);
+    console.log(`[GitHubAgent] Performance tracker initialized with budget: ${budgetType}`);
+    
     // Initialize state manager for session tracking
     const stateManager = getAgentStateManager();
     await stateManager.initialize();
@@ -130,16 +154,19 @@ export const GitHubAgent = async (
       console.log('[GitHubAgent] ✅ Initialized with CACHED tools (bot mode)');
       console.log('[GitHubAgent] Tool count:', cachedTools.tools.length);
       
-      // Build comprehensive system prompt with state info AND task guidance
+      // Build comprehensive system prompt with OPTIMIZED version (PLAN-FIRST protocol)
       const stateAwareness = state 
         ? generateStateAwarenessSection(state, taskChecklist, executionGuidance)
         : '';
       
       const systemPrompt = stateAwareness + '\n\n' +
+        GITHUB_AGENT_OPTIMIZED_PROMPT + '\n\n' +
         GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + 
         cacheStats + 
-        '\n\n**Performance Note:** Repository caching makes all file operations instant. ' +
-        'Use search to find code, then read only what you need, then edit and commit.';
+        '\n\n**Performance Tracking Active:** Tool calls are tracked against budget.' +
+        '\nTarget efficiency: >85% (expected vs actual tool calls).' +
+        '\nIf tool calls exceed budget, execution will pause and request approval.' +
+        `\nBudget Type: ${budgetType} (Max tool calls: ${performanceTracker.getMetrics().toolCalls.expected})`;
       
       return AgentBuilder.create('GitHubAgent')
         .withModel('gpt-5-nano-2025-08-07')
@@ -163,9 +190,12 @@ export const GitHubAgent = async (
           : '';
         
         const systemPrompt = stateAwareness + '\n\n' +
+          GITHUB_AGENT_OPTIMIZED_PROMPT + '\n\n' +
           GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + 
           cacheStats +
-          '\n\n**Mode:** USER TOKEN (bot token not configured)';
+          '\n\n**Mode:** USER TOKEN (bot token not configured)' +
+          '\n**Performance Tracking Active:** Tool calls are monitored for efficiency.' +
+          `\nBudget Type: ${budgetType} (Max tool calls: ${performanceTracker.getMetrics().toolCalls.expected})`;
         
         return AgentBuilder.create('GitHubAgent')
           .withModel('gpt-5-nano-2025-08-07')
