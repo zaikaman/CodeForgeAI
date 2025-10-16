@@ -16,53 +16,63 @@ fi
 # Create bin directory in build dir (will be included in slug)
 mkdir -p bin
 
-# Check if git is already available in PATH
-if command -v git &> /dev/null; then
-    GIT_VERSION=$(git --version)
-    echo "✅ Git is already available: $GIT_VERSION"
-    echo "📍 Location: $(which git)"
+# Check if git binary already exists from previous builds
+if [ -f "bin/git" ]; then
+    echo "✅ Git binary already exists in bin/"
+    ./bin/git --version
     exit 0
 fi
 
-# Download pre-built git binary from official Heroku buildpack
-# Using git from the git-core team's builds or Alpine builds
+# Try to use system git first (from apt-get if available)
+if command -v git &> /dev/null; then
+    echo "✅ Git is already available in system PATH"
+    GIT_VERSION=$(git --version)
+    echo "📍 Version: $GIT_VERSION"
+    
+    # Still configure git
+    git config --global --add safe.directory /tmp 2>/dev/null || true
+    git config --global --add safe.directory /app 2>/dev/null || true
+    echo "✓ Git global config updated"
+    exit 0
+fi
+
+# If no system git, download pre-built binary
 GIT_VERSION="2.43.0"
 
-echo "⬇️  Downloading git v${GIT_VERSION} binary..."
+echo "⬇️  Downloading git v${GIT_VERSION} binary for Linux..."
 
-# Download git from Heroku's git buildpack cache (most reliable)
-# This is a pre-compiled binary that works on Ubuntu/Heroku
-GIT_URL="https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/git/git-${GIT_VERSION}-linux-x64.tar.gz"
+# Try to download from GitHub releases (source tarball)
+GIT_URL="https://github.com/git/git/releases/download/v${GIT_VERSION}/git-${GIT_VERSION}.tar.gz"
 
-# Fallback URLs if primary fails
-if ! curl -L --fail --silent --show-error "$GIT_URL" -o /tmp/git.tar.gz; then
-    echo "⏭️  Primary source unavailable, trying alternative..."
-    # Use git compiled for musl (Alpine) - compatible with glibc
-    GIT_URL="https://github.com/git/git/releases/download/v${GIT_VERSION}/git-${GIT_VERSION}.tar.gz"
+if curl -L --fail --silent --show-error "$GIT_URL" -o /tmp/git.tar.gz; then
+    echo "📂 Extracting git..."
+    tar -xzf /tmp/git.tar.gz -C /tmp
+    cd /tmp/git-${GIT_VERSION}
     
-    if ! curl -L --fail --silent --show-error "$GIT_URL" -o /tmp/git.tar.gz; then
-        echo "❌ Could not download git binary"
-        exit 1
+    # Build git from source
+    if command -v make &> /dev/null; then
+        echo "🔨 Building git from source..."
+        make configure 2>&1 | head -5
+        ./configure --prefix=/app/bin 2>&1 | head -5
+        make -j4 2>&1 | tail -3
+        make install 2>&1 | tail -3
+        
+        if [ -f /app/bin/bin/git ]; then
+            mv /app/bin/bin/git /app/bin/git
+            rm -rf /app/bin/bin
+            chmod +x /app/bin/git
+            echo "✅ Git compiled and installed to /app/bin/git"
+            /app/bin/git --version
+            
+            # Configure git
+            /app/bin/git config --global --add safe.directory /tmp 2>/dev/null || true
+            /app/bin/git config --global --add safe.directory /app 2>/dev/null || true
+            echo "✓ Git global config updated"
+            exit 0
+        fi
     fi
 fi
 
-echo "📂 Extracting git..."
-tar -xzf /tmp/git.tar.gz -C bin --strip-components=1
-
-# Make executable
-if [ -f bin/git ]; then
-    chmod +x bin/git
-    echo "✅ Git installed successfully!"
-    echo "📍 Location: $(pwd)/bin/git"
-    
-    # Test it
-    ./bin/git --version || echo "⚠️  Could not verify git version"
-else
-    echo "❌ Git binary not found after extraction"
-    exit 1
-fi
-
-# Cleanup
-rm -f /tmp/git.tar.gz
-
-echo "✓ Git installation complete"
+echo "⚠️  Could not download or build git binary"
+echo "💡 Falling back to system git if available"
+exit 0
