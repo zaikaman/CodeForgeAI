@@ -1,52 +1,18 @@
 #!/bin/bash
-# Install git on Heroku at build time
-# This script installs git using apt-get on Heroku
+# Git installation orchestrator
+# This script runs the binary installation and configuration
 
-echo "📦 Installing git..."
+set -e
 
-# Only run on Heroku (check for /app directory)
-if [ ! -d "/app" ]; then
-    echo "⏭️  Not on Heroku, skipping git installation"
-    exit 0
-fi
+# First try to install git binary (for Heroku slug inclusion)
+bash scripts/install-git-binary.sh
 
-# Check if git is already installed
+# Then configure git if available
 if command -v git &> /dev/null; then
-    GIT_VERSION=$(git --version)
-    echo "✅ Git is already installed!"
-    echo "📍 Version: $GIT_VERSION"
-    echo "📍 Location: $(which git)"
-    exit 0
-fi
-
-# Try to install git with apt
-echo "🔄 Installing git via apt..."
-if apt-get update -qq 2>/dev/null && apt-get install -y -qq git 2>/dev/null; then
-    GIT_VERSION=$(git --version)
-    echo "✅ Git installed successfully!"
-    echo "📍 Version: $GIT_VERSION"
-    echo "📍 Location: $(which git)"
-    
-    # Ensure git is in PATH
-    GIT_LOCATION=$(which git)
-    if [ ! -z "$GIT_LOCATION" ]; then
-        echo "✓ Git is in PATH"
-    fi
-else
-    echo "⚠️  Could not install git via apt, checking if already available..."
-    if command -v git &> /dev/null; then
-        echo "✅ Git is available on the system"
-        echo "📍 Location: $(which git)"
-    else
-        echo "⚠️  Git installation encountered issues but continuing..."
-    fi
-fi
-
-# Configure git for safe use in container
-if command -v git &> /dev/null; then
+    echo "� Configuring git..."
     git config --global --add safe.directory /tmp 2>/dev/null || true
     git config --global --add safe.directory /app 2>/dev/null || true
     echo "✓ Git global config updated"
 fi
 
-echo "✓ Git installation complete"
+echo "✓ Git setup complete"

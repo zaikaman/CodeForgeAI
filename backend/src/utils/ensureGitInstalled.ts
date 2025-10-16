@@ -1,8 +1,8 @@
 /**
  * Ensure Git is installed on Heroku
  * 
- * Heroku buildpacks don't always include git, so we install it at runtime
- * This runs once during server initialization
+ * Git is installed to /app/bin during the build phase via install-git-binary.sh
+ * This ensures it's part of the dyno slug and persists even if cache is flushed
  */
 
 import { execSync } from 'child_process';
@@ -33,6 +33,21 @@ export function getGitVersion(): string | undefined {
  * Check and install git if needed
  */
 function checkGitInstallation(): { available: boolean; version?: string; error?: string } {
+  // On Heroku, try /app/bin/git first (installed during build phase)
+  const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
+  
+  if (isHeroku) {
+    try {
+      const version = execSync('/app/bin/git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+      console.log(`[EnsureGitInstalled] ✅ Git is available from slug: ${version}`);
+      console.log(`[EnsureGitInstalled] 📍 Git location: /app/bin/git`);
+      return { available: true, version };
+    } catch (error) {
+      // Git not in /app/bin, continue to check PATH
+    }
+  }
+  
+  // Try git from PATH (system installation or earlier in process)
   try {
     const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
     console.log(`[EnsureGitInstalled] ✅ Git is available: ${version}`);
@@ -44,51 +59,23 @@ function checkGitInstallation(): { available: boolean; version?: string; error?:
     }
     return { available: true, version };
   } catch (error: any) {
-    console.warn(`[EnsureGitInstalled] ⚠️ Git not found in PATH: ${error.message}`);
-    console.log(`[EnsureGitInstalled] 📦 Attempting to install git...`);
-
-    const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO;
-    if (!isHeroku) {
+    console.warn(`[EnsureGitInstalled] ⚠️ Git not found in PATH or /app/bin: ${error.message}`);
+    
+    if (isHeroku) {
       console.error(
-        `[EnsureGitInstalled] ❌ Not running on Heroku and git is missing. Please install git locally.`
+        `[EnsureGitInstalled] ❌ Git is not available on Heroku.`
       );
-      return { available: false, error: 'Git not available' };
+      console.error(
+        `[EnsureGitInstalled] 💡 Ensure install-git.sh runs during heroku-postbuild and /app/bin/git was created.`
+      );
+      return { available: false, error: 'Git not available in /app/bin or PATH' };
     }
-
-    // Try to install git on Heroku (Linux-based)
-    try {
-      console.log('[EnsureGitInstalled] 🔄 Running apt-get update...');
-      execSync('apt-get update -qq', { stdio: 'ignore' });
-      
-      console.log('[EnsureGitInstalled] 🔄 Installing git via apt-get...');
-      execSync('apt-get install -y -qq git', { stdio: 'pipe' });
-      
-      const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-      console.log(`[EnsureGitInstalled] ✅ Git installed successfully: ${version}`);
-      
-      // Configure git for safe use in container
-      try {
-        execSync('git config --global --add safe.directory /tmp', { stdio: 'ignore' });
-        execSync('git config --global --add safe.directory /app', { stdio: 'ignore' });
-        console.log('[EnsureGitInstalled] ✓ Git global config updated');
-      } catch (configError) {
-        console.warn('[EnsureGitInstalled] ⚠️ Could not configure git globally');
-      }
-      
-      return { available: true, version };
-    } catch (installError: any) {
-      console.error(`[EnsureGitInstalled] ❌ Failed to install git: ${installError.message}`);
-      
-      // Check if git is available despite the error
-      try {
-        const version = execSync('git --version', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-        console.log(`[EnsureGitInstalled] ℹ️ Git is available after installation attempt: ${version}`);
-        return { available: true, version };
-      } catch {
-        console.error(`[EnsureGitInstalled] ❌ Git installation failed and git is not available`);
-        return { available: false, error: installError.message };
-      }
-    }
+    
+    // On local development, provide helpful error message
+    console.error(
+      `[EnsureGitInstalled] ❌ Git is not installed. Please install git locally before running.`
+    );
+    return { available: false, error: 'Git not available' };
   }
 }
 
