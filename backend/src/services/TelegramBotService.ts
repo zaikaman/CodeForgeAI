@@ -124,9 +124,38 @@ export class TelegramBotService {
     try {
       console.log('[TelegramBot] Processing update type:', update.message ? 'message' : update.callback_query ? 'callback_query' : 'unknown');
       
-      // Process the update through node-telegram-bot-api
-      // This will trigger the appropriate handlers (onText, on('message'), etc.)
-      await this.bot.processUpdate(update);
+      // IMPORTANT: With webhook mode, we need to manually emit events
+      // because processUpdate() doesn't automatically trigger handlers
+      
+      if (update.message) {
+        const msg = update.message;
+        console.log('[TelegramBot] Message text:', msg.text);
+        
+        // Check if it's a command
+        if (msg.text?.startsWith('/')) {
+          console.log('[TelegramBot] Command detected:', msg.text);
+          
+          // Route to appropriate handler based on command
+          if (msg.text === '/start') {
+            await this.handleStartCommand(msg);
+          } else if (msg.text === '/login') {
+            await this.handleLoginCommand(msg);
+          } else if (msg.text === '/status') {
+            await this.handleStatusCommand(msg);
+          } else if (msg.text === '/help') {
+            await this.handleHelpCommand(msg);
+          } else if (msg.text === '/background') {
+            await this.handleBackgroundCommand(msg);
+          }
+        } else {
+          // Regular message (not a command)
+          console.log('[TelegramBot] Regular message, routing to chat handler');
+          await this.handleChatMessage(msg);
+        }
+      } else if (update.callback_query) {
+        console.log('[TelegramBot] Callback query detected:', update.callback_query.data);
+        await this.handleCallbackQuery(update.callback_query);
+      }
       
       console.log('[TelegramBot] ✅ Update processed successfully');
     } catch (error: any) {
