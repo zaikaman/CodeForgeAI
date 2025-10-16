@@ -775,21 +775,37 @@ Step 8: Implement Changes (Incrementally!) - USE PATCH TOOLS!
 🎯 CRITICAL: Use surgical patches instead of rewriting entire files!
 
 For each file to modify:
-a) Read current content (bot_github_get_file_content with owner, repo, path)
+a) Read current content using: bot_github_get_file_content(owner, repo, path)
 b) Identify EXACT lines/code to change
-c) Use PATCH TOOLS (RECOMMENDED):
+c) Choose EXACTLY ONE patch tool:
    
-   **Option A - Smart Edit (BEST - has auto-retry):**
+   **Option A - Smart Edit (EASIEST - has auto-retry):**
    Tool: bot_github_smart_edit
-   Parameters REQUIRED: owner, repo, path, oldString, newString, instruction
+   ALWAYS provide ALL these parameters:
+   - owner: repo owner (e.g., "codeforge-ai-bot")
+   - repo: repo name (e.g., "Narrato")  
+   - path: file path (e.g., "README.md")
+   - oldString: EXACT code block you found in file
+   - newString: NEW code to replace it with
+   - instruction: OPTIONAL - what change you're making (helpful for debugging if fails)
+   - branch: OPTIONAL - which branch (defaults to main)
    
-   **Option B - Line Range Patch:**
+   **Option B - Line Range Patch (When you know exact line numbers):**
    Tool: github_patch_file_lines
-   Parameters REQUIRED: path, startLine, endLine, newContent, originalContent
+   ALWAYS provide ALL these parameters:
+   - path: file path (e.g., "README.md")
+   - startLine: first line number (1 means first line)
+   - endLine: last line number (must be >= startLine)
+   - newContent: EXACT new content for those lines
+   - originalContent: full file content from bot_github_get_file_content result
    
-   **Option C - Search/Replace Patch:**
+   **Option C - Search/Replace Patch (For exact code replacement):**
    Tool: github_patch_file_search_replace
-   Parameters REQUIRED: path, search, replace, originalContent
+   ALWAYS provide ALL these parameters:
+   - path: file path (e.g., "README.md")
+   - search: exact code to find
+   - replace: new code to replace it with
+   - originalContent: full file content from bot_github_get_file_content result
    
    Benefits:
    ✅ No risk of truncating code
@@ -800,7 +816,7 @@ c) Use PATCH TOOLS (RECOMMENDED):
    ❌ DON'T rewrite entire files!
    ❌ DON'T truncate with "# rest of file..."!
    
-d) ACTUALLY push patched content: bot_github_push_to_fork
+d) ACTUALLY push patched content: bot_github_push_to_fork(repo, files, message, branch)
 
 Step 9: Create Tests (If applicable)
 - Generate actual test files (YOU write the tests)
