@@ -60,7 +60,7 @@ export function createEnhancedGitHubTools() {
         path: z.string().describe('Path to file to edit (e.g., src/index.ts, README.md)'),
         oldString: z.string().describe('Exact code block to find and replace (must include 3+ lines of context to be unique)'),
         newString: z.string().describe('New code to replace oldString with'),
-        instruction: z.string().describe('High-level goal (e.g., "Replace old gemini imports with gemini-2.5-flash")'),
+        instruction: z.string().optional().describe('High-level goal (optional, helps with self-correction if edit fails)'),
         branch: z.string().optional().describe('Branch to edit (defaults to main/default branch)'),
       }),
       fn: async (args, context) => {
@@ -73,7 +73,6 @@ export function createEnhancedGitHubTools() {
           }
           if (!args.oldString) throw new Error('REQUIRED: oldString parameter missing (exact code block to find)');
           if (!args.newString) throw new Error('REQUIRED: newString parameter missing (replacement code)');
-          if (!args.instruction) throw new Error('REQUIRED: instruction parameter missing (what you are changing, e.g., "update imports")');
           
           const params: SmartEditParams = {
             owner: args.owner,
@@ -81,7 +80,7 @@ export function createEnhancedGitHubTools() {
             filePath: args.path, // Map path to filePath for the internal function
             oldString: args.oldString,
             newString: args.newString,
-            instruction: args.instruction,
+            instruction: args.instruction || 'Replace code block', // Default instruction if not provided
             branch: args.branch,
           };
 
