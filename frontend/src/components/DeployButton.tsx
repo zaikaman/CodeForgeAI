@@ -35,13 +35,15 @@ export function DeployButton({
   }>>([]);
 
   // Use WebSocket for realtime deployment tracking (no more polling!)
-  useRealtimeDeployment({
+  const realtimeDeployment = useRealtimeDeployment({
     projectId: isDeploying ? projectId : null,
     enabled: isDeploying,
     onProgress: (progress) => {
+      console.log('[DeployButton] Progress received:', progress);
       setDeploymentProgress(prev => [...prev, progress]);
     },
     onComplete: (success, deploymentUrl, error) => {
+      console.log('[DeployButton] Deployment complete:', { success, deploymentUrl, error });
       setIsDeploying(false);
       
       if (success && deploymentUrl) {
@@ -53,6 +55,15 @@ export function DeployButton({
         onDeployError?.(error || 'Deployment failed');
       }
     },
+  });
+
+  console.log('[DeployButton] State:', {
+    isDeploying,
+    deployStatus,
+    hasUrl: !!deployedUrl,
+    progressCount: deploymentProgress.length,
+    realtimeConnected: realtimeDeployment.isConnected,
+    realtimeStatus: realtimeDeployment.deploymentStatus,
   });
 
   // Helper to update status and notify parent
@@ -103,21 +114,83 @@ export function DeployButton({
 
   // Initialize state from database values
   useEffect(() => {
-    if (initialDeploymentUrl) {
-      setDeployedUrl(initialDeploymentUrl);
-      
-      if (initialDeploymentStatus === 'deployed') {
-        updateStatus('success');
-      } else if (initialDeploymentStatus === 'deploying') {
-        updateStatus('deploying');
-        setIsDeploying(true);
-        // WebSocket will pick up progress automatically
-      } else if (initialDeploymentStatus === 'failed') {
-        updateStatus('error');
+    const initializeFromDatabase = async () => {
+      if (initialDeploymentUrl) {
+        setDeployedUrl(initialDeploymentUrl);
+        
+        if (initialDeploymentStatus === 'deployed') {
+          updateStatus('success');
+        } else if (initialDeploymentStatus === 'deploying') {
+          console.log('[DeployButton] Found ongoing deployment from DB, loading progress and subscribing...');
+          updateStatus('deploying');
+          setIsDeploying(true);
+          
+          // Load existing progress from database
+          try {
+            const response = await apiClient.request({
+              method: 'GET',
+              url: `/api/deploy/${projectId}`,
+            });
+
+            if (response.success && response.data?.progress) {
+              console.log('[DeployButton] Loaded existing progress:', response.data.progress);
+              setDeploymentProgress(response.data.progress);
+            }
+          } catch (error) {
+            console.error('[DeployButton] Failed to load progress:', error);
+          }
+          
+          // WebSocket will pick up new progress automatically when isDeploying becomes true
+        } else if (initialDeploymentStatus === 'failed') {
+          updateStatus('error');
+        }
       }
-    }
+    };
+
+    initializeFromDatabase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDeploymentUrl, initialDeploymentStatus]);
+  }, [initialDeploymentUrl, initialDeploymentStatus, projectId]);
+
+  // Monitor when deployment finishes by checking WebSocket updates
+  // This ensures the button updates even when the page is refreshed
+  useEffect(() => {
+    // If deploying but no progress in 5 seconds, check deployment status via API
+    if (!isDeploying) return;
+
+    const checkTimeout = setTimeout(async () => {
+      if (deploymentProgress.length === 0) {
+        console.log('[DeployButton] No progress received, checking deployment status...');
+        
+        try {
+          const response = await apiClient.request({
+            method: 'GET',
+            url: `/api/deploy/${projectId}/status`,
+          });
+
+          if (response.success && response.data) {
+            const { status, url } = response.data;
+            
+            if (status === 'deployed' && url) {
+              console.log('[DeployButton] Deployment already completed:', url);
+              setIsDeploying(false);
+              updateStatus('success');
+              setDeployedUrl(url);
+              onDeployComplete?.(url);
+            } else if (status === 'failed') {
+              console.log('[DeployButton] Deployment failed');
+              setIsDeploying(false);
+              updateStatus('error');
+              onDeployError?.('Deployment failed');
+            }
+          }
+        } catch (error) {
+          console.error('[DeployButton] Failed to check deployment status:', error);
+        }
+      }
+    }, 5000); // Wait 5 seconds before checking
+
+    return () => clearTimeout(checkTimeout);
+  }, [isDeploying, deploymentProgress.length, projectId, onDeployComplete, onDeployError]);
 
   const getButtonText = () => {
     switch (deployStatus) {

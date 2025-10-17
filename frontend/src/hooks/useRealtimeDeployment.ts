@@ -93,36 +93,50 @@ export const useRealtimeDeployment = ({
 
   // Subscribe to deployment events
   useEffect(() => {
-    if (!enabled || !projectId || !isConnected) return;
+    if (!enabled || !projectId || !isConnected) {
+      console.log(`[useRealtimeDeployment] Skipping subscription:`, {
+        enabled,
+        hasProjectId: !!projectId,
+        isConnected
+      });
+      return;
+    }
 
     console.log(`🔌 Subscribing to deployment updates for project: ${projectId}`);
     setDeploymentStatus('deploying');
 
     // Subscribe to progress events
     const unsubProgress = wsClient.on('deployment:progress', (message) => {
+      console.log(`[useRealtimeDeployment] Raw progress message:`, message);
       const data = message.data;
       
       if (data.projectId === projectId) {
-        console.log(`📊 Deployment progress:`, data);
+        console.log(`📊 Deployment progress for ${projectId}:`, data);
         
         const progress: DeploymentProgress = {
           step: data.step,
           status: data.status,
-          timestamp: data.timestamp,
+          timestamp: data.timestamp || new Date().toISOString(),
           message: data.message,
         };
         
-        setDeploymentProgress(prev => [...prev, progress]);
+        setDeploymentProgress(prev => {
+          console.log(`[useRealtimeDeployment] Adding progress, prev length: ${prev.length}`);
+          return [...prev, progress];
+        });
         onProgressRef.current?.(progress);
+      } else {
+        console.log(`[useRealtimeDeployment] Progress for different project: ${data.projectId} (expecting ${projectId})`);
       }
     });
 
     // Subscribe to completion events
     const unsubComplete = wsClient.on('deployment:complete', (message) => {
+      console.log(`[useRealtimeDeployment] Raw complete message:`, message);
       const data = message.data;
       
       if (data.projectId === projectId && !hasCompletedRef.current) {
-        console.log(`✅ Deployment completed:`, data);
+        console.log(`✅ Deployment completed for ${projectId}:`, data);
         hasCompletedRef.current = true;
         
         if (data.success) {
@@ -133,10 +147,17 @@ export const useRealtimeDeployment = ({
           setDeploymentStatus('error');
           onCompleteRef.current?.(false, undefined, data.error);
         }
+      } else if (data.projectId !== projectId) {
+        console.log(`[useRealtimeDeployment] Complete for different project: ${data.projectId} (expecting ${projectId})`);
+      } else if (hasCompletedRef.current) {
+        console.log(`[useRealtimeDeployment] Already completed, ignoring duplicate`);
       }
     });
 
+    console.log(`[useRealtimeDeployment] Subscribed to deployment events`);
+
     return () => {
+      console.log(`[useRealtimeDeployment] Unsubscribing from deployment events for ${projectId}`);
       unsubProgress();
       unsubComplete();
     };

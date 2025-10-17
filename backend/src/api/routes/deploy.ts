@@ -344,6 +344,64 @@ async function deployInBackground(
   }
 }
 
+// GET /deploy/:id/status - Get quick deployment status (requires auth)
+router.get('/deploy/:id/status', optionalAuth, async (req, res) => {
+  try {
+    const userId = (req as AuthenticatedRequest).userId;
+    const { id } = req.params;
+
+    console.log(`[GET /deploy/${id}/status] Request received. UserId: ${userId || 'NOT AUTHENTICATED'}`);
+
+    // Check if user is authenticated
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+      return;
+    }
+
+    // Fetch deployment status (minimal fields for quick check)
+    const { data: generation, error } = await supabase
+      .from('generations')
+      .select('id, user_id, deployment_status, preview_url')
+      .eq('id', id)
+      .single();
+
+    if (error || !generation) {
+      res.status(404).json({
+        success: false,
+        error: 'Deployment not found',
+      });
+      return;
+    }
+
+    if (generation.user_id !== userId) {
+      res.status(403).json({
+        success: false,
+        error: 'You do not have permission to view this deployment',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        status: generation.deployment_status,
+        url: generation.preview_url,
+      },
+    });
+    return;
+  } catch (error: any) {
+    console.error('[GET /deploy/:id/status] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch deployment status',
+    });
+    return;
+  }
+});
+
 // GET /deploy/:id - Get deployment status (requires auth)
 router.get('/deploy/:id', optionalAuth, async (req, res) => {
   try {
