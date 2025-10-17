@@ -52,6 +52,54 @@
 
 ---
 
+## 🏆 ADK-TS Hackathon 2025
+
+**CodeForge AI** is an official submission to the **ADK-TS Hackathon 2025**, competing in two primary tracks:
+
+### 🎯 Track 1: MCP Expansion - GitHub MCP Server
+We've developed a comprehensive **GitHub Model Context Protocol (MCP) Server** that extends AI agents with full GitHub capabilities:
+- ✅ Repository operations (create, fork, search, clone)
+- ✅ Pull request management and creation
+- ✅ File operations with direct GitHub API integration
+- ✅ Issue and discussion management
+- ✅ Secure bot-powered access (no personal tokens required)
+
+**Source**: [`backend/src/mcp-servers/github-mcp.ts`](backend/src/mcp-servers/github-mcp.ts)
+
+### 🎯 Track 2: ADK-TS Agents - Full Multi-Agent System
+The complete CodeForge AI platform demonstrates advanced agent orchestration:
+- ✅ 10+ specialized AI agents with intelligent routing
+- ✅ Multi-agent workflows for complex code generation tasks
+- ✅ Real-time agent collaboration and state management
+- ✅ Integration with multiple AI providers (OpenAI, Anthropic, Google)
+- ✅ Production-ready multi-channel deployment
+- ✅ **Telegram Bot Integration** ([@CodeForgeAI_Bot](https://t.me/codeforge_ai_bot)) - Full AI capabilities available on mobile
+
+### 🚀 ADK-TS Framework Improvements
+We've contributed meaningful enhancements to ADK-TS:
+
+1. **Context Variable Injection Fix** 
+   - Fixed template variable handling for prompts containing special patterns like `{{ useState }}`
+   - Ensures proper variable substitution without breaking JSX-like syntax
+   - Enables more complex agent prompt templates
+
+2. **GPT-5 Model Support**
+   - Added support for latest GPT-5 models
+   - Improved response quality and token efficiency
+   - Better cost optimization for production workloads
+
+3. **Custom OpenAI Base URL Override**
+   - Allows configuration of custom OpenAI-compatible API endpoints
+   - Enables enterprise proxy support and alternative LLM providers
+   - Flexible API configuration for different deployment scenarios
+
+**Related Files**: 
+- [`backend/src/agents/`](backend/src/agents/) - Agent implementations
+- [`backend/src/workflows/`](backend/src/workflows/) - Workflow orchestration
+- [`adk-ts/packages/adk/`](adk-ts/packages/adk/) - ADK-TS framework integration
+
+---
+
 ## ✨ Key Features
 
 ### 🧬 Intelligent Code Generation
