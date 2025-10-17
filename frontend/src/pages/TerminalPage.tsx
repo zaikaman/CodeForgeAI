@@ -305,18 +305,6 @@ export const TerminalPage: React.FC = () => {
       };
       setMessages(prev => [...prev, agentResponseMessage]);
 
-      // Add suggestions if any
-      if (result.suggestions && result.suggestions.length > 0) {
-        const suggestionsMessage: AgentMessage = {
-          id: `msg_${Date.now()}_suggestions`,
-          agent: 'System',
-          role: 'system',
-          content: `💡 Suggestions:\n${result.suggestions.map((s: string) => `  • ${s}`).join('\n')}`,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, suggestionsMessage]);
-      }
-
       // Update files if present AND ensure panel becomes visible
       if (result.files && id) {
         console.log(`📦 Updating generation ${id} with ${result.files.length} files`);
