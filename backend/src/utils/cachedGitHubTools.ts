@@ -249,16 +249,121 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     }),
 
     /**
-     * Get modified files
+     * Batch replace text across multiple files
      */
     createTool({
-      name: 'bot_github_modified_cached',
-      description: `Get list of files modified in working directory.
-        Shows files that have been edited but not yet committed.`,
+      name: 'bot_github_batch_replace',
+      description: `Perform multiple text replacements across multiple files in ONE call.
+        This is MUCH MORE EFFICIENT than calling bot_github_replace_text multiple times.
+        
+        Use this when you need to replace the same pattern in multiple files,
+        or make multiple changes to the same file.
+        
+        Example: Replace "gemini-1.5-pro" with "gemini-2.5-pro" in 5 different files
+        → Use this tool with 5 replacements instead of 5 separate tool calls!`,
       schema: z.object({
         owner: z.string().describe('Repository owner'),
         repo: z.string().describe('Repository name'),
         branch: z.string().optional().describe('Branch name (default: main)'),
+        replacements: z.array(z.object({
+          path: z.string().describe('File path'),
+          findText: z.string().describe('Text to find'),
+          replaceWith: z.string().describe('Text to replace with'),
+        })).describe('Array of replacements to make'),
+      }),
+      fn: async (args) => {
+        try {
+          const results = [];
+          let successCount = 0;
+          let failCount = 0;
+
+          for (const replacement of args.replacements) {
+            try {
+              // Read current file content
+              const currentContent = await cache.getFileContent(
+                args.owner,
+                args.repo,
+                replacement.path,
+                args.branch || 'main'
+              );
+
+              // Verify text exists
+              if (!currentContent.includes(replacement.findText)) {
+                results.push({
+                  path: replacement.path,
+                  success: false,
+                  error: 'Text not found',
+                });
+                failCount++;
+                continue;
+              }
+
+              // Edit the file
+              await cache.editFile(
+                args.owner,
+                args.repo,
+                replacement.path,
+                replacement.findText,
+                replacement.replaceWith,
+                args.branch || 'main'
+              );
+
+              results.push({
+                path: replacement.path,
+                success: true,
+              });
+              successCount++;
+            } catch (error: any) {
+              results.push({
+                path: replacement.path,
+                success: false,
+                error: error.message,
+              });
+              failCount++;
+            }
+          }
+
+          return {
+            success: successCount > 0,
+            totalReplacements: args.replacements.length,
+            successCount,
+            failCount,
+            results,
+            message: `✅ Batch replace: ${successCount} succeeded, ${failCount} failed`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Batch replace failed: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Get modified files with full content ready for commit
+     */
+    createTool({
+      name: 'bot_github_modified_cached',
+      description: `Get list of files modified in working directory WITH their full content.
+        This is the RECOMMENDED way to prepare files for commit.
+        
+        Returns files in the exact format needed for bot_github_commit_files:
+        [
+          { path: "file1.ts", content: "full content..." },
+          { path: "file2.md", content: "full content..." }
+        ]
+        
+        Usage flow:
+        1. Edit files using bot_github_replace_text or bot_github_edit_cached
+        2. Call this tool to get modified files with content
+        3. Pass result directly to bot_github_commit_files`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().optional().describe('Branch name (default: main)'),
+        includeContent: z.boolean().optional().describe('Include full file content (default: true, recommended for commits)'),
       }),
       fn: async (args) => {
         try {
@@ -268,11 +373,59 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             args.branch || 'main'
           );
 
+          const includeContent = args.includeContent !== false; // Default to true
+
+          // If includeContent, fetch content for each modified file
+          const filesWithContent = [];
+          
+          if (includeContent && modified.length > 0) {
+            for (const file of modified) {
+              if (file.status !== 'deleted') {
+                try {
+                  // Get content from cache
+                  const content = await cache.getFileContent(
+                    args.owner,
+                    args.repo,
+                    file.path,
+                    args.branch || 'main'
+                  );
+                  
+                  filesWithContent.push({
+                    path: file.path,
+                    content: content,
+                    status: file.status,
+                  });
+                } catch (error: any) {
+                  console.warn(`[bot_github_modified_cached] Could not get content for ${file.path}:`, error.message);
+                  filesWithContent.push({
+                    path: file.path,
+                    content: '',
+                    status: file.status,
+                    error: `Could not read content: ${error.message}`,
+                  });
+                }
+              } else {
+                filesWithContent.push({
+                  path: file.path,
+                  status: 'deleted',
+                });
+              }
+            }
+          }
+
+          const result = includeContent ? filesWithContent : modified;
+
           return {
             success: true,
-            files: modified,
+            files: result,
             totalModified: modified.length,
-            message: `✅ Found ${modified.length} modified files`,
+            message: includeContent 
+              ? `✅ Found ${modified.length} modified files with content ready for commit`
+              : `✅ Found ${modified.length} modified files`,
+            readyForCommit: includeContent,
+            usage: includeContent 
+              ? 'Pass the "files" array directly to bot_github_commit_files'
+              : 'Set includeContent: true to get files ready for commit',
           };
         } catch (error: any) {
           return {
@@ -567,7 +720,30 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     createTool({
       name: 'bot_github_commit_files',
       description: `Commit modified files and push to a branch in forked repository (codeforge-ai-bot).
-        Use this after making local edits to push them to GitHub.`,
+        
+        USAGE PATTERN:
+        1. Make edits using bot_github_replace_text or bot_github_edit_cached
+        2. Get modified files using bot_github_modified_cached
+        3. Pass those modified files to this tool
+        
+        CRITICAL: Each file must be an object with {path, content} - NOT just path strings!
+        
+        Example:
+        {
+          repo: "MyRepo",
+          branch: "my-branch",
+          message: "Fix: Update model to gemini-2.5-pro",
+          files: [
+            {
+              path: "config.ts",
+              content: "export const MODEL = 'gemini-2.5-pro';"
+            },
+            {
+              path: "README.md", 
+              content: "# Updated README\\n..."
+            }
+          ]
+        }`,
       schema: z.object({
         repo: z.string().describe('Repository name'),
         branch: z.string().describe('Branch to push to'),
@@ -578,11 +754,47 @@ export function createCachedGitHubTools(_octokit: Octokit) {
               content: z.string().describe('New file content'),
             })
           )
-          .describe('Files to commit'),
+          .describe('Files to commit - MUST be array of objects with path and content'),
         message: z.string().describe('Commit message'),
       }),
       fn: async (args) => {
         try {
+          // Validate files array
+          if (!Array.isArray(args.files) || args.files.length === 0) {
+            return {
+              success: false,
+              error: 'Files array is empty or invalid',
+              message: '❌ No files to commit. Please provide at least one file.',
+            };
+          }
+
+          // Validate each file has required properties
+          for (let i = 0; i < args.files.length; i++) {
+            const file = args.files[i];
+            if (!file || typeof file !== 'object') {
+              return {
+                success: false,
+                error: `File at index ${i} is not an object`,
+                message: `❌ Invalid file format at index ${i}. Each file must be an object with {path, content}.`,
+                hint: 'Expected format: [{path: "file.ts", content: "..."}, ...]',
+              };
+            }
+            if (!file.path || typeof file.path !== 'string') {
+              return {
+                success: false,
+                error: `File at index ${i} missing path`,
+                message: `❌ File at index ${i} is missing 'path' property.`,
+              };
+            }
+            if (!file.content || typeof file.content !== 'string') {
+              return {
+                success: false,
+                error: `File at index ${i} missing content`,
+                message: `❌ File at index ${i} is missing 'content' property.`,
+              };
+            }
+          }
+
           // Get current branch tree
           const { data: branchRef } = await _octokit.rest.git.getRef({
             owner: 'codeforge-ai-bot',
@@ -643,7 +855,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             success: true,
             filesCommitted: args.files.length,
             commit: newCommit.sha,
-            message: `✅ Committed ${args.files.length} files to ${args.branch}`,
+            message: `✅ Committed ${args.files.length} files to ${args.branch}: ${args.message}`,
           };
         } catch (error: any) {
           return {

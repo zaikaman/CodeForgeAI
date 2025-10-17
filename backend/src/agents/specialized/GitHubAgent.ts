@@ -44,6 +44,12 @@ const githubAgentResponseSchema = z.object({
     understood: z.string().describe('What you understood from the issue/request'),
     approach: z.string().describe('Your planned approach to solve it'),
     filesIdentified: z.array(z.string()).optional().describe('Key files identified for this task'),
+    fileBreakdown: z.object({
+      sourceCode: z.array(z.string()).optional().describe('Source code files (.ts, .js, .py, etc)'),
+      tests: z.array(z.string()).optional().describe('Test files'),
+      config: z.array(z.string()).optional().describe('Config files'),
+      docs: z.array(z.string()).optional().describe('Documentation files'),
+    }).optional().describe('Breakdown of files by type - REQUIRED if you modified files'),
   }).optional().describe('Include this when you did analysis phase (for complex issues)'),
   files: z.array(z.object({
     path: z.string(),
@@ -52,7 +58,15 @@ const githubAgentResponseSchema = z.object({
   filesModified: z.array(z.object({
     path: z.string(),
     action: z.enum(['created', 'updated', 'deleted']),
+    fileType: z.enum(['source', 'test', 'config', 'docs', 'other']).optional().describe('Type of file modified'),
   })).optional().nullable().describe('List of files that were modified in the PR'),
+  validation: z.object({
+    modifiedSourceCode: z.boolean().describe('Did you modify actual source code files? (not just docs)'),
+    modifiedConfig: z.boolean().describe('Did you modify config files if needed?'),
+    modifiedTests: z.boolean().describe('Did you modify test files if needed?'),
+    modifiedDocs: z.boolean().describe('Did you modify documentation?'),
+    issueFullySolved: z.boolean().describe('Is the issue completely solved (code + tests + docs)?'),
+  }).optional().describe('Validation checklist - REQUIRED when creating PRs or solving issues'),
   prCreated: z.object({
     number: z.number(),
     url: z.string(),
