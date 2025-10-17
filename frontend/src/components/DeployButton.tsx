@@ -74,13 +74,17 @@ export function DeployButton({
 
   const handleDeploy = async () => {
     try {
-      // Clear previous deployment state before starting new one
+      console.log('[DeployButton] Starting deployment to fly.io...');
+      
+      // ⚠️ IMPORTANT: Set deploying state FIRST to subscribe to WebSocket BEFORE calling API
+      // This prevents race condition where backend emits events before frontend subscribes
       setDeploymentProgress([]);
       setIsDeploying(true);
       updateStatus('deploying');
       onDeployStart?.();
 
-      console.log('[DeployButton] Starting deployment to fly.io...');
+      // Wait a tiny bit to ensure WebSocket subscription is active
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Call backend API to deploy to fly.io (using apiClient for auth)
       const response = await apiClient.request({
@@ -94,7 +98,7 @@ export function DeployButton({
       });
 
       if (response.success && response.data) {
-        console.log('[DeployButton] Deployment started');
+        console.log('[DeployButton] Deployment started - WebSocket will handle all updates');
         // WebSocket will handle all updates automatically
       } else {
         throw new Error(response.error || 'Deployment failed');

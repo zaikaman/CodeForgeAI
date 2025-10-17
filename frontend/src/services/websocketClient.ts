@@ -121,6 +121,7 @@ class WebSocketClient {
     const messageTypes = [
       'status', 'progress', 'agent_thought', 'code_chunk', 'error', 'complete',
       'job:progress', 'job:complete', 'job:agent:message', 'chat:progress', 'user:jobs:update',
+      'deployment:progress', 'deployment:complete', // Add deployment events
     ]
 
     messageTypes.forEach((type) => {
