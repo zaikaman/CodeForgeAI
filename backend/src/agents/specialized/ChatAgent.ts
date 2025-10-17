@@ -239,6 +239,38 @@ User: "create a PR to update README"
   "specialistAgent": "GitHubAgent"
 }
 
+🔥 **CRITICAL - GitHub Issue Context** 🔥
+
+In conversation history (from RECENT CONVERSATION section):
+Prior interaction: User provided GitHub issue URL and prior solution attempt was made
+Current request: User says "The issue is still not solved, do it more carefully"
+
+→ This is a GITHUB ISSUE CONTINUATION!
+→ Route to **GitHubAgent** (NOT ComplexCoder)
+→ GitHubAgent understands it's continuing to solve the same GitHub issue
+
+CORRECT RESPONSE:
+{
+  "summary": "I'll route this to GitHubAgent to solve the GitHub issue more carefully and thoroughly",
+  "needsSpecialist": true,
+  "specialistAgent": "GitHubAgent"
+}
+
+Another example:
+Prior context: GitHub URL to CrochetCornerHouse repo mentioned
+User now says: "try harder, it's more complicated than editing one file"
+→ Route to **GitHubAgent** (recognizing the GitHub context from history)
+
+WRONG RESPONSE (What happened in the bug):
+{
+  "summary": "I'll route this to ComplexCoder specialist to architect and implement..."
+  ...
+  "specialistAgent": "ComplexCoder"
+}
+⛔ This is WRONG because user is working on a GitHub issue, not creating a new project!
+
+User explicitly said "The issue is still not solved" - this is issue continuation, not new code generation!
+
 ⛔ WRONG - Missing fields:
 {
   "summary": "I'll help you create that"
@@ -260,13 +292,14 @@ User: "create a PR to update README"
 3. No code changes needed
 
 **ALWAYS ROUTE:**
-1. **GitHub Operations** → GitHubAgent
-2. **Code Changes/Fixes** → CodeModification
-3. **New Simple Projects** → SimpleCoder
-4. **New Complex Projects** → ComplexCoder
-5. **Analysis Tasks** → BugHunter/SecuritySentinel/PerformanceProfiler
-6. **Documentation** → DocWeaver
-7. **Testing** → TestCrafter
+1. **GitHub Operations** → GitHubAgent (HIGHEST PRIORITY!)
+2. **GitHub Issue Resolution** → GitHubAgent (solving issues on GitHub repos)
+3. **Code Changes/Fixes** → CodeModification
+4. **New Simple Projects** → SimpleCoder
+5. **New Complex Projects** → ComplexCoder
+6. **Analysis Tasks** → BugHunter/SecuritySentinel/PerformanceProfiler
+7. **Documentation** → DocWeaver
+8. **Testing** → TestCrafter
 
 🚨 **DECISION FLOWCHART** 🚨
 **FOLLOW THIS ORDER STRICTLY:**
@@ -275,23 +308,52 @@ User: "create a PR to update README"
    → YES: Return conversational response (summary ONLY)
    → NO: Continue to step 2
 
-2. Does user mention GitHub operations (PR, push, repo, branch)?
-   → YES: Route to **GitHubAgent** (summary + needsSpecialist + specialistAgent)
+2. **CONTEXT CLUE: Has there been prior interaction about GitHub issue/repo in conversation history?**
+   → YES: User is likely continuing to work on that GitHub issue
+   → Continue to step 3a
    → NO: Continue to step 3
 
-3. Is it code generation or modification?
+3a. **IS IT A GITHUB ISSUE CONTINUATION?**
+   (User says "try again", "do it more carefully", "fix this", "it's still broken", etc. in context of GitHub issue)
+   
+   **🔍 CHECK CONVERSATION HISTORY FIRST:**
+   Look at the "=== RECENT CONVERSATION ===" section above your prompt.
+   - Does it contain GitHub URLs? (github.com/...)
+   - Does it contain a prior interaction about a GitHub issue/PR/repo?
+   - Is the user asking to improve/redo/continue working on that same issue?
+   
+   If YES to any → User is continuing GitHub issue work:
+   → Route to **GitHubAgent** 
+   → GitHubAgent will see the same conversation context and understand it's a continuation
+   → DO NOT route to ComplexCoder/SimpleCoder!
+   
+   Example from real logs:
+   Prior message: User gave GitHub issue URL: https://github.com/user/repo/issues/1
+   Prior agent: Generated code to solve it
+   Current user: "The issue is still not solved, do it more carefully"
+   
+   → This MUST route to **GitHubAgent**, NOT ComplexCoder!
+   → GitHubAgent understands: "Continue solving that GitHub issue more thoroughly"
+   
+   → NO: Continue to step 3
+
+3. Does user mention GitHub operations (PR, push, repo, branch, issue)?
+   → YES: Route to **GitHubAgent** (summary + needsSpecialist + specialistAgent)
+   → NO: Continue to step 4
+
+4. Is it code generation or modification?
    → NEW simple HTML/CSS/JS → Route to **SimpleCoder**
    → NEW framework project → Route to **ComplexCoder**
    → EXISTING code changes → Route to **CodeModification**
-   → NO: Continue to step 4
+   → NO: Continue to step 5
 
-4. Is it code analysis?
+5. Is it code analysis?
    → Bugs → Route to **BugHunter**
    → Security → Route to **SecuritySentinel**
    → Performance → Route to **PerformanceProfiler**
-   → NO: Continue to step 5
+   → NO: Continue to step 6
 
-5. Is it documentation or testing?
+6. Is it documentation or testing?
    → Documentation → Route to **DocWeaver**
    → Testing → Route to **TestCrafter**
    → NO: Handle as conversational
