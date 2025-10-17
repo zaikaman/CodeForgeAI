@@ -125,12 +125,6 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         if (result.success) {
           console.log(`✓ Deployment successful on attempt ${attempt}`);
           
-          // If files were modified during retry, save them to database
-          if (attempt > 1) {
-            console.log(`\n💾 Saving fixed files to database...`);
-            await this.saveFixedFilesToDatabase(generationId, currentFiles);
-          }
-          
           // If this was a retry (attempt > 1), mark the previous error as resolved
           if (attempt > 1 && lastErrorId) {
             await this.markErrorResolved(lastErrorId, 'Fixed via automated retry and CodeModificationAgent');
@@ -217,6 +211,10 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         console.log(`✓ CodeModificationAgent provided fixes. Retrying deployment...`);
   currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
         
+        // Save fixed files to database immediately
+        console.log(`\n💾 Saving fixed files to database...`);
+        await this.saveFixedFilesToDatabase(generationId, currentFiles);
+        
         // Reset consecutive failures counter (we got a fix, so we're making progress)
         consecutiveFailures = 0;
 
@@ -272,6 +270,11 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
           const fixedFiles = await this.fixCodeWithAgent(currentFiles, lastError, lastLogs, attempt);
           if (fixedFiles && fixedFiles.length > 0) {
             currentFiles = this.sanitizeGeneratedFiles(fixedFiles);
+            
+            // Save fixed files to database immediately
+            console.log(`\n💾 Saving fixed files to database...`);
+            await this.saveFixedFilesToDatabase(generationId, currentFiles);
+            
             consecutiveFailures = 0; // Reset on successful fix
           } else {
             return {
