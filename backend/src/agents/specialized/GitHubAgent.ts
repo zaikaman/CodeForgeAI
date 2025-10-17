@@ -29,7 +29,7 @@
 import { AgentBuilder } from '@iqai/adk';
 import { z } from 'zod';
 import { GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT } from '../../prompts/github-agent-enhanced-prompt';
-import { GITHUB_AGENT_OPTIMIZED_PROMPT } from '../../prompts/github-agent-optimized-prompt';
+import { GITHUB_AGENT_IMPROVED_V2_PROMPT } from '../../prompts/github-agent-improved-v2';
 import { generateStateAwarenessSection } from '../../prompts/github-agent-state-awareness';
 import { createCachedGitHubTools } from '../../utils/cachedGitHubTools';
 import { AgentCacheManager } from '../../utils/agentCacheManager';
@@ -168,19 +168,27 @@ export const GitHubAgent = async (
       console.log('[GitHubAgent] ✅ Initialized with CACHED tools (bot mode)');
       console.log('[GitHubAgent] Tool count:', cachedTools.tools.length);
       
-      // Build comprehensive system prompt with OPTIMIZED version (PLAN-FIRST protocol)
+      // Build comprehensive system prompt with IMPROVED V2 (Gemini-CLI Inspired)
       const stateAwareness = state 
         ? generateStateAwarenessSection(state, taskChecklist, executionGuidance)
         : '';
       
       const systemPrompt = stateAwareness + '\n\n' +
-        GITHUB_AGENT_OPTIMIZED_PROMPT + '\n\n' +
+        '# GitHubAgent V2 - Production Ready\n\n' +
+        GITHUB_AGENT_IMPROVED_V2_PROMPT + '\n\n' +
+        '---\n\n' +
+        '## Additional Context\n\n' +
         GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + 
         cacheStats + 
-        '\n\n**Performance Tracking Active:** Tool calls are tracked against budget.' +
-        '\nTarget efficiency: >85% (expected vs actual tool calls).' +
-        '\nIf tool calls exceed budget, execution will pause and request approval.' +
-        `\nBudget Type: ${budgetType} (Max tool calls: ${performanceTracker.getMetrics().toolCalls.expected})`;
+        '\n\n**🎯 Performance Tracking Active**' +
+        '\n- Tool calls tracked against budget' +
+        '\n- Target efficiency: ≥85% (expected vs actual)' +
+        '\n- Automatic pause if budget exceeded' +
+        `\n- Budget: ${budgetType} (Max: ${performanceTracker.getMetrics().toolCalls.expected} calls)` +
+        '\n\n**📋 Remember: Think → Plan → Execute → Validate**' +
+        '\n1. Analyze what needs to change (no tool calls)' +
+        '\n2. Execute efficiently (batch operations)' +
+        '\n3. Validate completeness (all file types addressed)';
       
       return AgentBuilder.create('GitHubAgent')
         .withModel('gpt-5-nano-2025-08-07')
@@ -204,12 +212,17 @@ export const GitHubAgent = async (
           : '';
         
         const systemPrompt = stateAwareness + '\n\n' +
-          GITHUB_AGENT_OPTIMIZED_PROMPT + '\n\n' +
+          '# GitHubAgent V2 - Production Ready (User Token Mode)\n\n' +
+          GITHUB_AGENT_IMPROVED_V2_PROMPT + '\n\n' +
+          '---\n\n' +
+          '## Additional Context\n\n' +
           GITHUB_AGENT_ENHANCED_SYSTEM_PROMPT + '\n\n' + 
           cacheStats +
-          '\n\n**Mode:** USER TOKEN (bot token not configured)' +
-          '\n**Performance Tracking Active:** Tool calls are monitored for efficiency.' +
-          `\nBudget Type: ${budgetType} (Max tool calls: ${performanceTracker.getMetrics().toolCalls.expected})`;
+          '\n\n**⚠️ Mode:** USER TOKEN (bot token not configured)' +
+          '\n**🎯 Performance Tracking Active**' +
+          '\n- Tool calls monitored for efficiency' +
+          `\n- Budget: ${budgetType} (Max: ${performanceTracker.getMetrics().toolCalls.expected} calls)` +
+          '\n\n**📋 Remember: Think → Plan → Execute → Validate**';
         
         return AgentBuilder.create('GitHubAgent')
           .withModel('gpt-5-nano-2025-08-07')
