@@ -125,6 +125,12 @@ export class PreviewServiceWithRetry implements IPreviewServiceWithRetry {
         if (result.success) {
           console.log(`✓ Deployment successful on attempt ${attempt}`);
           
+          // If files were modified during retry, save them to database
+          if (attempt > 1) {
+            console.log(`\n💾 Saving fixed files to database...`);
+            await this.saveFixedFilesToDatabase(generationId, currentFiles);
+          }
+          
           // If this was a retry (attempt > 1), mark the previous error as resolved
           if (attempt > 1 && lastErrorId) {
             await this.markErrorResolved(lastErrorId, 'Fixed via automated retry and CodeModificationAgent');
@@ -1396,6 +1402,50 @@ primary_region = "sjc"
    */
   private async markErrorResolved(errorId: string, appliedFix: string): Promise<void> {
     console.log(`✅ Error ${errorId} resolved with fix: ${appliedFix.substring(0, 100)}...`);
+  }
+
+  /**
+   * Save fixed files to database after successful deployment
+   * This preserves the auto-fixes made by CodeModificationAgent
+   */
+  private async saveFixedFilesToDatabase(
+    generationId: string,
+    fixedFiles: Array<{ path: string; content: string }>
+  ): Promise<void> {
+    try {
+      // Use fetch to call the API endpoint
+      const apiUrl = process.env.API_URL || 'http://localhost:3000';
+      const endpoint = `${apiUrl}/api/generations/${generationId}/update-files`;
+      
+      console.log(`   → Calling ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          files: fixedFiles
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as any;
+        console.error(`✗ Failed to save files to database:`, errorData.error || response.statusText);
+        console.warn(`   Status: ${response.status}`);
+        // Don't throw - database save failure shouldn't block the successful deployment
+        return;
+      }
+
+      const result = await response.json() as any;
+      console.log(`✓ Fixed files saved to database (${fixedFiles.length} files)`);
+      console.log(`   Generation ID: ${generationId}`);
+      console.log(`   Updated at: ${result.data?.updatedAt}`);
+      
+    } catch (error) {
+      console.error('✗ Error saving fixed files to database:', error);
+      // Don't throw - database save failure shouldn't block the successful deployment
+    }
   }
 
   /**
