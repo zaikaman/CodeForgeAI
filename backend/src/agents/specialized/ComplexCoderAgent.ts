@@ -200,7 +200,7 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
          color: 'white',
          fontSize: '18px'
        }}>
-         {altText} Image Placeholder
+         (alt) Image Placeholder
        </div>
      );
      
