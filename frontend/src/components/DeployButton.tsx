@@ -73,13 +73,9 @@ export function DeployButton({
   };
 
   const handleDeploy = async () => {
-    // If already deployed, open the URL in a new tab
-    if (deployStatus === 'success' && deployedUrl) {
-      window.open(deployedUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
     try {
+      // Clear previous deployment state before starting new one
+      setDeploymentProgress([]);
       setIsDeploying(true);
       updateStatus('deploying');
       onDeployStart?.();
@@ -333,8 +329,8 @@ export function DeployButton({
     </button>
       )}
 
-      {/* Deployment Progress Log */}
-      {deploymentProgress.length > 0 && (
+      {/* Deployment Progress Log - Show when deploying OR has progress */}
+      {(isDeploying || deploymentProgress.length > 0) && (
         <div className="w-full max-w-2xl mt-4 bg-[#0a0e0f] border-2 border-[#4fc3f7] rounded-lg shadow-lg overflow-hidden font-mono text-sm">
           {/* Terminal Header */}
           <div className="bg-gradient-to-r from-[#1a1f26] to-[#0a0e0f] px-4 py-2 border-b border-[#4fc3f7]/30 flex items-center gap-2">
@@ -348,36 +344,46 @@ export function DeployButton({
 
           {/* Progress Steps */}
           <div className="p-4 max-h-64 overflow-y-auto scrollbar-terminal">
-            {deploymentProgress.map((progress, index) => (
-              <div key={index} className="mb-2 flex items-start gap-2">
-                {progress.status === 'completed' && (
-                  <span className="text-[#00ff41] font-bold">✓</span>
-                )}
-                {progress.status === 'running' && (
-                  <span className="text-[#4fc3f7] font-bold animate-pulse">⟳</span>
-                )}
-                {progress.status === 'failed' && (
-                  <span className="text-[#ff3333] font-bold">✗</span>
-                )}
-                <div className="flex-1">
-                  <span className={`
-                    ${progress.status === 'completed' ? 'text-[#00aa2a]' : ''}
-                    ${progress.status === 'running' ? 'text-[#4fc3f7]' : ''}
-                    ${progress.status === 'failed' ? 'text-[#ff3333]' : ''}
-                  `}>
-                    {progress.step}
-                  </span>
-                  {progress.message && (
-                    <div className="text-[#bdbdbd] text-xs mt-1 ml-4">
-                      {progress.message}
-                    </div>
+            {deploymentProgress.length > 0 ? (
+              deploymentProgress.map((progress, index) => (
+                <div key={index} className="mb-2 flex items-start gap-2">
+                  {progress.status === 'completed' && (
+                    <span className="text-[#00ff41] font-bold">✓</span>
                   )}
+                  {progress.status === 'running' && (
+                    <span className="text-[#4fc3f7] font-bold animate-pulse">⟳</span>
+                  )}
+                  {progress.status === 'failed' && (
+                    <span className="text-[#ff3333] font-bold">✗</span>
+                  )}
+                  <div className="flex-1">
+                    <span className={`
+                      ${progress.status === 'completed' ? 'text-[#00aa2a]' : ''}
+                      ${progress.status === 'running' ? 'text-[#4fc3f7]' : ''}
+                      ${progress.status === 'failed' ? 'text-[#ff3333]' : ''}
+                    `}>
+                      {progress.step}
+                    </span>
+                    {progress.message && (
+                      <div className="text-[#bdbdbd] text-xs mt-1 ml-4">
+                        {progress.message}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[#666] text-xs whitespace-nowrap">
+                    {new Date(progress.timestamp).toLocaleTimeString()}
+                  </span>
                 </div>
-                <span className="text-[#666] text-xs whitespace-nowrap">
-                  {new Date(progress.timestamp).toLocaleTimeString()}
-                </span>
+              ))
+            ) : (
+              <div className="text-[#4fc3f7] flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>Waiting for deployment to start...</span>
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
