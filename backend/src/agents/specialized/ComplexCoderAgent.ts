@@ -50,10 +50,15 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
     )
   ]);
   
-  // Escape curly braces
-  const escapedSystemPrompt = systemPrompt.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
-  const escapedValidationRules = staticValidationRules.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
-  const escapedChecklist = checklist.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
+  // Escape curly braces - ADK template engine might parse HTML attributes
+  // We need to be careful with `alt` in HTML examples as ADK might treat it as a variable
+  const escapeTemplate = (text: string) => {
+    return text.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
+  };
+  
+  const escapedSystemPrompt = escapeTemplate(systemPrompt);
+  const escapedValidationRules = escapeTemplate(staticValidationRules);
+  const escapedChecklist = escapeTemplate(checklist);
   
   // Enhance with GitHub tools
   const enhancedPrompt = enhancePromptWithGitHub(escapedSystemPrompt, options?.githubContext || null);

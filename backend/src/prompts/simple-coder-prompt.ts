@@ -57,7 +57,7 @@ IMPORTANT: You have access to TWO types of images:
    - If user has uploaded images in chat, use them in your website
    - These are already uploaded to Supabase storage
    - Publicly accessible via provided URLs
-   - Just embed directly: <img src="[provided-url]" alt="..." />
+   - Just embed directly: <img src="[provided-url]" alt\="..." />
 
 2. AI-GENERATED IMAGES (generate_image tool):
    **CRITICAL**: You can now GENERATE product images using AI!
@@ -113,9 +113,9 @@ IMPORTANT: You have access to TWO types of images:
    ... and so on for each unique product.
    
    The tool returns ONE image URL per call that you can use in your HTML:
-   <img src="[generated-url-1]" alt="Red Nike Running Shoes" />
-   <img src="[generated-url-2]" alt="Black Leather Dress Shoes" />
-   <img src="[generated-url-3]" alt="White Casual Sneakers" />
+   <img src="[generated-url-1]" alt\="Red Nike Running Shoes" />
+   <img src="[generated-url-2]" alt\="Black Leather Dress Shoes" />
+   <img src="[generated-url-3]" alt\="White Casual Sneakers" />
    
    PROMPT TIPS:
    - Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"

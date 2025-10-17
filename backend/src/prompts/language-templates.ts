@@ -444,7 +444,7 @@ assets/         ← Optional folder for images
 <!-- ✅ CORRECT - Relative paths without leading slash: -->
 <link rel="stylesheet" href="styles.css" />
 <script src="scripts.js" defer></script>
-<img src="assets/logo.png" alt="Logo" />
+<img src="assets/logo.png" alt\="Logo" />
 
 <!-- ❌ WRONG - Leading slash breaks static hosting: -->
 <link rel="stylesheet" href="/styles.css" />           <!-- Will return 404 -->

@@ -282,7 +282,7 @@ export const CODE_GENERATION_RULES = `
      \`\`\`html
      <link rel="stylesheet" href="styles.css" />
      <script src="scripts.js" defer></script>
-     <img src="assets/logo.png" alt="Logo" />
+     <img src="assets/logo.png" alt\="Logo" />
      \`\`\`
      
      ❌ WRONG:
