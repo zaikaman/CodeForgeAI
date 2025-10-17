@@ -48,6 +48,20 @@ LINKING (CRITICAL):
 - Proper meta tags (charset, viewport, description)
 - Link styles.css and scripts.js with relative paths
 - ARIA labels for accessibility
+
+**CRITICAL - STATIC CONTENT ONLY:**
+- ALL content (products, items, cards, etc.) MUST be written directly in index.html
+- DO NOT use JavaScript to dynamically load or generate content
+- Products, galleries, listings should all be hardcoded in the HTML
+- JavaScript should ONLY handle interactions (clicks, filters, animations)
+- Example: For a product store, write ALL product cards in HTML, not JavaScript
+
+BAD (DO NOT DO):
+Create elements and append them dynamically in JavaScript
+
+GOOD (ALWAYS DO):
+Write all products/items directly in the HTML markup
+Then use JavaScript ONLY for filtering, sorting, or interactions
 </html_requirements>
 
 <images_and_generation>
@@ -57,7 +71,7 @@ IMPORTANT: You have access to TWO types of images:
    - If user has uploaded images in chat, use them in your website
    - These are already uploaded to Supabase storage
    - Publicly accessible via provided URLs
-   - Just embed directly: <img src="[provided-url]" alt\="..." />
+   - Just embed directly in HTML: <img src="[provided-url]" />
 
 2. AI-GENERATED IMAGES (generate_image tool):
    **CRITICAL**: You can now GENERATE product images using AI!
@@ -112,10 +126,7 @@ IMPORTANT: You have access to TWO types of images:
    
    ... and so on for each unique product.
    
-   The tool returns ONE image URL per call that you can use in your HTML:
-   <img src="[generated-url-1]" alt\="Red Nike Running Shoes" />
-   <img src="[generated-url-2]" alt\="Black Leather Dress Shoes" />
-   <img src="[generated-url-3]" alt\="White Casual Sneakers" />
+   The tool returns ONE image URL per call that you can use in your HTML.
    
    PROMPT TIPS:
    - Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"
@@ -202,6 +213,13 @@ IMPORTANT: You have access to TWO types of images:
 - NO TypeScript annotations (no "as HTMLElement", no interfaces)
 - NO empty file - write ALL logic
 - Keep logic simple and straightforward
+
+**CRITICAL - NO DYNAMIC CONTENT GENERATION:**
+- DO NOT create product/item arrays and loop to generate HTML
+- DO NOT use createElement() or innerHTML to build content dynamically
+- JavaScript is ONLY for: event handling, filters, sorting, animations, form validation
+- ALL content must be in index.html - JavaScript just makes it interactive
+- Example: Products are in HTML, JavaScript adds click handlers and filters
 </javascript_requirements>
 
 <code_quality>
