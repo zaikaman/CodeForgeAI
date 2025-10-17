@@ -110,7 +110,38 @@ export const DocsPage: React.FC = () => {
             <li>Configurable complexity levels (simple, moderate, complex)</li>
             <li>Automatic framework detection</li>
             <li>Image-to-code generation capability</li>
+            <li><strong>AI Image Generation</strong> - Create product images and visuals on-demand</li>
           </ul>
+          
+          <h3>🎨 AI Image Generation (NEW!)</h3>
+          <p>Built-in AI image generation powered by Stable Diffusion 3.5 Large Turbo.</p>
+          <ul>
+            <li><strong>Automatic Generation</strong> - Agents create images when building visual websites</li>
+            <li><strong>Product Photos</strong> - Professional e-commerce product images</li>
+            <li><strong>Hero Images</strong> - Stunning visuals for landing pages and backgrounds</li>
+            <li><strong>Multiple Variations</strong> - Generate unique images for product galleries</li>
+            <li><strong>Cloud Storage</strong> - Images automatically uploaded to Supabase</li>
+            <li><strong>Ready-to-Use URLs</strong> - Public URLs integrated directly into your code</li>
+            <li><strong>No External Services</strong> - No need for Unsplash or placeholder sites</li>
+          </ul>
+          
+          <div className="code-example">
+            <h4>Example Use Cases:</h4>
+            <pre>{`User: "Create a shoe store website with 6 products"
+
+Agent Process:
+1. ✅ Generate HTML/CSS structure
+2. 🎨 Create 6 unique product images:
+   - "Professional product photo of red running shoes..."
+   - "Professional product photo of black dress shoes..."
+   - "Professional product photo of white sneakers..."
+   - (and 3 more unique variations)
+3. 📦 Upload images to Supabase Storage
+4. 🔗 Integrate public URLs into code
+5. ✨ Apply responsive styling
+
+Result: Complete website with AI-generated product images!`}</pre>
+          </div>
           
           <h3>💬 Interactive Chat</h3>
           <p>Collaborate with AI agents in real-time through a conversational interface.</p>
@@ -575,6 +606,34 @@ export const DocsPage: React.FC = () => {
             <li>Refine the generated code in subsequent prompts</li>
           </ul>
           
+          <h3>AI Image Generation Tool</h3>
+          <p>Generate custom images for your projects using AI:</p>
+          <ul>
+            <li><strong>Powered by Stable Diffusion 3.5</strong> - State-of-the-art image generation</li>
+            <li><strong>Automatic Integration</strong> - Agents call the tool when images are needed</li>
+            <li><strong>Smart Prompting</strong> - Detailed prompts for professional results</li>
+            <li><strong>Fast Generation</strong> - ~2-3 seconds per 1024x1024 image</li>
+            <li><strong>Public URLs</strong> - Images ready to use in your code immediately</li>
+            <li><strong>Multiple Keys</strong> - Automatic key rotation for high availability</li>
+          </ul>
+          
+          <div className="code-example">
+            <h4>How Agents Use It:</h4>
+            <pre>{`When you say: "Create an e-commerce site for sneakers"
+
+Behind the scenes:
+1. Agent identifies need for product images
+2. Generates detailed prompts:
+   - "Professional product photo of red Nike running shoes on 
+      white background, studio lighting, front view, high quality"
+3. Calls generate_image tool multiple times
+4. Receives public Supabase URLs
+5. Integrates into HTML/React with proper styling
+6. Adds responsive design and alt text
+
+You get: A complete website with unique, AI-generated images!`}</pre>
+          </div>
+          
           <h3>Custom Agents</h3>
           <p>Configure which agents participate in your workflow:</p>
           <ul>
@@ -606,6 +665,243 @@ export const DocsPage: React.FC = () => {
             <li>Choose between different color themes</li>
             <li>Enable/disable sound effects</li>
             <li>Adjust UI density and preferences</li>
+          </ul>
+        </div>
+      ),
+    },
+    {
+      id: 'image-generation',
+      title: 'AI Image Generation',
+      icon: '🎨',
+      content: (
+        <div className="doc-content">
+          <h2>AI Image Generation</h2>
+          
+          <h3>Overview</h3>
+          <p>
+            CodeForge AI includes a powerful AI image generation system powered by 
+            <strong> HuggingFace's Stable Diffusion 3.5 Large Turbo</strong>. 
+            This feature allows agents to automatically create professional-quality images 
+            for your web projects on-demand.
+          </p>
+          
+          <h3>🌟 Key Features</h3>
+          <ul>
+            <li><strong>Automatic Generation</strong> - Agents automatically create images when needed</li>
+            <li><strong>Product Photography</strong> - Professional e-commerce product images</li>
+            <li><strong>Hero Images</strong> - Stunning visuals for landing pages</li>
+            <li><strong>Backgrounds & Assets</strong> - Custom backgrounds and UI elements</li>
+            <li><strong>High Quality</strong> - 1024x1024 resolution, configurable</li>
+            <li><strong>Fast Processing</strong> - ~2-3 seconds per image</li>
+            <li><strong>Cloud Storage</strong> - Automatic upload to Supabase Storage</li>
+            <li><strong>Public URLs</strong> - Ready-to-use URLs in your code</li>
+          </ul>
+          
+          <h3>📋 Use Cases</h3>
+          
+          <div className="use-case">
+            <h4>1. E-Commerce Product Images</h4>
+            <p>Create unique product photos for online stores:</p>
+            <div className="code-example">
+              <pre>{`User: "Create a shoe store website with 6 products"
+
+Result:
+✅ 6 unique AI-generated product images
+✅ Professional white background
+✅ Studio lighting quality
+✅ Integrated into HTML/React
+✅ Responsive grid layout`}</pre>
+            </div>
+          </div>
+          
+          <div className="use-case">
+            <h4>2. Landing Page Hero Images</h4>
+            <p>Generate stunning hero images for marketing pages:</p>
+            <div className="code-example">
+              <pre>{`User: "Build a SaaS landing page"
+
+Result:
+✅ Custom hero image matching your brand
+✅ Professional composition
+✅ Optimized for web display
+✅ CSS background integration`}</pre>
+            </div>
+          </div>
+          
+          <div className="use-case">
+            <h4>3. Portfolio & Gallery Images</h4>
+            <p>Create project thumbnails and visual content:</p>
+            <div className="code-example">
+              <pre>{`User: "Design a photography portfolio"
+
+Result:
+✅ Gallery of sample images
+✅ Consistent visual style
+✅ Properly sized and optimized
+✅ Lightbox integration`}</pre>
+            </div>
+          </div>
+          
+          <h3>🔧 How It Works</h3>
+          <ol>
+            <li>
+              <strong>Agent Detection</strong> - When building visual-heavy websites, 
+              agents automatically identify the need for images
+            </li>
+            <li>
+              <strong>Smart Prompting</strong> - Agents generate detailed, specific prompts 
+              like "Professional product photo of red Nike running shoes on white background, 
+              studio lighting, front view, high quality"
+            </li>
+            <li>
+              <strong>Image Generation</strong> - The system calls HuggingFace's Stable 
+              Diffusion API to generate the image (~2-3 seconds)
+            </li>
+            <li>
+              <strong>Cloud Upload</strong> - Generated images are automatically uploaded 
+              to Supabase Storage
+            </li>
+            <li>
+              <strong>URL Integration</strong> - Public URLs are integrated directly into 
+              your HTML/React code
+            </li>
+            <li>
+              <strong>Styling & Optimization</strong> - Agents add proper alt text, 
+              responsive styling, and lazy loading
+            </li>
+          </ol>
+          
+          <h3>💡 Prompting Tips for Best Results</h3>
+          <ul>
+            <li><strong>Be Specific</strong> - Mention exact items: "red Nike running shoes" 
+            not just "shoes"</li>
+            <li><strong>Describe Style</strong> - Include terms like "professional product photo", 
+            "minimalist", "modern"</li>
+            <li><strong>Specify Background</strong> - "white background", "natural setting", 
+            "gradient background"</li>
+            <li><strong>Mention Lighting</strong> - "studio lighting", "natural light", 
+            "soft shadows"</li>
+            <li><strong>Include Angle</strong> - "front view", "45-degree angle", "top view"</li>
+          </ul>
+          
+          <h3>🎯 Technical Details</h3>
+          <div className="technical-specs">
+            <table>
+              <thead>
+                <tr>
+                  <th>Specification</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Model</td>
+                  <td>Stable Diffusion 3.5 Large Turbo</td>
+                </tr>
+                <tr>
+                  <td>Provider</td>
+                  <td>HuggingFace (via Gradio API)</td>
+                </tr>
+                <tr>
+                  <td>Resolution</td>
+                  <td>1024x1024 (configurable)</td>
+                </tr>
+                <tr>
+                  <td>Format</td>
+                  <td>PNG</td>
+                </tr>
+                <tr>
+                  <td>Generation Time</td>
+                  <td>~2-3 seconds per image</td>
+                </tr>
+                <tr>
+                  <td>Inference Steps</td>
+                  <td>4 (optimized for speed)</td>
+                </tr>
+                <tr>
+                  <td>Storage</td>
+                  <td>Supabase Storage (chat-images bucket)</td>
+                </tr>
+                <tr>
+                  <td>Access</td>
+                  <td>Public URLs with CDN</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <h3>🚫 No More External Services</h3>
+          <p>CodeForge AI agents <strong>DO NOT</strong> use external image services:</p>
+          <ul>
+            <li>❌ No Unsplash URLs</li>
+            <li>❌ No Lorem Picsum</li>
+            <li>❌ No Placeholder.com</li>
+            <li>❌ No DummyImage.com</li>
+            <li>✅ Only AI-generated images</li>
+            <li>✅ Only user-uploaded images</li>
+          </ul>
+          
+          <h3>🛡️ Fallback Handling</h3>
+          <p>If image generation fails (rate limits, API issues):</p>
+          <ul>
+            <li>Agents continue building the website</li>
+            <li>Use CSS gradients as placeholders</li>
+            <li>Maintain fully functional layout</li>
+            <li>Website is still complete and usable</li>
+            <li>Users can regenerate images later</li>
+          </ul>
+          
+          <h3>📊 Example Workflow</h3>
+          <div className="code-example">
+            <pre>{`User Request:
+"Create a modern furniture e-commerce site with 5 products"
+
+Agent Workflow:
+┌─────────────────────────────────────────────────────────┐
+│ Step 1: Generate HTML/CSS structure                     │
+│ ✅ Layout, navigation, product grid                     │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│ Step 2: Generate 5 unique product images                │
+│ 🎨 Call 1: "Modern minimalist chair, white background"  │
+│ 🎨 Call 2: "Wooden dining table, studio lighting"       │
+│ 🎨 Call 3: "Comfortable sofa, professional photo"       │
+│ 🎨 Call 4: "Bookshelf with books, modern design"        │
+│ 🎨 Call 5: "Desk lamp, minimalist style"                │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│ Step 3: Upload to Supabase Storage                      │
+│ 📦 Generate public URLs                                 │
+│ 📦 user_123/generated/image-1.png                       │
+│ 📦 user_123/generated/image-2.png                       │
+│ ... (3 more)                                            │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│ Step 4: Integrate URLs into code                        │
+│ 🔗 <img src="https://supabase.../image-1.png" />       │
+│ 🔗 Add alt text and responsive styling                  │
+│ 🔗 Implement lazy loading                               │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│ Result: Complete e-commerce site ready!                 │
+│ ✨ 5 unique AI-generated product images                 │
+│ ✨ Fully responsive design                              │
+│ ✨ Professional appearance                              │
+│ ✨ Ready for deployment                                 │
+└─────────────────────────────────────────────────────────┘`}</pre>
+          </div>
+          
+          <h3>🎓 Best Practices</h3>
+          <ul>
+            <li><strong>Request Specific Items</strong> - The more specific, the better the results</li>
+            <li><strong>Consistent Style</strong> - Use similar prompt structure for matching aesthetics</li>
+            <li><strong>Allow Processing Time</strong> - Multiple images may take 10-20 seconds</li>
+            <li><strong>Review & Iterate</strong> - You can request regeneration with different prompts</li>
+            <li><strong>Mix with Uploads</strong> - Combine AI images with your own uploads for flexibility</li>
           </ul>
         </div>
       ),

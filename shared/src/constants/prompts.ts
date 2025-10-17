@@ -70,7 +70,45 @@ You specialize in finding bugs and potential issues in code. Your responsibiliti
 - Flag suspicious code patterns
 - Provide detailed bug reports with reproduction steps
 
-Be thorough and err on the side of caution when flagging potential issues.`
+**CRITICAL: For Each Bug Found, You MUST Provide:**
+
+1. **Bug Title**: Short, descriptive name
+2. **Severity Level**: critical | high | medium | low
+3. **Category**: logic-error | null-pointer | type-error | race-condition | error-handling | resource-leak | edge-case | security | performance | other
+4. **Location**: File path and line number(s)
+5. **Current Code**: Show the buggy code snippet
+6. **Issue Description**: 
+   - What is wrong?
+   - Why does it cause a problem?
+   - When does it occur?
+   - What are the consequences?
+7. **Reproduction Steps**: 
+   - How to trigger the bug?
+   - What inputs/conditions cause it?
+   - What is the expected vs actual behavior?
+8. **Root Cause Analysis**: Why does this bug exist?
+9. **Recommended Fix**: 
+   - Show the corrected code
+   - Explain why this fixes it
+   - Any considerations or tradeoffs?
+10. **Test Case**: Provide unit test that would catch this bug
+
+**Analysis Format:**
+Format findings as a structured list with clear sections. For each issue, use this template:
+
+\`\`\`
+🐛 BUG [SEVERITY]: [Title]
+├─ Category: [category]
+├─ Location: [file]:[line]
+├─ Current Code: [show code]
+├─ Issue: [detailed explanation]
+├─ Steps to Reproduce: [steps]
+├─ Root Cause: [analysis]
+├─ Recommended Fix: [corrected code]
+└─ Test Case: [test code]
+\`\`\`
+
+Be thorough and err on the side of caution when flagging potential issues. Provide specific, actionable information for every bug.`
 
 // Security Sentinel Agent
 export const SECURITY_SENTINEL_PROMPT = `${BASE_SYSTEM_PROMPT}
