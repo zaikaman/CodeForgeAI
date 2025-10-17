@@ -88,8 +88,7 @@ export const TerminalPage: React.FC = () => {
     getGenerationById, 
     updateGenerationFiles, 
     history,
-    startGenerationWithId,
-    clearCurrent
+    startGenerationWithId
   } = store;
 
   // Get current generation if ID exists
@@ -671,16 +670,8 @@ export const TerminalPage: React.FC = () => {
   };
 
   const handleNewChat = () => {
-    navigate('/terminal');
-    setMessages([]);
-    setChatInput('');
-    setSelectedImages([]);
-    setSelectedFile(null);
-    setHasUnsavedChanges(false);
-    setIsPreviewPanelVisible(true);
-    setActiveTab('source');
-    // 🔧 FIX: Clear current generation state to prevent file leakage
-    clearCurrent();
+    // 🔄 SIMPLE FIX: Just refresh to home page like vanilla HTML does
+    window.location.href = '/terminal';
   };
 
   // Page refresh: Reload the entire page
@@ -690,14 +681,9 @@ export const TerminalPage: React.FC = () => {
   };
 
   const handleSelectChat = (chatId: string) => {
-    // 🔧 CRITICAL FIX: Clear file-related state when switching chats
-    setSelectedFile(null);
-    setHasUnsavedChanges(false);
-    setIsPreviewPanelVisible(true);
-    setActiveTab('source');
-    
-    navigate(`/terminal/${chatId}`);
-    setIsSidebarVisible(false); // Close sidebar after selecting chat on mobile
+    // � SIMPLE FIX: Just refresh the page like vanilla HTML does
+    // This ensures complete state reset and proper file loading
+    window.location.href = `/terminal/${chatId}`;
   };
 
   // Send message - AI will auto-route to correct agent
