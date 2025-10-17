@@ -172,6 +172,14 @@ export const TerminalPage: React.FC = () => {
     };
   }, [isSidebarVisible]);
 
+  // 🔧 AUTO-HIDE panel when chat has no files
+  useEffect(() => {
+    const hasFiles = generation?.response?.files && generation.response.files.length > 0;
+    if (!hasFiles) {
+      setIsPreviewPanelVisible(false);
+    }
+  }, [generation?.response?.files]);
+
   // Matrix rain effect for welcome screen
   useEffect(() => {
     if (messages.length > 0) return; // Only show on empty chat
@@ -403,8 +411,15 @@ export const TerminalPage: React.FC = () => {
     if (!id) {
       // Clear messages when no ID (new chat)
       setMessages([]);
+      setSelectedFile(null); // 🔧 Clear selected file
+      setIsPreviewPanelVisible(true); // 🔧 Reset panel visibility
       return;
     }
+
+    // 🔧 CRITICAL FIX: Reset file-related state when switching chats
+    setSelectedFile(null);
+    setHasUnsavedChanges(false);
+    setIsPreviewPanelVisible(true);
 
     // Check if generation already exists in memory (newly created)
     const existingGeneration = getGenerationById(id);
@@ -661,6 +676,9 @@ export const TerminalPage: React.FC = () => {
     setChatInput('');
     setSelectedImages([]);
     setSelectedFile(null);
+    setHasUnsavedChanges(false);
+    setIsPreviewPanelVisible(true);
+    setActiveTab('source');
     // 🔧 FIX: Clear current generation state to prevent file leakage
     clearCurrent();
   };
@@ -672,6 +690,12 @@ export const TerminalPage: React.FC = () => {
   };
 
   const handleSelectChat = (chatId: string) => {
+    // 🔧 CRITICAL FIX: Clear file-related state when switching chats
+    setSelectedFile(null);
+    setHasUnsavedChanges(false);
+    setIsPreviewPanelVisible(true);
+    setActiveTab('source');
+    
     navigate(`/terminal/${chatId}`);
     setIsSidebarVisible(false); // Close sidebar after selecting chat on mobile
   };
@@ -1098,6 +1122,17 @@ export const TerminalPage: React.FC = () => {
         </div>
 
         <div className="sidebar-footer">
+          <button 
+            className="btn-telegram" 
+            onClick={() => {
+              playClick();
+              window.open('https://t.me/codeforge_ai_bot', '_blank', 'noopener,noreferrer');
+            }}
+            title="Open Telegram Bot"
+          >
+            <span className="icon">📱</span>
+            <span className="text">TELEGRAM BOT</span>
+          </button>
           <button className="btn-jobs" onClick={() => {
             playClick();
             setShowBackgroundJobs(!showBackgroundJobs);
