@@ -985,6 +985,37 @@
   font-size: 1.1rem;
 }
 
+.btn-cancel {
+  padding: var(--spacing-sm) var(--spacing-md);
+  flex-shrink: 0;
+  background: #ff6b6b;
+  border: 1px solid #ff5252;
+  border-radius: var(--border-radius);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  font-weight: 700;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: #ff5252;
+  box-shadow: 0 0 15px #ff6b6b;
+  transform: scale(1.05);
+}
+
+.btn-cancel:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-cancel .cancel-icon {
+  font-size: 1.1rem;
+}
+
 /* Remove old styles that are no longer needed */
 .background-mode-toggle,
 .btn-image {

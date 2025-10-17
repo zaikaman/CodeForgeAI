@@ -852,6 +852,34 @@ export const TerminalPage: React.FC = () => {
     return icons[agent] || '●';
   };
 
+  const handleCancelMessage = () => {
+    console.log('🛑 Cancelling chat request...');
+    
+    // Cancel the job via API
+    if (currentJobId) {
+      apiClient.cancelJob(currentJobId).catch(err => {
+        console.error('Error cancelling job:', err);
+      });
+    }
+    
+    // Update UI state
+    setIsProcessing(false);
+    setCurrentJobId(null);
+    setProgressMessages([]);
+    
+    // Add cancellation message
+    const cancelMessage: AgentMessage = {
+      id: `msg_${Date.now()}_cancel`,
+      agent: 'System',
+      role: 'system',
+      content: '⏸️ Request cancelled by user',
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, cancelMessage]);
+    
+    showToast('info', 'Chat request cancelled', 3000);
+  };
+
   const formatTimestamp = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
       hour12: false,
@@ -1402,6 +1430,19 @@ export const TerminalPage: React.FC = () => {
                 >
                   <span className="send-icon">►</span>
                 </button>
+                {isProcessing && (
+                  <button 
+                    type="button" 
+                    className="btn btn-danger btn-cancel"
+                    onClick={() => {
+                      playClick();
+                      handleCancelMessage();
+                    }}
+                    title="Cancel request"
+                  >
+                    <span className="cancel-icon">⏸</span>
+                  </button>
+                )}
               </div>
             </form>
           </div>
