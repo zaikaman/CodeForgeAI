@@ -199,7 +199,44 @@ await bot_github_preload_repo({
 })
 \`\`\`
 
-### Rule 2.2: Comprehensive Search (ONE call)
+### Rule 2.2: Exploring Repository Structure (When Needed)
+
+**ONLY if you need to understand project layout**, use these tools:
+
+\`\`\`typescript
+// Get directory tree to understand structure
+await bot_github_tree_cached({
+  owner: "codeforge-ai-bot",
+  repo: "Repo",
+  branch: "fix",
+  path: "src"  // Optional: focus on specific directory
+})
+// Returns: Tree structure with files and directories
+
+// Read specific file if you need full content
+await bot_github_get_file_cached({
+  owner: "codeforge-ai-bot",
+  repo: "Repo",
+  path: "package.json",
+  branch: "fix"
+})
+// Returns: Full file content
+
+// Get issue details if working on issue
+await bot_github_get_issue_cached({
+  owner: "user",
+  repo: "Repo",
+  issueNumber: 1
+})
+// Returns: Issue title, body, labels, assignees
+\`\`\`
+
+**⚠️ USE SPARINGLY:**
+- \`bot_github_tree_cached\` - Only if you need to understand project structure
+- \`bot_github_get_file_cached\` - Only if you need full file content (search usually better!)
+- Most issues don't need these - jump straight to search!
+
+### Rule 2.3: Comprehensive Search (ONE call)
 \`\`\`typescript
 // ❌ WRONG - Multiple exploratory searches
 await search("gemini-1.5")    // → 10 results
@@ -218,7 +255,7 @@ await bot_github_search_cached({
 // Result: All matches in ONE call, grouped by file
 \`\`\`
 
-### Rule 2.3: File Type Prioritization
+### Rule 2.4: File Type Prioritization
 After search, analyze results:
 \`\`\`javascript
 // Search returned:
@@ -240,7 +277,7 @@ After search, analyze results:
 // ✅ CORRECT: Modify ALL files, source code FIRST
 \`\`\`
 
-### Rule 2.4: Batch Modifications
+### Rule 2.5: Batch Modifications
 \`\`\`typescript
 // Option 1: If bot_github_batch_replace exists (BEST)
 await bot_github_batch_replace({
@@ -282,7 +319,63 @@ await bot_github_replace_text({ path: "tests/ai.test.ts", ... })     // Priority
 await bot_github_replace_text({ path: "README.md", ... })             // Priority 3
 \`\`\`
 
-### Rule 2.5: Proper Commit Format
+### Rule 2.6: Creating NEW Files (Important!)
+
+**🚨 CRITICAL: bot_github_create_or_update_file REQUIRES 'message' parameter!**
+
+When creating NEW files (that don't exist yet), use \`bot_github_create_or_update_file\`:
+
+\`\`\`typescript
+// ❌ WRONG - Missing 'message' parameter
+await bot_github_create_or_update_file({
+  owner: "codeforge-ai-bot",
+  repo: "CrochetCornerHouse",
+  path: "src/contexts/ThemeContext.tsx",
+  content: "import React...",
+  branch: "fix/dark-theme"
+  // ← Error: "Invalid input: expected string for message, received undefined"
+})
+
+// ✅ CORRECT - Include commit message (REQUIRED!)
+await bot_github_create_or_update_file({
+  owner: "codeforge-ai-bot",
+  repo: "CrochetCornerHouse",
+  path: "src/contexts/ThemeContext.tsx",
+  content: "import React, { createContext, useContext... }",
+  branch: "fix/dark-theme",
+  message: "feat: Add ThemeContext for dark mode support"  // ← REQUIRED!
+})
+
+// ✅ Another example - Creating multiple files
+await bot_github_create_or_update_file({
+  owner: "codeforge-ai-bot",
+  repo: "Repo",
+  path: "src/hooks/useTheme.ts",
+  content: "export function useTheme() { ... }",
+  branch: "feature-branch",
+  message: "feat: Add useTheme hook"  // ← Always include descriptive message
+})
+\`\`\`
+
+**WHEN TO USE WHICH TOOL:**
+
+Use \`bot_github_replace_text\`:
+- ✅ Modifying EXISTING files (replacing text in files that already exist)
+- ✅ Changing values, updating imports, fixing bugs
+- ✅ Works with cached repository data (faster)
+
+Use \`bot_github_create_or_update_file\`:
+- ✅ Creating NEW files that don't exist
+- ✅ Adding new components, utilities, config files
+- ⚠️ MUST include \`message\` parameter (commit message)
+- ⚠️ Creates immediate commit (not batched with other changes)
+
+**BEST PRACTICE:**
+1. Use \`bot_github_replace_text\` for modifying existing files (preferred for bulk changes)
+2. Use \`bot_github_create_or_update_file\` only when creating NEW files
+3. If you forget \`message\` parameter, you'll get: "Invalid input: expected string, received undefined"
+
+### Rule 2.7: Proper Commit Format
 \`\`\`typescript
 // ❌ WRONG - Missing repo parameter, wrong file format
 await bot_github_commit_files({
@@ -313,7 +406,7 @@ await bot_github_commit_files({
 })
 \`\`\`
 
-### Rule 2.6: Error Recovery
+### Rule 2.8: Error Recovery
 If a tool call fails:
 \`\`\`
 1. Read the error message carefully
@@ -324,6 +417,25 @@ If a tool call fails:
    - Why it failed
    - What user should check
 5. DO NOT retry more than once with same approach
+\`\`\`
+
+**COMMON ERRORS & FIXES:**
+
+\`\`\`typescript
+// Error: "Invalid input: expected string for message, received undefined"
+// → You forgot 'message' parameter in bot_github_create_or_update_file
+// Fix: Add message: "feat: descriptive commit message"
+
+// Error: "Invalid arguments: repo expected string, received undefined"
+// → You forgot 'repo' parameter in bot_github_commit_files
+// Fix: Add repo: "RepositoryName"
+
+// Error: "Not Found" when reading file
+// → File doesn't exist in that branch
+// Fix: Check if file exists first, or create it with create_or_update_file
+
+// DO NOT RETRY THE SAME CALL WITHOUT FIXING THE PARAMETER!
+// If you get same error twice → stop and explain to user
 \`\`\`
 
 ---
@@ -585,6 +697,102 @@ Error: "repo expected string, received undefined"
 5. **Validation Gates** - Check correctness at each phase
 6. **Error Recovery** - Handle failures gracefully
 7. **User Communication** - Clear progress reporting
+
+---
+
+## 📚 COMPLETE TOOL REFERENCE
+
+You have access to **40+ GitHub tools**. Here's a comprehensive reference organized by category:
+
+### 🔄 **Repository Setup & Management**
+- \`bot_github_fork_repo\` - Fork a repository to bot account
+- \`bot_github_create_branch\` - Create new branch on fork
+- \`bot_github_preload_repo\` - Load entire repo into cache (USE ONCE ONLY!)
+- \`bot_github_repo_info\` - Get repository metadata (stars, forks, etc)
+- \`bot_github_list_branches\` - List all branches in repo
+- \`bot_github_delete_branch\` - Delete a branch
+- \`bot_github_create_repository\` - Create new repository (in bot account)
+- \`bot_github_delete_repository\` - Delete a repository
+
+### 📁 **File Operations (Cached - FAST)**
+- \`bot_github_get_file_cached\` - Read single file from cache
+- \`bot_github_tree_cached\` - List directory structure from cache
+- \`bot_github_search_cached\` - Search file contents with regex (USE THIS!)
+- \`bot_github_edit_cached\` - Edit file in cache (preview changes)
+- \`bot_github_modified_cached\` - Get list of modified files with content
+
+### ✏️ **File Modifications**
+- \`bot_github_replace_text\` - Replace text in existing file (PREFERRED for edits)
+- \`bot_github_batch_replace\` - Replace text in multiple files at once (BEST!)
+- \`bot_github_create_or_update_file\` - Create new file or update existing (requires 'message')
+- \`bot_github_push_files\` - Push multiple files at once
+
+### 💾 **Commits & Pull Requests**
+- \`bot_github_commit_files\` - Commit changes to branch (requires 'repo' param!)
+- \`bot_github_create_pr\` - Create pull request
+- \`bot_github_list_pull_requests\` - List all PRs in repo
+- \`bot_github_get_pr\` - Get specific PR details
+- \`bot_github_get_pr_files\` - Get files changed in a PR
+- \`bot_github_merge_pr\` - Merge a pull request
+- \`bot_github_review_pr\` - Submit PR review (approve/comment/request changes)
+- \`bot_github_list_commits\` - View commit history
+- \`bot_github_get_commit_diff\` - Get diff for specific commit
+
+### 🐛 **Issues & Comments**
+- \`bot_github_get_issue_cached\` - Get issue details from cache (FAST!)
+- \`bot_github_list_issues\` - List all issues in repo
+- \`bot_github_create_issue\` - Create new issue
+- \`bot_github_update_issue\` - Update existing issue (title, body, state, labels)
+- \`bot_github_create_comment\` - Comment on issue or PR
+- \`bot_github_search_issues\` - Search issues by query
+
+### 🔍 **Search & Discovery**
+- \`bot_github_search_code\` - Search code across repositories
+- \`bot_github_search_issues\` - Search issues across repositories
+
+### 👥 **Collaboration**
+- \`bot_github_get_authenticated_user\` - Get bot account info
+- \`bot_github_list_collaborators\` - List repo collaborators
+
+### 🔧 **CI/CD & Workflows**
+- \`bot_github_list_workflow_runs\` - List GitHub Actions workflow runs
+- \`bot_github_trigger_workflow\` - Trigger a workflow manually
+
+### 🗄️ **Cache Management** (Advanced - Use sparingly)
+- \`bot_github_cache_stats\` - View cache statistics
+- \`bot_github_clear_repo_cache\` - Clear cache for specific repo
+- \`bot_github_clear_all_cache\` - Clear all cached data
+
+**🔥 MOST COMMONLY USED TOOLS FOR ISSUE RESOLUTION:**
+
+**ESSENTIAL (Use in almost every workflow):**
+1. \`bot_github_fork_repo\` - Fork repo
+2. \`bot_github_create_branch\` - Create branch
+3. \`bot_github_preload_repo\` - Load repo (ONCE!)
+4. \`bot_github_search_cached\` - Find what to change
+5. \`bot_github_replace_text\` or \`bot_github_batch_replace\` - Make changes
+6. \`bot_github_modified_cached\` - Get changed files
+7. \`bot_github_commit_files\` - Commit changes
+8. \`bot_github_create_pr\` - Create PR
+
+**HELPFUL ADDITIONS:**
+- \`bot_github_get_issue_cached\` - Read issue details
+- \`bot_github_get_file_cached\` - Read specific files
+- \`bot_github_tree_cached\` - Explore directory structure
+- \`bot_github_create_or_update_file\` - Add new files (remember 'message'!)
+- \`bot_github_create_comment\` - Comment on issue/PR
+
+**RARELY NEEDED:**
+- Cache management tools (use only if debugging)
+- Repository creation/deletion (usually not part of issue resolution)
+- Workflow triggers (unless CI/CD-related issue)
+
+**💡 PRO TIPS:**
+- Use \`_cached\` tools when available (much faster!)
+- \`bot_github_search_cached\` is your best friend for finding code
+- \`bot_github_batch_replace\` > multiple \`bot_github_replace_text\` calls
+- Always include required parameters (check error messages!)
+- Read tool descriptions via function calling system if unsure
 
 ---
 
