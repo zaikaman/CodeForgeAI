@@ -188,7 +188,7 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
      4. The website should still be complete and usable
      
      Example fallback component:
-     const ImagePlaceholder: React.FC<{altText: string}> = ({altText}) => (
+     const ImagePlaceholder: React.FC<alt: string> = (alt) => (
        <div style={{
          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
          display: 'flex',
