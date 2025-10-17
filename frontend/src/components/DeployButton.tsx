@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import apiClient from '../services/apiClient';
 import { useRealtimeDeployment } from '../hooks/useRealtimeDeployment';
 import './DeployButton.css';
@@ -33,6 +33,9 @@ export function DeployButton({
     timestamp: string;
     message?: string;
   }>>([]);
+  
+  // Ref for auto-scrolling deployment logs
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Use WebSocket for realtime deployment tracking (no more polling!)
   const realtimeDeployment = useRealtimeDeployment({
@@ -192,6 +195,13 @@ export function DeployButton({
     return () => clearTimeout(checkTimeout);
   }, [isDeploying, deploymentProgress.length, projectId, onDeployComplete, onDeployError]);
 
+  // Auto-scroll to bottom when new progress is added
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [deploymentProgress]);
+
   const getButtonText = () => {
     switch (deployStatus) {
       case 'deploying':
@@ -349,36 +359,40 @@ export function DeployButton({
           {/* Progress Steps */}
           <div className="p-4 max-h-64 overflow-y-auto scrollbar-terminal">
             {deploymentProgress.length > 0 ? (
-              deploymentProgress.map((progress, index) => (
-                <div key={index} className="mb-2 flex items-start gap-2">
-                  {progress.status === 'completed' && (
-                    <span className="text-[#00ff41] font-bold">✓</span>
-                  )}
-                  {progress.status === 'running' && (
-                    <span className="text-[#4fc3f7] font-bold animate-pulse">⟳</span>
-                  )}
-                  {progress.status === 'failed' && (
-                    <span className="text-[#ff3333] font-bold">✗</span>
-                  )}
-                  <div className="flex-1">
-                    <span className={`
-                      ${progress.status === 'completed' ? 'text-[#00aa2a]' : ''}
-                      ${progress.status === 'running' ? 'text-[#4fc3f7]' : ''}
-                      ${progress.status === 'failed' ? 'text-[#ff3333]' : ''}
-                    `}>
-                      {progress.step}
-                    </span>
-                    {progress.message && (
-                      <div className="text-[#bdbdbd] text-xs mt-1 ml-4">
-                        {progress.message}
-                      </div>
+              <>
+                {deploymentProgress.map((progress, index) => (
+                  <div key={index} className="mb-2 flex items-start gap-2">
+                    {progress.status === 'completed' && (
+                      <span className="text-[#00ff41] font-bold">✓</span>
                     )}
+                    {progress.status === 'running' && (
+                      <span className="text-[#4fc3f7] font-bold animate-pulse">⟳</span>
+                    )}
+                    {progress.status === 'failed' && (
+                      <span className="text-[#ff3333] font-bold">✗</span>
+                    )}
+                    <div className="flex-1">
+                      <span className={`
+                        ${progress.status === 'completed' ? 'text-[#00aa2a]' : ''}
+                        ${progress.status === 'running' ? 'text-[#4fc3f7]' : ''}
+                        ${progress.status === 'failed' ? 'text-[#ff3333]' : ''}
+                      `}>
+                        {progress.step}
+                      </span>
+                      {progress.message && (
+                        <div className="text-[#bdbdbd] text-xs mt-1 ml-4">
+                          {progress.message}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[#666] text-xs whitespace-nowrap">
+                      {new Date(progress.timestamp).toLocaleTimeString()}
+                    </span>
                   </div>
-                  <span className="text-[#666] text-xs whitespace-nowrap">
-                    {new Date(progress.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))
+                ))}
+                {/* Auto-scroll anchor */}
+                <div ref={logsEndRef} />
+              </>
             ) : (
               <div className="text-[#4fc3f7] flex items-center gap-2">
                 <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
