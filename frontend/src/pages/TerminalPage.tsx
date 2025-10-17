@@ -478,6 +478,31 @@ export const TerminalPage: React.FC = () => {
           setMessages([]);
         }
         
+        // ✅ Load progress messages from last job (if exists)
+        try {
+          const { data: jobData, error: jobError } = await supabase
+            .from('jobs')
+            .select('progress_messages, status')
+            .eq('generation_id', id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (!jobError && jobData?.progress_messages) {
+            console.log(`✅ Loaded ${jobData.progress_messages.length} progress messages from job`);
+            setProgressMessages(jobData.progress_messages);
+            
+            // If job is still processing, resume tracking
+            if (jobData.status === 'processing') {
+              console.log('🔄 Job still processing, resuming tracking...');
+              setIsProcessing(true);
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not load progress messages:', error);
+          // Non-critical error, continue
+        }
+        
         if (generationData.deployment_status) {
           setDeploymentData({
             url: generationData.preview_url,
