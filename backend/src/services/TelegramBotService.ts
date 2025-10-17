@@ -12,7 +12,6 @@ import TelegramBot from 'node-telegram-bot-api';
 import { supabase } from '../storage/SupabaseClient';
 import { randomUUID } from 'crypto';
 import { ChatMemoryManager } from './ChatMemoryManager';
-import { chatQueue } from './ChatQueue';
 
 interface TelegramUser {
   id: string;
@@ -144,8 +143,6 @@ export class TelegramBotService {
             await this.handleStatusCommand(msg);
           } else if (msg.text === '/help') {
             await this.handleHelpCommand(msg);
-          } else if (msg.text === '/background') {
-            await this.handleBackgroundCommand(msg);
           }
         } else {
           // Regular message (not a command)
@@ -212,12 +209,6 @@ export class TelegramBotService {
       await this.handleHelpCommand(msg);
     });
     
-    // /background command - Toggle background mode for next request
-    this.bot.onText(/\/background/, async (msg) => {
-      console.log('[TelegramBot] /background command received');
-      await this.handleBackgroundCommand(msg);
-    });
-    
     // Handle all other messages (chat messages)
     this.bot.on('message', async (msg) => {
       console.log('[TelegramBot] Message received:', msg.text?.substring(0, 50));
@@ -265,8 +256,7 @@ export class TelegramBotService {
         `You're already signed in to CodeForge AI.\n\n` +
         `Send me any message to start coding, or use:\n` +
         `/help - See all commands\n` +
-        `/status - Check your active jobs\n` +
-        `/background - Toggle background mode`
+        `/status - Check your active jobs`
       );
     } else {
       // User needs to sign in
@@ -357,21 +347,18 @@ I can help you with:
 ✅ Code generation (React, Next.js, Vue, etc.)
 ✅ Code modifications and bug fixes
 ✅ GitHub operations (PRs, issues, etc.)
-✅ Background jobs for long tasks
-✅ Real-time chat for quick tasks
+✅ Background job processing
 
 **Commands:**
 /start - Get started
 /login - Link your account
 /status - View active jobs
-/background - Toggle background mode
 /help - Show this help
 
 **Usage:**
 Just send me a message describing what you want to code!
 
-**Background Mode:**
-Use /background to enable background mode for the next request. This is useful for large projects that take time to complete.
+All requests run in **background mode** - you'll get a notification when they're done! 🔔
 
 **Examples:**
 • "Create a React todo app"
@@ -384,77 +371,8 @@ Use /background to enable background mode for the next request. This is useful f
   }
   
   /**
-   * Handle /background command - Toggle background mode
-   */
-  private async handleBackgroundCommand(msg: TelegramBot.Message) {
-    if (!this.bot) return;
-    
-    const chatId = msg.chat.id;
-    const telegramId = msg.from?.id;
-    
-    if (!telegramId) {
-      await this.bot.sendMessage(chatId, '❌ Unable to identify user');
-      return;
-    }
-    
-    // Check if user is linked
-    const telegramUser = await this.getTelegramUser(telegramId);
-    
-    if (!telegramUser) {
-      await this.sendLoginButton(chatId, msg.from);
-      return;
-    }
-    
-    // Toggle background mode preference in database
-    const { data: settings } = await supabase
-      .from('telegram_settings')
-      .select('background_mode')
-      .eq('telegram_user_id', telegramUser.id)
-      .single();
-    
-    // Get current background mode (default to false if not set)
-    const currentBackgroundMode = settings?.background_mode ?? false;
-    const newBackgroundMode = !currentBackgroundMode;
-    
-    console.log(`[Telegram] Toggle background mode for user ${telegramUser.user_id}:`);
-    console.log(`  Current: ${currentBackgroundMode}`);
-    console.log(`  New: ${newBackgroundMode}`);
-    
-    // Upsert settings and verify the result
-    // Use onConflict to specify which column to use for the upsert (telegram_user_id has UNIQUE constraint)
-    const { error: upsertError } = await supabase
-      .from('telegram_settings')
-      .upsert({
-        telegram_user_id: telegramUser.id,
-        background_mode: newBackgroundMode,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'telegram_user_id'
-      });
-    
-    if (upsertError) {
-      console.error('[Telegram] Failed to update background mode:', upsertError);
-      await this.bot.sendMessage(chatId, '❌ Failed to update settings. Please try again.');
-      return;
-    }
-    
-    const emoji = newBackgroundMode ? '🔄' : '⚡';
-    const mode = newBackgroundMode ? 'BACKGROUND' : 'REAL-TIME';
-    const description = newBackgroundMode
-      ? 'Your requests will now run in the background. You\'ll get a notification when they\'re done!'
-      : 'Your requests will now run in real-time (faster for small tasks).';
-    
-    console.log(`[Telegram] Sending message: ${mode} mode activated`);
-    
-    await this.bot.sendMessage(
-      chatId,
-      `${emoji} **${mode} mode activated**\n\n${description}`,
-      { parse_mode: 'Markdown' }
-    );
-  }
-  
-  /**
    * Handle regular chat messages (code requests)
+   * All requests now run in background mode
    */
   private async handleChatMessage(msg: TelegramBot.Message) {
     if (!this.bot) return;
@@ -475,18 +393,9 @@ Use /background to enable background mode for the next request. This is useful f
       return;
     }
     
-    // Get background mode preference
-    const { data: settings } = await supabase
-      .from('telegram_settings')
-      .select('background_mode')
-      .eq('telegram_user_id', telegramUser.id)
-      .single();
-    
-    const backgroundMode = settings?.background_mode ?? false;
-    
     console.log(`[Telegram] Processing message from ${telegramUser.user_id}`);
     console.log(`[Telegram] Message: ${messageText.substring(0, 100)}...`);
-    console.log(`[Telegram] Background mode: ${backgroundMode} (from settings: ${JSON.stringify(settings)})`);
+    console.log(`[Telegram] Mode: BACKGROUND (default)`);
     
     // Send "typing" indicator
     await this.bot.sendChatAction(chatId, 'typing');
@@ -527,138 +436,45 @@ Use /background to enable background mode for the next request. This is useful f
         console.error('Failed to store user message');
       }
       
-      if (backgroundMode) {
-        // Create background job
-        const { data: job, error: jobError } = await supabase
-          .from('background_jobs')
-          .insert({
-            user_id: telegramUser.user_id,
-            session_id: generationId,
-            type: 'agent_task',
-            status: 'pending',
-            user_message: messageText,
-            context: {
-              files: [],
-              fileContents: [],
-              language: 'typescript',
-              telegram_chat_id: chatId, // Store chat ID for notifications
-            },
-            progress: 0,
-          })
-          .select()
-          .single();
-        
-        if (jobError || !job) {
-          console.error('Failed to create background job:', jobError);
-          await this.bot.sendMessage(chatId, '❌ Failed to create background job');
-          return;
-        }
-        
-        console.log(`[Telegram] Background job created: ${job.id}`);
-        
-        // Send confirmation message
-        await this.bot.sendMessage(
-          chatId,
-          `🚀 **Background job started!**\n\n` +
-          `Job ID: \`${job.id}\`\n\n` +
-          `I'm working on your request in the background. ` +
-          `You can continue chatting or use /status to check progress.\n\n` +
-          `I'll notify you when it's done! 🔔`,
-          { parse_mode: 'Markdown' }
-        );
-        
-      } else {
-        // Real-time mode - use ChatQueue
-        const jobId = randomUUID();
-        
-        // Create chat job
-        await chatQueue.enqueue({
-          id: jobId,
-          generationId,
-          userId: telegramUser.user_id,
-          message: messageText,
-          currentFiles: [],
-          language: 'typescript',
-          imageUrls: [],
-        });
-        
-        console.log(`[Telegram] Chat job created: ${jobId}`);
-        
-        // Send initial message
-        const statusMessage = await this.bot.sendMessage(
-          chatId,
-          `⚙️ Processing your request...\n\nJob ID: \`${jobId}\``,
-          { parse_mode: 'Markdown' }
-        );
-        
-        // Poll for job completion
-        let attempts = 0;
-        const maxAttempts = 150; // 150 * 2s = 5 minutes max
-        let completed = false;
-        
-        while (!completed && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          attempts++;
-          
-          const job = await chatQueue.getJob(jobId);
-          
-          if (job) {
-            if (job.status === 'completed') {
-              completed = true;
-              
-              // Edit status message
-              await this.bot.editMessageText(
-                `✅ **Request completed!**\n\nJob ID: \`${jobId}\``,
-                {
-                  chat_id: chatId,
-                  message_id: statusMessage.message_id,
-                  parse_mode: 'Markdown',
-                }
-              );
-              
-              // Send result
-              const summary = job.result?.summary || 'Your request has been completed successfully!';
-              await this.bot.sendMessage(chatId, summary);
-              
-              // If files were generated, send a link to view them
-              if (job.result?.files && job.result.files.length > 0) {
-                const webUrl = `${process.env.FRONTEND_URL || 'https://codeforge-adk.vercel.app'}/terminal/${generationId}`;
-                await this.bot.sendMessage(
-                  chatId,
-                  `📁 **Generated ${job.result.files.length} files**\n\n` +
-                  `View in web app: ${webUrl}`,
-                  { parse_mode: 'Markdown' }
-                );
-              }
-              
-            } else if (job.status === 'error') {
-              completed = true;
-              
-              await this.bot.editMessageText(
-                `❌ **Request failed**\n\nJob ID: \`${jobId}\`\n\nError: ${job.error || 'Unknown error'}`,
-                {
-                  chat_id: chatId,
-                  message_id: statusMessage.message_id,
-                  parse_mode: 'Markdown',
-                }
-              );
-            }
-          }
-        }
-        
-        if (!completed) {
-          await this.bot.editMessageText(
-            `⏱️ **Request timeout**\n\nJob ID: \`${jobId}\`\n\n` +
-            `The request is taking longer than expected. ` +
-            `Try using /background mode for long tasks.`,
-            {
-              chat_id: chatId,
-              message_id: statusMessage.message_id,
-              parse_mode: 'Markdown',
-            }
-          );
-        }
+      // Always use background mode
+      // Create background job
+      const { data: job, error: jobError } = await supabase
+        .from('background_jobs')
+        .insert({
+          user_id: telegramUser.user_id,
+          session_id: generationId,
+          type: 'agent_task',
+          status: 'pending',
+          user_message: messageText,
+          context: {
+            files: [],
+            fileContents: [],
+            language: 'typescript',
+            telegram_chat_id: chatId, // Store chat ID for notifications
+          },
+          progress: 0,
+        })
+        .select()
+        .single();
+      
+      if (jobError || !job) {
+        console.error('Failed to create background job:', jobError);
+        await this.bot.sendMessage(chatId, '❌ Failed to create background job');
+        return;
       }
+      
+      console.log(`[Telegram] Background job created: ${job.id}`);
+      
+      // Send confirmation message
+      await this.bot.sendMessage(
+        chatId,
+        `🚀 **Background job started!**\n\n` +
+        `Job ID: \`${job.id}\`\n\n` +
+        `I'm working on your request in the background. ` +
+        `You can continue chatting or use /status to check progress.\n\n` +
+        `I'll notify you when it's done! 🔔`,
+        { parse_mode: 'Markdown' }
+      );
       
     } catch (error: any) {
       console.error('[Telegram] Error processing message:', error);
