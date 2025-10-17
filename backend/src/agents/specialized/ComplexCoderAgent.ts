@@ -80,6 +80,7 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
   - Must have proper build configuration (Vite, package.json)
   - Must include TypeScript types and interfaces
   - Must use modern framework patterns (components, hooks, state management)
+  - **MUST ALWAYS create a package.json file for EVERY TypeScript project**
   
   If the user requests a simple HTML app, you must:
   1. Respond with an error message explaining this agent only handles TypeScript projects
@@ -90,6 +91,17 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
   {{
     "error": "ComplexCoderAgent can only generate TypeScript applications. For simple HTML/CSS/JS apps, please use the SimpleCoder agent instead. This agent is designed for complex projects using React, Vue, or other TypeScript frameworks."
   }}
+  
+  PACKAGE.JSON REQUIREMENT:
+  Every TypeScript project MUST include a package.json file with:
+  - "name": Project name (kebab-case)
+  - "version": "1.0.0"
+  - "type": "module" (for ES modules)
+  - "scripts": Build, dev, test commands as appropriate
+  - "dependencies": All required packages
+  - "devDependencies": TypeScript, build tools, linters
+  
+  This is NON-NEGOTIABLE. If you're generating TypeScript code, you MUST create package.json.
 </complex_coder_restrictions>
 `;
   
