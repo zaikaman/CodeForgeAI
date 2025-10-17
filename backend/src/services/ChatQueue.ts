@@ -776,15 +776,12 @@ class ChatQueueManager {
         
         if (isReviewWorkflow) {
           // ReviewWorkflow returns { findings, summary, agentsInvolved, overallScore }
+          // Use the full summary which now includes detailed findings
           const reviewSummary = workflowResult.summary || 'Code review completed';
-          const findingsCount = workflowResult.findings?.length || 0;
-          const criticalCount = workflowResult.findings?.filter((f: any) => f.severity === 'critical').length || 0;
-          
-          const detailedSummary = `${reviewSummary}\n\nFound ${findingsCount} issue(s)${criticalCount > 0 ? ` (${criticalCount} critical)` : ''}`;
           
           jobResult = {
             files: [], // Review doesn't modify files
-            summary: detailedSummary,
+            summary: reviewSummary, // Use full detailed summary
             agent: specialistAgent,
             suggestions: workflowResult.findings?.slice(0, 3).map((f: any) => 
               `${f.severity}: ${f.message}${f.file ? ` in ${f.file}` : ''}`

@@ -330,6 +330,38 @@ export class ReviewWorkflow {
       parts.push(`  • ${category}: ${count}`);
     });
 
+    // Add detailed findings for each issue
+    parts.push('');
+    parts.push('═'.repeat(60));
+    parts.push('DETAILED FINDINGS:');
+    parts.push('═'.repeat(60));
+
+    findings.forEach((finding, index) => {
+      const severityIcon = {
+        critical: '❗',
+        high: '⚠️ ',
+        medium: '⚡',
+        low: '💡',
+      }[finding.severity] || '•';
+
+      parts.push('');
+      parts.push(`${severityIcon} [${index + 1}] ${finding.category.toUpperCase()} (${finding.severity})`);
+      parts.push(`    Agent: ${finding.agent}`);
+      
+      if (finding.file) {
+        parts.push(`    File: ${finding.file}${finding.line ? `:${finding.line}` : ''}`);
+      }
+      
+      parts.push(`    Issue: ${finding.message}`);
+      
+      if (finding.suggestion) {
+        parts.push(`    Suggestion: ${finding.suggestion}`);
+      }
+    });
+
+    parts.push('');
+    parts.push('═'.repeat(60));
+
     return parts.join('\n');
   }
 }
