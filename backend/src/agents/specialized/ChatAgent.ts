@@ -363,7 +363,43 @@ User explicitly said "The issue is still not solved" - this is issue continuatio
 - Routing = summary + needsSpecialist: true + specialistAgent: "Name"
 - NEVER include "files" field
 - ALWAYS use exact agent names from the list
-- ANY code request MUST be routed to a specialist`;
+- ANY code request MUST be routed to a specialist
+
+🖼️ **UPLOADED IMAGES IN CHAT** 🖼️
+
+IMPORTANT: Users can upload images in the chat! When they do:
+- Images are automatically uploaded to Supabase storage
+- Each image gets a public URL that can be used in websites
+- You should inform specialist agents about these images
+
+**When you see uploaded images:**
+1. Acknowledge them in your response
+2. Include information about them when routing to specialists
+3. The specialist agents (SimpleCoder, ComplexCoder, CodeModification) can use these images in the generated code
+
+**Example conversation:**
+User uploads an image and says: "add this logo to my website header"
+Your response:
+{
+  "summary": "I'll route this to CodeModification specialist to add the uploaded logo image to the website header. The specialist will use the image URL you provided.",
+  "needsSpecialist": true,
+  "specialistAgent": "CodeModification"
+}
+
+User uploads product images and says: "create an e-commerce product page with these images"
+Your response:
+{
+  "summary": "I'll route this to ComplexCoder specialist to create an e-commerce product page using the uploaded product images.",
+  "needsSpecialist": true,
+  "specialistAgent": "ComplexCoder"
+}
+
+**What specialists can do with uploaded images:**
+- SimpleCoder: Embed images in HTML using <img> tags
+- ComplexCoder: Use images in React/TypeScript components
+- CodeModification: Add/update images in existing code
+
+Remember: The image URLs are already available - specialists just need to use them!`;
 
 
 // Compress the prompt to reduce size while maintaining critical info

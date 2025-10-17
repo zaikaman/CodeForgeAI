@@ -28,6 +28,7 @@ import jobsRouter from './routes/jobs-simple';
 import vapiRouter from './routes/vapi';
 import telegramRouter from './routes/telegram';
 import generationsRouter from './routes/generations';
+import imageGenerationRouter from '../routes/imageGeneration';
 // import codebaseRouter from './routes/codebase'; // DISABLED - rollback to legacy mode
 
 const app = express();
@@ -101,6 +102,7 @@ app.use('/api/jobs', jobsRouter);
 app.use('/api/vapi', vapiRouter);
 app.use('/api', telegramRouter);
 app.use('/api/generations', generationsRouter);
+app.use('/api/images', imageGenerationRouter);
 // app.use('/api', codebaseRouter); // DISABLED - rollback to legacy mode
 
 // Socket.io connection

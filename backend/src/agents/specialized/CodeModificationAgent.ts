@@ -18,6 +18,7 @@ import { generateValidationPrompt, getAIChecklistPrompt } from '../../services/v
 import { getPromptCache } from '../../utils/PromptCache';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import { createImageGenerationTool } from '../../tools/generation/imageGenerationTool';
 import type { GitHubToolsContext } from '../../utils/githubTools';
 
 interface CodeModificationOptions {
@@ -27,6 +28,7 @@ interface CodeModificationOptions {
   currentCode?: string;
   errorContext?: string;
   githubContext?: GitHubToolsContext | null;
+  userId?: string;
 }
 
 /**
@@ -144,6 +146,140 @@ Return JSON with ALL files:
   ]
 }
 
+## IMAGES AND AI GENERATION:
+
+**IMPORTANT:** You have access to TWO types of images:
+
+### 1. UPLOADED IMAGES (User-provided):
+If the user has uploaded images in the chat, you can use them in the code!
+
+When you receive image URLs from the user:
+- These are already uploaded to Supabase storage
+- They are publicly accessible via the provided URLs
+- You can directly embed them in HTML/JSX using <img> tags
+
+Example usage in HTML:
+\`\`\`html
+<img src="[provided-image-url]" alt="User uploaded image" class="responsive-image" />
+\`\`\`
+
+Example usage in React/TypeScript:
+\`\`\`tsx
+<img 
+  src="[provided-image-url]" 
+  alt="User uploaded image" 
+  className="responsive-image"
+/>
+\`\`\`
+
+### 2. AI-GENERATED IMAGES (generate_image tool):
+**CRITICAL**: You can now GENERATE product images using AI when the user needs them!
+
+⚠️ **FORBIDDEN - DO NOT USE:**
+- ❌ Unsplash URLs (unsplash.com, images.unsplash.com)
+- ❌ Lorem Picsum (picsum.photos, loremflickr.com)
+- ❌ Placeholder.com, DummyImage.com
+- ❌ ANY external image URLs or stock photo services
+- ❌ CDN image services
+- ❌ Third-party image hosting
+
+✅ **REQUIRED - ALWAYS USE:**
+- User-uploaded images (if provided in the request)
+- generate_image tool (if images are needed but not provided)
+
+WHEN TO USE generate_image:
+- User requests "add actual images", "use real product photos", "generate images"
+- User wants to replace placeholder images (dummyimage.com, placeholders)
+- Creating e-commerce sites that need product photos
+- Building galleries, portfolios, or visual-heavy websites
+- User asks for specific imagery but hasn't uploaded any
+- **ANY TIME images are needed in the modification**
+
+HOW TO USE generate_image:
+\`\`\`json
+{
+  "name": "generate_image",
+  "arguments": {
+    "prompt": "Professional product photo of red Nike running shoes on white background, studio lighting, front view",
+    "count": 1,
+    "width": 1024,
+    "height": 1024
+  }
+}
+\`\`\`
+
+The tool returns an image URL that you can use IMMEDIATELY in your code:
+\`\`\`html
+<img src="[generated-url]" alt="Product image" />
+\`\`\`
+
+PROMPT TIPS FOR BEST RESULTS:
+- Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"
+- Style keywords: "minimalist", "modern", "studio photo", "e-commerce style"
+- Background: "white background", "natural setting", "solid color backdrop"
+- Lighting: "studio lighting", "natural light", "soft shadows", "dramatic lighting"
+- Quality: "high quality", "detailed", "professional photography"
+
+EXAMPLES:
+- Shoe store: "Professional product photo of running shoes on white background, studio lighting, side angle, high quality"
+- Furniture site: "Modern minimalist chair, white background, soft shadows, front view, e-commerce style"
+- Food website: "Gourmet burger on wooden table, natural lighting, close-up shot, appetizing presentation"
+- Fashion store: "T-shirt mockup on model, white background, professional photography, front view"
+
+WORKFLOW FOR REPLACING PLACEHOLDER IMAGES:
+1. User requests "add actual images" or similar
+2. Identify all placeholder image URLs in the code (e.g., dummyimage.com, unsplash.com)
+3. **CRITICAL**: For EACH product/image, call generate_image tool SEPARATELY with a unique, detailed prompt
+   - If there are 6 products → Call generate_image 6 TIMES with 6 DIFFERENT prompts
+   - DO NOT call once with count: 6 and same prompt - that creates duplicates!
+   - Each call should describe a specific product (color, style, type)
+4. Wait for each image URL to be returned before making the next call
+5. Replace ALL placeholder URLs with the generated image URLs
+6. Ensure proper alt text and responsive styling
+
+EXAMPLE - Replacing 6 placeholder shoe images:
+\`\`\`javascript
+// OLD (placeholders - FORBIDDEN):
+{ id: 'p1', name: 'CloudStride Runner', image: 'https://dummyimage.com/...' }
+{ id: 'p2', name: 'AeroFlex', image: 'https://images.unsplash.com/...' } // ❌ FORBIDDEN
+
+// NEW (AI-generated - REQUIRED):
+// First, call generate_image 6 SEPARATE TIMES with DIFFERENT prompts:
+// Call 1: {"name": "generate_image", "arguments": {"prompt": "Professional product photo of white running shoes, white background, studio lighting", "count": 1}}
+// Call 2: {"name": "generate_image", "arguments": {"prompt": "Professional product photo of black casual sneakers, white background, studio lighting", "count": 1}}
+// Call 3: {"name": "generate_image", "arguments": {"prompt": "Professional product photo of red athletic shoes, white background, studio lighting", "count": 1}}
+// Call 4: {"name": "generate_image", "arguments": {"prompt": "Professional product photo of blue training shoes, white background, studio lighting", "count": 1}}
+// Call 5: {"name": "generate_image", "arguments": {"prompt": "Professional product photo of gray walking shoes, white background, studio lighting", "count": 1}}
+// Call 6: {"name": "generate_image", "arguments": {"prompt": "Professional product photo of brown leather shoes, white background, studio lighting", "count": 1}}
+
+// Then update the code with returned URLs (each call returns 1 unique URL):
+{ id: 'p1', name: 'CloudStride Runner', image: 'https://[supabase-url]/generated/image-1.png' }
+{ id: 'p2', name: 'AeroFlex', image: 'https://[supabase-url]/generated/image-2.png' }
+{ id: 'p3', name: 'SpeedMax', image: 'https://[supabase-url]/generated/image-3.png' }
+{ id: 'p4', name: 'TrailBlazer', image: 'https://[supabase-url]/generated/image-4.png' }
+{ id: 'p5', name: 'ComfortWalk', image: 'https://[supabase-url]/generated/image-5.png' }
+{ id: 'p6', name: 'UrbanStep', image: 'https://[supabase-url]/generated/image-6.png' }
+\`\`\`
+
+**ABSOLUTE RULES FOR IMAGE MODIFICATIONS:**
+1. ❌ NEVER use Unsplash, Picsum, or any external image services
+2. ❌ NEVER use placeholder generators (dummyimage, placeholder.com)
+3. ❌ NEVER keep existing placeholder URLs - they MUST be replaced
+4. ✅ ALWAYS use generate_image tool when images are needed
+5. ✅ ALWAYS replace ALL placeholder images with generated ones
+6. ✅ ALWAYS use uploaded images if user provided them
+7. 🚨 If you include external image URLs, your response will be REJECTED
+
+Common modifications involving images:
+- Replacing placeholder images with AI-generated ones
+- Adding uploaded images to existing galleries
+- Replacing placeholder images with user uploads
+- Creating new image sections with uploaded content
+- Using uploads as hero images or backgrounds
+- Adding product images to e-commerce listings
+
+Remember: Always use the EXACT URL provided - these images are already hosted!
+
 ## QUALITY CHECKLIST:
 Before returning code, verify:
 ✅ All files are included (modified + unchanged)
@@ -154,6 +290,7 @@ Before returning code, verify:
 ✅ Code follows project conventions
 ✅ Changes address the root cause
 ✅ No new issues introduced
+✅ If images provided, they are properly integrated into the code
 `;
 
 export const CodeModificationAgent = async (options?: CodeModificationOptions) => {
@@ -250,6 +387,13 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
     .withModel('gpt-5-nano-2025-08-07')
     .withInstruction(compressedPrompt)
     .withOutputSchema(generationSchema);
+  
+  // Add image generation tool if userId is available
+  if (options?.userId) {
+    const imageGenTool = createImageGenerationTool(options.userId);
+    builder = builder.withTools(imageGenTool);
+    console.log('[CodeModificationAgent] Image generation tool enabled');
+  }
   
   // Add GitHub tools if context is available
   builder = withGitHubIntegration(builder, {

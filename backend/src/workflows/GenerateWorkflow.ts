@@ -776,6 +776,7 @@ ${criticalErrors.length > 15 ? `\n... and ${criticalErrors.length - 15} more cri
         platform: 'validation',
         errorContext: errorContext,
         githubContext: this.githubContext,
+        userId: request.userId,
       })
 
       // Build files context
@@ -1197,17 +1198,22 @@ Return the result as JSON with the following structure:
           await this.emitProgress(agentName, 'started', `📎 Processing ${request.imageUrls.length} attached file(s)...`)
         }
 
+        // Debug: Log userId before agent creation
+        console.log(`[GenerateWorkflow] Creating ${agentName} with userId: ${request.userId}`);
+        
         // Use the appropriate agent
         const { runner } = isSimple
           ? await SimpleCoderAgent({
               language: targetLanguage,
               requirements: request.prompt,
               githubContext: this.githubContext,
+              userId: request.userId,
             })
           : await ComplexCoderAgent({
               language: targetLanguage,
               requirements: request.prompt,
               githubContext: this.githubContext,
+              userId: request.userId,
             })
 
         // Build the message with files if provided
@@ -1424,9 +1430,10 @@ Return the result as JSON with the following structure:
         console.log(`\n[STEP 2] CodeModificationAgent - Attempt ${attempt}/${MAX_RETRIES}`)
 
         // Combine error contexts: both from request and from previous attempt
+        // CRITICAL: Escape error contexts to prevent ADK template variable errors
         const combinedErrorContext = [
-          request.errorContext, // Error context from preview/deployment errors
-          lastError, // Error from previous retry attempt
+          request.errorContext ? escapeAdkTemplateVariables(request.errorContext) : null,
+          lastError ? escapeAdkTemplateVariables(lastError) : null,
         ]
           .filter(Boolean)
           .join('\n\n---\n\n')
@@ -1438,6 +1445,7 @@ Return the result as JSON with the following structure:
           platform: request.platform || 'webcontainer',
           errorContext: combinedErrorContext || undefined,
           githubContext: this.githubContext,
+          userId: request.userId,
         })
 
         // Build context message with current files and modification request
@@ -1446,10 +1454,39 @@ Return the result as JSON with the following structure:
         // CRITICAL: Escape curly braces in user prompt to prevent ADK template errors
         const escapedPrompt = escapeAdkTemplateVariables(request.prompt)
 
+        // Add information about uploaded images if present
+        const imageInfo =
+          request.imageUrls && request.imageUrls.length > 0
+            ? `
+
+📷 UPLOADED IMAGES (${request.imageUrls.length}):
+The user has uploaded ${request.imageUrls.length} image(s) that you can use in your modifications.
+These images are already hosted on Supabase storage and are publicly accessible.
+
+Image URLs:
+${request.imageUrls.map((url: string, idx: number) => `${idx + 1}. ${url}`).join('\n')}
+
+IMPORTANT: You can directly use these URLs in your code:
+- In HTML: <img src="[URL]" alt="User uploaded image" />
+- In React/TSX: <img src="[URL]" alt="User uploaded image" className="..." />
+- In CSS: background-image: url('[URL]');
+
+Replace [URL] with the actual image URL from the list above.
+
+Remember:
+- Use the EXACT URLs provided above
+- Do NOT modify or generate fake URLs
+- Add appropriate alt text and styling
+- Make images responsive (max-width: 100%, height: auto)
+- Consider the user's request about how to integrate these images
+
+`
+            : '';
+
         let contextMessage = `Modify the following codebase according to the user's request.
 
 USER REQUEST: ${escapedPrompt}
-
+${imageInfo}
 CURRENT CODEBASE (${request.currentFiles.length} files):
 
 `
@@ -1667,6 +1704,33 @@ REQUIRED FIXES:
 Please generate the COMPLETE project again with all files, ensuring valid JSON format.\n\n`
         : '';
 
+    // Add information about uploaded images if present
+    const imageInfo =
+      request.imageUrls && request.imageUrls.length > 0
+        ? `\n\n📷 UPLOADED IMAGES (${request.imageUrls.length}):
+The user has uploaded ${request.imageUrls.length} image(s) that you can use in your code.
+These images are already hosted on Supabase storage and are publicly accessible.
+
+Image URLs:
+${request.imageUrls.map((url: string, idx: number) => `${idx + 1}. ${url}`).join('\n')}
+
+IMPORTANT: You can directly use these URLs in your code:
+- In HTML: <img src="[URL]" alt="User uploaded image" />
+- In React/TSX: <img src="[URL]" alt="User uploaded image" className="..." />
+- In CSS: background-image: url('[URL]');
+
+Replace [URL] with the actual image URL from the list above.
+
+Remember:
+- Use the EXACT URLs provided above
+- Do NOT modify or generate fake URLs
+- Add appropriate alt text and styling
+- Make images responsive (max-width: 100%, height: auto)
+- Consider the user's request about how to use these images
+
+`
+        : '';
+
     return `${errorFeedback}
 
 === RECENT CONVERSATION ===
@@ -1674,7 +1738,7 @@ ${request.conversationHistory || ''}
 === END HISTORY ===
 
 USER REQUEST: ${request.prompt}
-
+${imageInfo}
 ${request.projectContext ? `\nPROJECT CONTEXT:\n${request.projectContext}` : ''}
 
 CURRENT CODEBASE (${request.currentFiles?.length || 0} files):

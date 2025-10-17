@@ -767,6 +767,7 @@ class ChatQueueManager {
             imageUrls: job.imageUrls,
             currentFiles: job.currentFiles || [], // Pass existing files for doc-only requests
             errorContext: job.errorContext, // Pass error context for better fixes
+            userId: job.userId, // CRITICAL: Pass userId for image generation tool
           });
         }
         

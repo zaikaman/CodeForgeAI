@@ -8,12 +8,14 @@ import { AgentBuilder } from '@iqai/adk';
 import { generationSchema } from '../../schemas/generation-schema';
 import { SIMPLE_CODER_PROMPT } from '../../prompts/simple-coder-prompt';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import { createImageGenerationTool } from '../../tools/generation/imageGenerationTool';
 import type { GitHubToolsContext } from '../../utils/githubTools';
 
 interface SimpleCoderOptions {
   language?: string;
   requirements?: string;
   githubContext?: GitHubToolsContext | null;
+  userId?: string;
 }
 
 export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
@@ -37,6 +39,13 @@ export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
     .withModel('gpt-5-nano-2025-08-07')
     .withInstruction(finalPrompt)
     .withOutputSchema(generationSchema);
+  
+  // Add image generation tool if userId is available
+  if (options?.userId) {
+    const imageGenTool = createImageGenerationTool(options.userId);
+    builder = builder.withTools(imageGenTool);
+    console.log('[SimpleCoderAgent] Image generation tool enabled');
+  }
   
   // Add GitHub tools if context is available
   builder = withGitHubIntegration(builder, {

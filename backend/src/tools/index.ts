@@ -22,6 +22,9 @@ export * from './analysis/promptParserTool'
 export * from './integrations/githubMcpTool'
 export * from './integrations/sonarqubeMcpTool'
 
+// Generation Tools
+export * from './generation/imageGenerationTool'
+
 /**
  * Tool categories for discovery
  */
@@ -36,6 +39,7 @@ export const TOOL_CATEGORIES = {
   TESTING: ['testGenTool', 'testExecutorTool'],
   ANALYSIS: ['complexityCalculator', 'promptParserTool'],
   INTEGRATIONS: ['githubMcpTool', 'sonarqubeMcpTool'],
+  GENERATION: ['imageGenerationTool'],
 } as const
 
 /**
@@ -166,6 +170,21 @@ export const TOOL_METADATA = {
       'Check quality gates',
       'List issues',
       'Generate quality reports',
+    ],
+  },
+
+  // Generation tools
+  imageGenerationTool: {
+    name: 'Image Generator',
+    description: 'Generate AI images for websites using Stable Diffusion',
+    category: 'GENERATION',
+    capabilities: [
+      'Generate product photos',
+      'Create hero images',
+      'Generate backgrounds',
+      'Create visual content',
+      'Multiple image generation',
+      'Automatic cloud upload',
     ],
   },
 } as const

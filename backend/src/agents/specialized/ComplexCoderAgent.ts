@@ -11,6 +11,7 @@ import { generateValidationPrompt, getAIChecklistPrompt } from '../../services/v
 import { getPromptCache } from '../../utils/PromptCache';
 import { smartCompress, getCompressionStats } from '../../utils/PromptCompression';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
+import { createImageGenerationTool } from '../../tools/generation/imageGenerationTool';
 import type { GitHubToolsContext } from '../../utils/githubTools';
 
 interface ComplexCoderOptions {
@@ -19,6 +20,7 @@ interface ComplexCoderOptions {
   platform?: string;
   requirements?: string;
   githubContext?: GitHubToolsContext | null;
+  userId?: string;
 }
 
 export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
@@ -86,11 +88,113 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
 </complex_coder_restrictions>
 `;
   
+  // Add images and generation support section
+  const imagesAndGenerationSupport = `
+
+<images_and_generation>
+  **IMPORTANT:** You have access to TWO types of images in your TypeScript/React projects:
+  
+  1. UPLOADED IMAGES (User-provided):
+     - If user uploaded images in chat, use them in your components
+     - Already hosted on Supabase storage
+     - Publicly accessible via provided URLs
+     - Just use the exact URL in <img> tags or CSS
+  
+  2. AI-GENERATED IMAGES (generate_image tool):
+     **CRITICAL**: You can now GENERATE product images using AI!
+     
+     ⚠️ **FORBIDDEN - DO NOT USE:**
+     - ❌ Unsplash URLs (unsplash.com, images.unsplash.com)
+     - ❌ Lorem Picsum (picsum.photos, loremflickr.com)
+     - ❌ Placeholder.com
+     - ❌ DummyImage.com
+     - ❌ ANY external image URLs or CDNs
+     - ❌ Stock photo websites
+     
+     ✅ **REQUIRED - ALWAYS USE:**
+     - User-uploaded images (if provided)
+     - generate_image tool (if images needed)
+     
+     WHEN TO USE generate_image:
+     - User needs product images but has none (e.g., "shoe store", "furniture site")
+     - Creating e-commerce, portfolio, or visual-heavy React apps
+     - User asks for "generate images", "create product photos"
+     - Building landing pages that need hero images or backgrounds
+     - **ANY TIME images are needed and user hasn't uploaded any**
+     
+     HOW TO USE generate_image:
+     {
+       "name": "generate_image",
+       "arguments": {
+         "prompt": "Professional product photo of red Nike running shoes on white background, studio lighting, front view",
+         "count": 1,
+         "width": 1024,
+         "height": 1024
+       }
+     }
+     
+     The tool returns an image URL that you can use in your React components.
+     Example React component structure:
+     - Import React
+     - Create functional component with props
+     - Use img tag with src={{generated-url}}, alt, and className props
+     - Return JSX with proper styling
+     
+     PROMPT TIPS:
+     - Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"
+     - Style keywords: "minimalist", "modern", "studio photo", "e-commerce style"
+     - Background: "white background", "natural setting", "solid color"
+     - Lighting: "studio lighting", "natural light", "soft shadows"
+     
+     EXAMPLES:
+     - Shoe store: "Professional product photo of running shoes on white background, studio lighting"
+     - Furniture site: "Modern minimalist chair, white background, soft shadows, front view"
+     - Food website: "Gourmet burger on wooden table, natural lighting, close-up shot"
+     - Fashion store: "T-shirt mockup on model, white background, professional photography"
+     
+     WORKFLOW:
+     1. User requests a TypeScript/React website (e.g., "shoe store app")
+     2. If no images uploaded → **MUST** use generate_image to create product images
+     3. **CRITICAL**: Call generate_image tool **MULTIPLE TIMES** (3-6 calls) with **DIFFERENT PROMPTS**
+        - Each call should generate 1 image with a UNIQUE product description
+        - Example for shoe store:
+          * Call 1: generate_image with prompt "Professional product photo of red Nike running shoes..."
+          * Call 2: generate_image with prompt "Professional product photo of black leather dress shoes..."
+          * Call 3: generate_image with prompt "Professional product photo of white sneakers..."
+        - DO NOT call once with count > 1 and same prompt - that creates duplicates!
+     4. Wait for each image URL to be returned before making the next call
+     5. Embed ALL returned URLs in your React components with proper product names
+     6. Style them properly with Tailwind or CSS modules
+     
+     TypeScript types for images:
+     - Create ProductImageProps interface with: src (string), alt (string), className (optional string)
+     - Create ProductImage component with React.FC<ProductImageProps> type
+     - Component receives props: src, alt, className
+     - Render img element with received props and loading="lazy" attribute
+     
+     **ABSOLUTE RULES:**
+     1. ❌ NEVER use Unsplash, Picsum, or any external image services
+     2. ❌ NEVER use placeholder image generators
+     3. ✅ ALWAYS use generate_image tool when images are needed
+     4. ✅ ALWAYS use uploaded images if user provided them
+     5. 🚨 If you include external image URLs, your response will be REJECTED
+     
+     Remember: 
+     - Use uploaded images if provided by user
+     - **MUST** generate images when user needs visuals but has none
+     - Always use EXACT URLs returned by tools
+     - Add proper TypeScript types
+     - Consider lazy loading for performance
+     - **NO external image services allowed**
+</images_and_generation>
+`;
+
   // Apply smart compression
   const combinedPrompt = enhancedPrompt + 
                          '\n\n' + escapedValidationRules + 
                          '\n\n' + escapedChecklist +
-                         '\n\n' + typeScriptOnlyRule;
+                         '\n\n' + typeScriptOnlyRule +
+                         '\n\n' + imagesAndGenerationSupport;
   
   const finalPrompt = smartCompress(combinedPrompt);
   
@@ -108,6 +212,13 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
     .withModel('gpt-5-nano-2025-08-07')
     .withInstruction(finalPrompt)
     .withOutputSchema(generationSchema);
+  
+  // Add image generation tool if userId is available
+  if (options?.userId) {
+    const imageGenTool = createImageGenerationTool(options.userId);
+    builder = builder.withTools(imageGenTool);
+    console.log('[ComplexCoderAgent] Image generation tool enabled');
+  }
   
   // Add GitHub tools if context is available
   builder = withGitHubIntegration(builder, {
