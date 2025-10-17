@@ -489,6 +489,13 @@ QUALITY CRITERIA:
 
 ## 📊 RESPONSE FORMAT
 
+**⚠️ IMPORTANT: For optional fields like \`validation\` and \`metrics\`, you can:**
+- Return \`null\` if not applicable yet (e.g., still analyzing, haven't created PR yet)
+- Return a complete object when ready (e.g., after creating PR, include validation checklist)
+- Omit the field entirely if not needed
+
+**DO NOT return partial objects with null values inside!** Either return full object or return null/omit field.
+
 Your final response MUST include:
 
 \`\`\`json

@@ -66,7 +66,7 @@ const githubAgentResponseSchema = z.object({
     modifiedTests: z.boolean().describe('Did you modify test files if needed?'),
     modifiedDocs: z.boolean().describe('Did you modify documentation?'),
     issueFullySolved: z.boolean().describe('Is the issue completely solved (code + tests + docs)?'),
-  }).optional().describe('Validation checklist - REQUIRED when creating PRs or solving issues'),
+  }).optional().nullable().describe('Validation checklist - REQUIRED when creating PRs or solving issues. Return null if not applicable yet.'),
   prCreated: z.object({
     number: z.number(),
     url: z.string(),
@@ -84,7 +84,7 @@ const githubAgentResponseSchema = z.object({
     toolCallsExpected: z.number().optional().describe('Expected number of tool calls (for optimization)'),
     efficiency: z.string().describe('Efficiency percentage (expected / actual)'),
     redundantOperations: z.number().optional().describe('Number of redundant operations detected'),
-  }).optional().describe('Performance metrics for optimization tracking'),
+  }).optional().nullable().describe('Performance metrics for optimization tracking. Return null if not applicable yet.'),
 });
 
 export const GitHubAgent = async (
