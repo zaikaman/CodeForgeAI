@@ -186,6 +186,60 @@ export function createCachedGitHubTools(_octokit: Octokit) {
     }),
 
     /**
+     * Create new file in local cache
+     */
+    createTool({
+      name: 'bot_github_create_file_cached',
+      description: `Create a NEW file in local cache before committing.
+        This is MUCH MORE EFFICIENT than bot_github_create_or_update_file because:
+        1. It doesn't create an immediate commit (can batch with other changes)
+        2. Multiple new files can be created and committed together with bot_github_commit_files
+        3. Changes are local until you explicitly commit them
+        
+        Use this when:
+        - Creating new components, utilities, config files, etc.
+        - Adding multiple files that should be committed together
+        - Want to preview/stage changes before committing
+        
+        After creating files, use bot_github_modified_cached to see all changes,
+        then bot_github_commit_files to commit everything at once.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner (e.g., "codeforge-ai-bot")'),
+        repo: z.string().describe('Repository name'),
+        path: z.string().describe('File path (e.g., "src/components/NewComponent.tsx")'),
+        content: z.string().describe('Complete file content'),
+        branch: z.string().optional().describe('Branch name (default: main)'),
+        description: z.string().optional().describe('What is this file for? (for logging)'),
+      }),
+      fn: async (args) => {
+        try {
+          // Use editFile with empty oldContent to create new file
+          const created = await cache.editFile(
+            args.owner,
+            args.repo,
+            args.path,
+            '', // Empty oldContent means "create new file"
+            args.content,
+            args.branch || 'main'
+          );
+
+          return {
+            success: true,
+            path: args.path,
+            size: Buffer.byteLength(created),
+            message: `✅ Created ${args.path} in local cache${args.description ? ': ' + args.description : ''}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to create file ${args.path}: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
      * Replace text in file (helper tool - combines get + edit)
      * This tool automates the process of reading a file, finding text, replacing it, and saving
      */
