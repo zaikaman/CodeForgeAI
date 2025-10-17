@@ -318,7 +318,6 @@ const codeForgeWorkflow = AgentBuilder
       specInterpreter,
       codeGenerator,
       bugHunter,
-      refactorGuru,
       securitySentinel,
       performanceProfiler,
       testCrafter,

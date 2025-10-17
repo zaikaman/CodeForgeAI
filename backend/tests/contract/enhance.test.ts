@@ -312,7 +312,7 @@ function add(a, b) {
       expect(agents.length).toBeGreaterThan(1)
 
       // Should include specialized agents for different enhancement types
-      const expectedAgents = ['RefactorGuru', 'PerformanceProfiler', 'DocWeaver']
+      const expectedAgents = ['PerformanceProfiler', 'DocWeaver', 'SecuritySentinel']
       const hasSpecializedAgent = expectedAgents.some(agent =>
         agents.some((a: string) => a.includes(agent))
       )

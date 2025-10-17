@@ -140,7 +140,7 @@ export class AgentRouterService {
         selectedAgents = ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler'];
       } else if (analysis.includes('refactor') || analysis.includes('optimize') || analysis.includes('improve')) {
         workflow = 'enhance';
-        selectedAgents = ['RefactorGuru', 'PerformanceProfiler'];
+        selectedAgents = ['PerformanceProfiler', 'SecuritySentinel'];
       }
     }
 
@@ -245,7 +245,7 @@ export class AgentRouterService {
     if (reviewCount > generateCount && reviewCount > enhanceCount) {
       return {
         workflow: 'review',
-        selectedAgents: ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler', 'RefactorGuru'],
+        selectedAgents: ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler'],
         reasoning: 'User wants to review/analyze existing code',
         suggestions: [
           'Would you like to auto-fix the detected issues?',
@@ -258,7 +258,7 @@ export class AgentRouterService {
     if (enhanceCount > generateCount && enhanceCount > reviewCount) {
       return {
         workflow: 'enhance',
-        selectedAgents: ['RefactorGuru', 'PerformanceProfiler', 'SecuritySentinel'],
+        selectedAgents: ['PerformanceProfiler', 'SecuritySentinel'],
         reasoning: 'User wants to refactor/optimize existing code',
         suggestions: [
           'Preview the optimized code?',
@@ -395,7 +395,7 @@ export class AgentRouterService {
       code: request.currentFiles || [],
       language: params?.language, // Auto-detect from file extensions
       improvements: request.message,
-      agents: params?.agents || ['RefactorGuru'],
+      agents: params?.agents || ['PerformanceProfiler', 'SecuritySentinel'],
     });
   }
 

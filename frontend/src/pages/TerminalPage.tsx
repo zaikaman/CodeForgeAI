@@ -864,7 +864,6 @@ export const TerminalPage: React.FC = () => {
       'LeadEngineer': '◆',
       'CodeGenerator': '▣',
       'BugHunter': '▲',
-      'RefactorGuru': '▼',
       'SecuritySentinel': '◈',
       'PerformanceProfiler': '◉',
       'TestCrafter': '◎',

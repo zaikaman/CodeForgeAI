@@ -11,7 +11,7 @@ import { describe, it, beforeAll, afterAll } from '@jest/globals'
 
 describe('Enhancement Workflow - Integration Test', () => {
   beforeAll(async () => {
-    // TODO: Initialize enhancement agents (RefactorGuru, PerformanceProfiler, DocWeaver)
+    // TODO: Initialize enhancement agents (PerformanceProfiler, SecuritySentinel, DocWeaver)
     throw new Error('Integration test not implemented yet - this is expected (TDD)')
   })
 

@@ -26,7 +26,6 @@ You are a **manager**, not a worker. Your job is to:
   - Rule-based auto-fixing
 
 **Code Improvement:**
-- **RefactorGuruAgent**: Improves code structure, applies SOLID principles
 - **SecuritySentinelAgent**: Scans for security vulnerabilities
 - **PerformanceProfilerAgent**: Identifies performance bottlenecks
 - **DocWeaverAgent**: Generates comprehensive documentation

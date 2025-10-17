@@ -39,7 +39,6 @@ export enum AgentRole {
   SPEC_INTERPRETER = 'SPEC_INTERPRETER',
   CODE_GENERATOR = 'CODE_GENERATOR',
   BUG_HUNTER = 'BUG_HUNTER',
-  REFACTOR_GURU = 'REFACTOR_GURU',
   SECURITY_SENTINEL = 'SECURITY_SENTINEL',
   PERFORMANCE_PROFILER = 'PERFORMANCE_PROFILER',
   TEST_CRAFTER = 'TEST_CRAFTER',
@@ -54,7 +53,6 @@ const DEFAULT_MODELS = {
   [AgentRole.SPEC_INTERPRETER]: 'gpt-5-nano-2025-08-07',
   [AgentRole.CODE_GENERATOR]: 'gpt-5-nano-2025-08-07',
   [AgentRole.BUG_HUNTER]: 'gpt-5-nano-2025-08-07',
-  [AgentRole.REFACTOR_GURU]: 'gpt-5-nano-2025-08-07',
   [AgentRole.SECURITY_SENTINEL]: 'gpt-5-nano-2025-08-07',
   [AgentRole.PERFORMANCE_PROFILER]: 'gpt-5-nano-2025-08-07',
   [AgentRole.TEST_CRAFTER]: 'gpt-5-nano-2025-08-07',
@@ -165,13 +163,6 @@ export class AgentFactory {
   }
 
   /**
-   * Create the Refactor Guru Agent
-   */
-  async createRefactorGuruAgent(customConfig?: Partial<AgentConfig>): Promise<Agent> {
-    return this.createAgentByRole(AgentRole.REFACTOR_GURU, customConfig)
-  }
-
-  /**
    * Create the Security Sentinel Agent
    */
   async createSecuritySentinelAgent(customConfig?: Partial<AgentConfig>): Promise<Agent> {
@@ -234,7 +225,6 @@ export class AgentFactory {
       AgentRole.BUG_HUNTER,
       AgentRole.SECURITY_SENTINEL,
       AgentRole.PERFORMANCE_PROFILER,
-      AgentRole.REFACTOR_GURU,
     ])
   }
 
@@ -266,12 +256,6 @@ export class AgentFactory {
         model: DEFAULT_MODELS[AgentRole.BUG_HUNTER],
         systemPrompt: `You are a Bug Hunter Agent. Your mission is to find bugs and security vulnerabilities in code. You will be given a piece of code and must analyze it for potential issues using pattern matching and AST analysis.`,
         tools: ['codeParseTool', 'astQueryTool', 'patternMatcherTool'],
-      },
-      [AgentRole.REFACTOR_GURU]: {
-        name: 'RefactorGuruAgent',
-        model: DEFAULT_MODELS[AgentRole.REFACTOR_GURU],
-        systemPrompt: `You are a Refactor Guru Agent. You suggest refactorings to improve code quality, readability, and maintainability. You must use the patternMatcherTool to identify areas for improvement and complexityCalculator to measure code complexity.`,
-        tools: ['patternMatcherTool', 'complexityCalculator', 'astQueryTool'],
       },
       [AgentRole.SECURITY_SENTINEL]: {
         name: 'SecuritySentinelAgent',

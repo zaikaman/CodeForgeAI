@@ -41,7 +41,7 @@
 **Technical Approach**: 
 - **Architecture**: Monolithic Node.js backend with modular agent system, thin clients (CLI/Web/VSCode)
 - **AI Framework**: ADK-TS v2+ with hierarchical multi-agent workflows using OpenAI gpt-5-nano-2025-08-07 exclusively
-- **Agent System**: Lead orchestrator + 8 specialized agents (SpecInterpreter, CodeGenerator, BugHunter, RefactorGuru, SecuritySentinel, PerformanceProfiler, TestCrafter, DocWeaver) with debate-driven consensus
+- **Agent System**: Lead orchestrator + 7 specialized agents (SpecInterpreter, CodeGenerator, BugHunter, SecuritySentinel, PerformanceProfiler, TestCrafter, DocWeaver) with debate-driven consensus
 - **Code Intelligence**: ts-morph for AST parsing/generation, local vector embeddings via @xenova/transformers
 - **Interfaces**: Commander.js CLI, React/Vite web UI with Monaco editor, VS Code extension
 - **Storage**: Local-first with lowdb (JSON file persistence), no external database
@@ -120,7 +120,6 @@ backend/
 │   │   │   ├── SpecInterpreterAgent.ts
 │   │   │   ├── CodeGeneratorAgent.ts
 │   │   │   ├── BugHunterAgent.ts
-│   │   │   ├── RefactorGuruAgent.ts
 │   │   │   ├── SecuritySentinelAgent.ts
 │   │   │   ├── PerformanceProfilerAgent.ts
 │   │   │   ├── TestCrafterAgent.ts
@@ -412,7 +411,6 @@ vercel.json                        # Vercel deployment config
    - Implement SpecInterpreterAgent
    - Implement CodeGeneratorAgent
    - Implement BugHunterAgent
-   - Implement RefactorGuruAgent
    - Implement SecuritySentinelAgent
    - Implement PerformanceProfilerAgent
    - Implement TestCrafterAgent

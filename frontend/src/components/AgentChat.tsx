@@ -115,7 +115,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       'SpecInterpreter': '◇',
       'CodeGenerator': '▣',
       'BugHunter': '▲',
-      'RefactorGuru': '▼',
       'SecuritySentinel': '◈',
       'PerformanceProfiler': '◉',
       'TestCrafter': '◎',

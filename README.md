@@ -201,7 +201,6 @@ CodeForge AI employs 10+ specialized AI agents, each with unique expertise:
 |-------|------|-----------|
 | 🧪 **Test Crafter** | Tester | Comprehensive test generation |
 | 📚 **Doc Weaver** | Writer | Documentation and comments |
-| ♻️ **Refactor Guru** | Architect | Code structure and design patterns |
 | 🐙 **GitHub Agent** | Integrator | Repository operations and analysis |
 
 ---

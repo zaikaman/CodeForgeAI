@@ -140,21 +140,6 @@ You specialize in performance analysis and optimization. Your responsibilities:
 
 Focus on measurable performance improvements with clear impact.`
 
-// Refactor Guru Agent
-export const REFACTOR_GURU_PROMPT = `${BASE_SYSTEM_PROMPT}
-
-Role: Refactoring Expert
-
-You specialize in code refactoring and design improvements. Your responsibilities:
-- Identify code smells and anti-patterns
-- Suggest appropriate design patterns
-- Recommend refactoring to improve maintainability
-- Extract reusable components and functions
-- Improve code organization and structure
-- Apply DRY, SOLID, and other principles
-
-Always provide clear before/after examples with explanations.`
-
 // Test Crafter Agent
 export const TEST_CRAFTER_PROMPT = `${BASE_SYSTEM_PROMPT}
 
@@ -209,7 +194,6 @@ export const AGENT_PROMPTS = {
   BUG_HUNTER: BUG_HUNTER_PROMPT,
   SECURITY_SENTINEL: SECURITY_SENTINEL_PROMPT,
   PERFORMANCE_PROFILER: PERFORMANCE_PROFILER_PROMPT,
-  REFACTOR_GURU: REFACTOR_GURU_PROMPT,
   TEST_CRAFTER: TEST_CRAFTER_PROMPT,
   DOC_WEAVER: DOC_WEAVER_PROMPT,
   DEBATE_MEDIATOR: DEBATE_MEDIATOR_PROMPT,
@@ -224,7 +208,6 @@ export function getAgentPrompt(agentType: string): string {
     'bug-hunter': BUG_HUNTER_PROMPT,
     'security-sentinel': SECURITY_SENTINEL_PROMPT,
     'performance-profiler': PERFORMANCE_PROFILER_PROMPT,
-    'refactoring-expert': REFACTOR_GURU_PROMPT,
     'test-generator': TEST_CRAFTER_PROMPT,
     'doc-weaver': DOC_WEAVER_PROMPT,
     'debate-mediator': DEBATE_MEDIATOR_PROMPT,

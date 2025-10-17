@@ -253,11 +253,6 @@ Result: Complete website with AI-generated product images!`}</pre>
             </div>
             
             <div className="agent-card">
-              <h3>♻️ Refactor Guru</h3>
-              <p>Improves code structure, maintainability, and design patterns.</p>
-            </div>
-            
-            <div className="agent-card">
               <h3>✔️ Code Validator</h3>
               <p>Ensures code follows language specifications and syntax rules.</p>
             </div>

@@ -7,7 +7,6 @@ import { ComplexCoderAgent } from '../agents/specialized/ComplexCoderAgent'
 import { CodeModificationAgent } from '../agents/specialized/CodeModificationAgent'
 import { TestCrafterAgent } from '../agents/specialized/TestCrafterAgent'
 import { DocWeaverAgent } from '../agents/specialized/DocWeaverAgent'
-import { RefactorGuruAgent } from '../agents/specialized/RefactorGuruAgent'
 import { SecuritySentinelAgent } from '../agents/specialized/SecuritySentinelAgent'
 import { PerformanceProfilerAgent } from '../agents/specialized/PerformanceProfilerAgent'
 import { detectLanguageFromFiles } from '../services/preview/DockerfileTemplates'
@@ -93,7 +92,7 @@ export class GenerateWorkflow {
    * 2. If analysis only (DocWeaver/TestCrafter/etc with existing code): Skips SpecInterpreter, uses files directly.
    * 3. Validates the generated code using CodeValidatorAgent (if enabled).
    * 4. If issues found, uses CodeFixerAgent to fix them (with retry logic).
-   * 5. Executes selected specialized agents (TestCrafter, DocWeaver, RefactorGuru, SecuritySentinel, PerformanceProfiler).
+   * 5. Executes selected specialized agents (TestCrafter, DocWeaver, SecuritySentinel, PerformanceProfiler).
    * 6. Returns structured response with all results.
    * @param request The generation request containing the prompt, agents array, and options.
    * @returns An object containing the generated code, tests, documentation, security report, performance report, validation results, and metadata.
@@ -134,7 +133,6 @@ export class GenerateWorkflow {
       const analysisOnlyAgents = [
         'DocWeaver',
         'TestCrafter',
-        'RefactorGuru',
         'SecuritySentinel',
         'PerformanceProfiler',
       ]
@@ -455,41 +453,7 @@ export class GenerateWorkflow {
         })
       }
 
-      // Step 5: Refactor code if RefactorGuru agent is selected
-      const shouldRefactor = request.agents && request.agents.includes('RefactorGuru')
-      if (shouldRefactor) {
-        await this.emitProgress(
-          'RefactorGuru',
-          'started',
-          'Analyzing code for refactoring opportunities and applying SOLID principles...'
-        )
-
-        const refactorResult = await this.refactorCode({
-          files: codeResult.files,
-          requirements,
-        })
-
-        if (refactorResult.improved) {
-          codeResult.files = refactorResult.files
-          await this.emitProgress(
-            'RefactorGuru',
-            'completed',
-            refactorResult.summary || 'Applied code refactoring improvements'
-          )
-          agentThoughts.push({
-            agent: 'RefactorGuru',
-            thought: refactorResult.summary || 'Applied code refactoring improvements',
-          })
-        } else {
-          await this.emitProgress(
-            'RefactorGuru',
-            'completed',
-            'Code already follows best practices, no refactoring needed'
-          )
-        }
-      }
-
-      // Step 6: Analyze security if SecuritySentinel agent is selected
+      // Step 5: Analyze security if SecuritySentinel agent is selected
       let securityReport = null
       const shouldAnalyzeSecurity = request.agents && request.agents.includes('SecuritySentinel')
       if (shouldAnalyzeSecurity) {
@@ -1950,60 +1914,6 @@ if __name__ == '__main__':
 
       default:
         return `// Generated tests for: ${language}\n// TODO: Implement comprehensive tests`
-    }
-  }
-
-  private async refactorCode(request: any): Promise<any> {
-    try {
-      console.log('Calling RefactorGuruAgent to suggest code improvements')
-
-      const { runner } = await RefactorGuruAgent({
-        githubContext: this.githubContext,
-      })
-
-      // Combine all files for analysis
-      const codeToAnalyze = request.files
-        .map((f: any) => `// File: ${f.path}\n${f.content}`)
-        .join('\n\n')
-
-      const refactorPrompt = `Analyze the following code and suggest refactoring improvements:
-
-${codeToAnalyze}
-
-Requirements:
-${request.requirements?.requirements ? request.requirements.requirements.join('\n- ') : 'N/A'}
-
-Please provide:
-1. Identified code smells and anti-patterns
-2. Specific refactoring recommendations
-3. Improved code following SOLID principles
-4. Better naming conventions if needed
-
-Return the result as JSON with the following structure:
-{
-  "improved": true,
-  "files": [{"path": "...", "content": "..."}],
-  "summary": "Applied X refactoring improvements including...",
-  "improvements": ["improvement 1", "improvement 2"]
-}`
-
-      const response = (await runner.ask(refactorPrompt)) as string
-      console.log('Response from RefactorGuruAgent:', response)
-
-      // Parse response
-      try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[0])
-        }
-      } catch (parseError) {
-        console.warn('Cannot parse JSON from RefactorGuruAgent')
-      }
-
-      return { improved: false, files: request.files, summary: 'No refactoring needed' }
-    } catch (error) {
-      console.error('Code refactoring error:', error)
-      return { improved: false, files: request.files, summary: 'Refactoring skipped due to error' }
     }
   }
 

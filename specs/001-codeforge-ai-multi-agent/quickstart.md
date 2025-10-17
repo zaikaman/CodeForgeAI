@@ -230,7 +230,6 @@ codeforge enhance ~/test-project/src/bug.ts \
 
 ### Expected Output
 ```
-🤖 RefactorGuru: Analyzing enhancement goal...
 🤖 SecuritySentinel: Checking safety...
 
 ✓ Enhancement proposal ready

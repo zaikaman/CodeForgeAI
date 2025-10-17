@@ -117,7 +117,6 @@ type AgentType =
   | 'spec-interpreter'             // SpecInterpreterAgent
   | 'code-generator'               // CodeGeneratorAgent
   | 'bug-hunter'                   // BugHunterAgent
-  | 'refactor-guru'                // RefactorGuruAgent
   | 'security-sentinel'            // SecuritySentinelAgent
   | 'performance-profiler'         // PerformanceProfilerAgent
   | 'test-crafter'                 // TestCrafterAgent

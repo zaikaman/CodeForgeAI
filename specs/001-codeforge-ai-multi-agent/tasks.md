@@ -172,7 +172,6 @@ This is a **web-first monorepo application** with the following structure:
 - [x] **T076** [P] Implement SpecInterpreterAgent in `backend/src/agents/specialized/SpecInterpreterAgent.ts` (parse NL specs, extract requirements)
 - [x] **T077** [P] Implement CodeGeneratorAgent in `backend/src/agents/specialized/CodeGeneratorAgent.ts` (generate code from requirements, use codeParseTool)
 - [x] **T078** [P] Implement BugHunterAgent in `backend/src/agents/specialized/BugHunterAgent.ts` (find bugs, security issues)
-- [x] **T079** [P] Implement RefactorGuruAgent in `backend/src/agents/specialized/RefactorGuruAgent.ts` (suggest refactorings, use patternMatcherTool)
 - [x] **T080** [P] Implement SecuritySentinelAgent in `backend/src/agents/specialized/SecuritySentinelAgent.ts` (security analysis, vulnerability detection)
 - [x] **T081** [P] Implement PerformanceProfilerAgent in `backend/src/agents/specialized/PerformanceProfilerAgent.ts` (performance analysis, optimization suggestions)
 - [x] **T082** [P] Implement TestCrafterAgent in `backend/src/agents/specialized/TestCrafterAgent.ts` (generate tests, use testGenTool)
@@ -190,7 +189,7 @@ This is a **web-first monorepo application** with the following structure:
 - [x] **T086** Implement CodeForgeWorkflow in `backend/src/workflows/CodeForgeWorkflow.ts` (hierarchical workflow, LeadAgent → specialized agents)
 - [x] **T087** Implement GenerateWorkflow in `backend/src/workflows/GenerateWorkflow.ts` (SpecInterpreter → CodeGenerator → TestCrafter → review)
 - [x] **T088** Implement ReviewWorkflow in `backend/src/workflows/ReviewWorkflow.ts` (parallel agent review → DebateMediator → consensus)
-- [x] **T089** Implement EnhanceWorkflow in `backend/src/workflows/EnhanceWorkflow.ts` (RefactorGuru → SecuritySentinel → PerformanceProfiler)
+- [x] **T089** Implement EnhanceWorkflow in `backend/src/workflows/EnhanceWorkflow.ts` (SecuritySentinel → PerformanceProfiler)
 
 ---
 
@@ -399,11 +398,10 @@ This is a **web-first monorepo application** with the following structure:
 # Task T066: Implement SpecInterpreterAgent
 # Task T067: Implement CodeGeneratorAgent
 # Task T068: Implement BugHunterAgent
-# Task T069: Implement RefactorGuruAgent
-# Task T070: Implement SecuritySentinelAgent
-# Task T071: Implement PerformanceProfilerAgent
-# Task T072: Implement TestCrafterAgent
-# Task T073: Implement DocWeaverAgent
+# Task T069: Implement SecuritySentinelAgent
+# Task T070: Implement PerformanceProfilerAgent
+# Task T071: Implement TestCrafterAgent
+# Task T072: Implement DocWeaverAgent
 ```
 
 ---

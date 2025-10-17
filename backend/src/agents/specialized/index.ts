@@ -13,7 +13,6 @@ export { SecuritySentinelAgent } from './SecuritySentinelAgent';
 export { PerformanceProfilerAgent } from './PerformanceProfilerAgent';
 export { TestCrafterAgent } from './TestCrafterAgent';
 export { DocWeaverAgent } from './DocWeaverAgent';
-export { RefactorGuruAgent } from './RefactorGuruAgent';
 export { CodeFixerAgent } from './CodeFixerAgent';
 export { CodeValidatorAgent } from './CodeValidatorAgent';
 export { QualityAssuranceAgent } from './QualityAssuranceAgent';
