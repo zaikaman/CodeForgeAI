@@ -321,39 +321,40 @@ await bot_github_replace_text({ path: "README.md", ... })             // Priorit
 
 ### Rule 2.6: Creating NEW Files (Important!)
 
-**🚨 CRITICAL: bot_github_create_or_update_file REQUIRES 'message' parameter!**
+**🚨 UPDATE: 'message' parameter is now OPTIONAL (but recommended)!**
 
 When creating NEW files (that don't exist yet), use \`bot_github_create_or_update_file\`:
 
 \`\`\`typescript
-// ❌ WRONG - Missing 'message' parameter
-await bot_github_create_or_update_file({
-  owner: "codeforge-ai-bot",
-  repo: "CrochetCornerHouse",
-  path: "src/contexts/ThemeContext.tsx",
-  content: "import React...",
-  branch: "fix/dark-theme"
-  // ← Error: "Invalid input: expected string for message, received undefined"
-})
-
-// ✅ CORRECT - Include commit message (REQUIRED!)
+// ✅ BEST PRACTICE - Include descriptive commit message
 await bot_github_create_or_update_file({
   owner: "codeforge-ai-bot",
   repo: "CrochetCornerHouse",
   path: "src/contexts/ThemeContext.tsx",
   content: "import React, { createContext, useContext... }",
   branch: "fix/dark-theme",
-  message: "feat: Add ThemeContext for dark mode support"  // ← REQUIRED!
+  message: "feat: Add ThemeContext for dark mode support"  // ← RECOMMENDED!
 })
 
-// ✅ Another example - Creating multiple files
+// ✅ ALSO WORKS - Omit message, auto-generates "chore: Update ThemeContext.tsx"
+await bot_github_create_or_update_file({
+  owner: "codeforge-ai-bot",
+  repo: "CrochetCornerHouse",
+  path: "src/contexts/ThemeContext.tsx",
+  content: "import React, { createContext, useContext... }",
+  branch: "fix/dark-theme"
+  // No message → defaults to: "chore: Update ThemeContext.tsx"
+})
+
+// ⚠️ NOT RECOMMENDED - Default messages are generic
+// Better to provide descriptive commit messages for clarity
 await bot_github_create_or_update_file({
   owner: "codeforge-ai-bot",
   repo: "Repo",
   path: "src/hooks/useTheme.ts",
   content: "export function useTheme() { ... }",
   branch: "feature-branch",
-  message: "feat: Add useTheme hook"  // ← Always include descriptive message
+  message: "feat: Add useTheme hook"  // ← Much better than default!
 })
 \`\`\`
 
@@ -367,13 +368,15 @@ Use \`bot_github_replace_text\`:
 Use \`bot_github_create_or_update_file\`:
 - ✅ Creating NEW files that don't exist
 - ✅ Adding new components, utilities, config files
-- ⚠️ MUST include \`message\` parameter (commit message)
+- ⚠️ 'message' parameter is OPTIONAL but RECOMMENDED for clarity
 - ⚠️ Creates immediate commit (not batched with other changes)
+- 💡 If you omit 'message', it defaults to "chore: Update [filename]"
 
 **BEST PRACTICE:**
 1. Use \`bot_github_replace_text\` for modifying existing files (preferred for bulk changes)
-2. Use \`bot_github_create_or_update_file\` only when creating NEW files
-3. If you forget \`message\` parameter, you'll get: "Invalid input: expected string, received undefined"
+2. Use \`bot_github_create_or_update_file\` when creating NEW files
+3. Always provide descriptive 'message' when possible (better than default)
+4. Default commit message format: "chore: Update [filename]"
 
 ### Rule 2.7: Proper Commit Format
 \`\`\`typescript
@@ -422,10 +425,6 @@ If a tool call fails:
 **COMMON ERRORS & FIXES:**
 
 \`\`\`typescript
-// Error: "Invalid input: expected string for message, received undefined"
-// → You forgot 'message' parameter in bot_github_create_or_update_file
-// Fix: Add message: "feat: descriptive commit message"
-
 // Error: "Invalid arguments: repo expected string, received undefined"
 // → You forgot 'repo' parameter in bot_github_commit_files
 // Fix: Add repo: "RepositoryName"
@@ -433,6 +432,10 @@ If a tool call fails:
 // Error: "Not Found" when reading file
 // → File doesn't exist in that branch
 // Fix: Check if file exists first, or create it with create_or_update_file
+
+// Note: bot_github_create_or_update_file no longer requires 'message'!
+// If you omit it, defaults to "chore: Update [filename]"
+// But providing descriptive messages is still RECOMMENDED
 
 // DO NOT RETRY THE SAME CALL WITHOUT FIXING THE PARAMETER!
 // If you get same error twice → stop and explain to user

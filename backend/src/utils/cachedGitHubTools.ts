@@ -1223,11 +1223,14 @@ export function createCachedGitHubTools(_octokit: Octokit) {
         repo: z.string().describe('Repository name'),
         path: z.string().describe('File path'),
         content: z.string().describe('File content'),
-        message: z.string().describe('Commit message'),
+        message: z.string().optional().describe('Commit message (optional, defaults to "chore: Update [filename]")'),
         branch: z.string().optional().describe('Target branch (default: main)'),
       }),
       fn: async (args) => {
         try {
+          // Generate default commit message if not provided
+          const commitMessage = args.message || `chore: Update ${args.path.split('/').pop() || args.path}`;
+          
           // Get existing file SHA if it exists
           let sha: string | undefined;
           try {
@@ -1248,7 +1251,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             owner: args.owner,
             repo: args.repo,
             path: args.path,
-            message: args.message,
+            message: commitMessage,
             content: Buffer.from(args.content).toString('base64'),
             sha,
             branch: args.branch,
@@ -1259,9 +1262,9 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             file: {
               path: args.path,
               sha: data.content?.sha,
-              message: args.message,
+              message: commitMessage,
             },
-            message: `✅ File ${args.path} created/updated`,
+            message: `✅ File ${args.path} created/updated with commit: "${commitMessage}"`,
           };
         } catch (error: any) {
           return {
