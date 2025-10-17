@@ -163,7 +163,7 @@ export async function generateImage(
   };
 
   const keyManager = getHuggingFaceKeyManager();
-  const maxCycles = 3; // Try the full list of keys 3 times
+  const maxCycles = 1; // Only try once - if it fails, report to agent
   const numKeys = keyManager.getKeyCount();
 
   if (numKeys === 0) {
@@ -184,7 +184,7 @@ export async function generateImage(
         
         console.log(
           `🔑 Attempting image generation with key ${keyMasked} ` +
-          `(Attempt ${i + 1}/${numKeys}, Cycle ${cycle + 1}/${maxCycles})`
+          `(Attempt ${i + 1}/${numKeys})`
         );
 
         // Generate image
@@ -222,20 +222,13 @@ export async function generateImage(
         continue;
       }
     }
-
-    // Wait before retrying all keys
-    if (cycle < maxCycles - 1) {
-      const waitTime = 60;
-      console.log(`⏰ Waiting ${waitTime} seconds before retrying all keys...`);
-      await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
-    }
   }
 
-  console.error('❌ All retry cycles failed. Could not generate image.');
+  console.error('❌ Image generation cycle failed. Service temporarily unavailable.');
   
   return {
     success: false,
-    error: 'Failed to generate image after all retry attempts',
+    error: 'Image generation service is temporarily unavailable. Proceeding without generated images.',
   };
 }
 

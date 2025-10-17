@@ -261,14 +261,37 @@ EXAMPLE - Replacing 6 placeholder shoe images:
 { id: 'p6', name: 'UrbanStep', image: 'https://[supabase-url]/generated/image-6.png' }
 \`\`\`
 
+**WHAT IF IMAGE GENERATION FAILS?**
+If image generation tool fails with an error like "temporarily unavailable" or "service down":
+1. DO NOT retry the tool
+2. Continue modifying the code WITHOUT generated images
+3. Use CSS placeholders or placeholder patterns for missing images:
+   - Use CSS gradient backgrounds (e.g., background: linear-gradient(135deg, #667eea, #764ba2))
+   - Use placeholder text instead of broken images
+   - Create loading states or skeleton components
+   - Build fully functional website with placeholder styling
+4. The website should still be complete and usable
+5. Users can always regenerate images later or provide their own
+
+Example fallback for HTML:
+\`\`\`html
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            width: 300px; height: 300px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 18px;">
+  Product Image Placeholder
+</div>
+\`\`\`
+
 **ABSOLUTE RULES FOR IMAGE MODIFICATIONS:**
 1. ❌ NEVER use Unsplash, Picsum, or any external image services
 2. ❌ NEVER use placeholder generators (dummyimage, placeholder.com)
-3. ❌ NEVER keep existing placeholder URLs - they MUST be replaced
+3. ❌ NEVER keep existing placeholder URLs - they MUST be replaced (if possible)
 4. ✅ ALWAYS use generate_image tool when images are needed
-5. ✅ ALWAYS replace ALL placeholder images with generated ones
+5. ✅ ALWAYS replace placeholder images with generated ones (if tool succeeds)
 6. ✅ ALWAYS use uploaded images if user provided them
-7. 🚨 If you include external image URLs, your response will be REJECTED
+7. ✅ If image generation fails, continue with CSS placeholders (don't block project)
+8. 🚨 If you include external image URLs, your response will be REJECTED
 
 Common modifications involving images:
 - Replacing placeholder images with AI-generated ones
@@ -279,6 +302,7 @@ Common modifications involving images:
 - Adding product images to e-commerce listings
 
 Remember: Always use the EXACT URL provided - these images are already hosted!
+Or if generation fails, use CSS fallbacks - the project must stay functional.
 
 ## QUALITY CHECKLIST:
 Before returning code, verify:

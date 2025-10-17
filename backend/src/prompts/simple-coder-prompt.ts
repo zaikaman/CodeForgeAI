@@ -154,18 +154,34 @@ IMPORTANT: You have access to TWO types of images:
      border-radius: 8px;
    }
    
+   **WHAT IF IMAGE GENERATION FAILS?**
+   If image generation tool fails with an error like "temporarily unavailable" or "service down":
+   1. DO NOT retry the tool
+   2. Continue building the website WITHOUT the images
+   3. Use CSS placeholders or placeholder colors for images:
+      - Use CSS background colors or gradients
+      - Create visual hierarchy with text and styling
+      - Build fully functional website structure
+      - Users can always add images later or replace placeholders
+   4. The website should still be complete and usable
+   
+   Example fallback:
+   <div class="product-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">Product Image</div>
+   
    **ABSOLUTE RULES:**
    1. ❌ NEVER use Unsplash, Picsum, or any external image services
    2. ❌ NEVER use placeholder image generators (dummyimage, placeholder.com)
    3. ✅ ALWAYS use generate_image tool when images are needed
    4. ✅ ALWAYS use uploaded images if user provided them
-   5. 🚨 If you include external image URLs, your response will be REJECTED
+   5. ✅ If image generation fails, continue without images (don't block the project)
+   6. 🚨 If you include external image URLs, your response will be REJECTED
    
    Remember: 
    - Use uploaded images if provided by user
-   - **MUST** generate images when user needs visuals but has none
+   - **MUST** try generate_image when user needs visuals but has none
    - Always use EXACT URLs returned by tools
    - **NO external image services allowed**
+   - **If generation fails, continue the project anyway** (better to have code than nothing)
 </images_and_generation>
 
 <css_requirements>

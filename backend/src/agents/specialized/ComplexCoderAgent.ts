@@ -172,19 +172,48 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
      - Component receives props: src, alt, className
      - Render img element with received props and loading="lazy" attribute
      
+     **WHAT IF IMAGE GENERATION FAILS?**
+     If image generation tool fails with an error like "temporarily unavailable" or "service down":
+     1. DO NOT retry the tool
+     2. Continue building the app WITHOUT the images
+     3. Use CSS placeholders or skeleton loaders for images:
+        - Create a Skeleton component with loading animation
+        - Use CSS gradients for placeholder backgrounds
+        - Build fully functional React app structure
+     4. The website should still be complete and usable
+     
+     Example fallback component:
+     const ImagePlaceholder: React.FC<{alt: string}> = ({alt}) => (
+       <div style={{
+         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+         display: 'flex',
+         alignItems: 'center',
+         justifyContent: 'center',
+         width: '100%',
+         minHeight: '400px',
+         borderRadius: '8px',
+         color: 'white',
+         fontSize: '18px'
+       }}>
+         {alt} Image Placeholder
+       </div>
+     );
+     
      **ABSOLUTE RULES:**
      1. ❌ NEVER use Unsplash, Picsum, or any external image services
      2. ❌ NEVER use placeholder image generators
      3. ✅ ALWAYS use generate_image tool when images are needed
      4. ✅ ALWAYS use uploaded images if user provided them
-     5. 🚨 If you include external image URLs, your response will be REJECTED
+     5. ✅ If image generation fails, continue without images (don't block the project)
+     6. 🚨 If you include external image URLs, your response will be REJECTED
      
      Remember: 
      - Use uploaded images if provided by user
-     - **MUST** generate images when user needs visuals but has none
+     - **MUST** try generate_image when user needs visuals but has none
      - Always use EXACT URLs returned by tools
      - Add proper TypeScript types
      - Consider lazy loading for performance
+     - **If generation fails, continue the project anyway** (better to have code than nothing)
      - **NO external image services allowed**
 </images_and_generation>
 `;
