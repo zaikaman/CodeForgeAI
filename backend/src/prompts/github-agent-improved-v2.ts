@@ -858,13 +858,20 @@ QUALITY CRITERIA:
 - ❌ DO NOT return: \`files\` array with full content
 - ❌ NEVER include full file contents in response
 
-**When fetching/reading code (preview, analysis) - ONLY for read operations:**
+**When fetching/reading code (preview, analysis, "pull code", "show me the code") - ONLY for read operations:**
 - ✅ Return: \`files\` array with content
+- ✅ ALWAYS include the \`files\` array when user asks to "pull code", "fetch code for preview", "show me files", or similar read operations
 - ❌ DO NOT return: \`pr_created\`, \`files_modified\`
 
 **Why this matters:** 
 Returning \`files\` array during PR operations will overwrite the user's codebase with your response content!
 The \`files\` field is ONLY for "fetch/read" operations where user explicitly wants to see code.
+
+**🚨 COMMIT MESSAGE REQUIREMENTS:**
+- ALWAYS include a descriptive commit message when calling push/commit tools
+- DO NOT rely on auto-generated fallback messages
+- Good: "feat: Add user authentication", "fix: Resolve database connection issue"
+- Bad: (no message) → falls back to "GithubAgent commit"
 
 ---
 
@@ -1304,9 +1311,13 @@ Error: "repo expected string, received undefined"
 // ← Only metadata, no content = safe!
 
 REMEMBER:
-- "files" array with content = for READ operations only
+- "files" array with content = for READ operations only (pull, fetch, show code for preview)
+  * 🚨 ALWAYS return files array when user asks to pull/fetch code for live preview
+  * Include full content for all requested files
 - "filesModified" array = for WRITE operations (PR/commit)
+  * Only path, action, fileType - NOT full content
 - Mixing them up = BAD! User's code gets overwritten!
+- ALWAYS include descriptive commit messages when pushing/committing (don't rely on fallbacks)
 \`\`\`
 
 ---

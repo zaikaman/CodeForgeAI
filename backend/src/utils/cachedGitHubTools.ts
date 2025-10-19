@@ -1961,7 +1961,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
      */
     createTool({
       name: 'bot_github_push_files',
-      description: `Commit and push multiple files to a repository in one operation.`,
+      description: `Commit and push multiple files to a repository in one operation. ALWAYS include a descriptive commit message!`,
       schema: z.object({
         owner: z.string().describe('Repository owner'),
         repo: z.string().describe('Repository name'),
@@ -1969,10 +1969,12 @@ export function createCachedGitHubTools(_octokit: Octokit) {
           path: z.string().describe('File path'),
           content: z.string().describe('File content'),
         })).describe('Files to commit'),
-        message: z.string().describe('Commit message'),
+        message: z.string().optional().describe('Commit message (auto-generated if not provided)'),
         branch: z.string().optional().describe('Target branch (default: main)'),
       }),
       fn: async (args) => {
+        // Add fallback commit message
+        const finalMessage = args.message || 'GithubAgent commit';
         try {
           // Get repository info first to get default branch
           const repoInfo = await _octokit.rest.repos.get({
@@ -2031,7 +2033,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
           const { data: newCommit } = await _octokit.rest.git.createCommit({
             owner: args.owner,
             repo: args.repo,
-            message: args.message,
+            message: finalMessage,
             tree: newTree.sha,
             parents: [currentCommitSha],
           });

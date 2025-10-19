@@ -184,18 +184,22 @@ export function createGitHubTools(context: GitHubToolsContext) {
 
     createTool({
       name: 'github_push_files',
-      description: 'Push multiple files to repository in a single commit',
+      description: 'Push multiple files to repository in a single commit. ALWAYS include a descriptive commit message!',
       schema: z.object({
         files: z.array(z.object({
           path: z.string().describe('File path'),
           content: z.string().describe('File content'),
         })).describe('Array of files to push'),
-        message: z.string().describe('Commit message'),
+        message: z.string().optional().describe('Commit message (auto-generated if not provided)'),
         branch: z.string().optional().describe('Target branch'),
         owner: z.string().optional(),
         repo: z.string().optional(),
       }),
-      fn: async (args) => server.executeTool('push_files', args),
+      fn: async (args) => {
+        // Add fallback commit message
+        const finalMessage = args.message || 'GithubAgent commit';
+        return server.executeTool('push_files', { ...args, message: finalMessage });
+      },
     }),
 
     createTool({

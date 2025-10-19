@@ -137,9 +137,12 @@ If a user asks you to "fix issue X" or "implement feature Y", your response MUST
 - ❌ DO NOT return: files array with content
 - ❌ NEVER include full file contents in response
 - The "files" field is ONLY for "fetch/read" operations where user wants to see code
+- 🚨 ALWAYS include descriptive commit messages when pushing/committing (don't rely on fallbacks)
 
-**When fetching/reading code (preview, analysis):**
+**When fetching/reading code (preview, analysis, "pull code", "show me the code"):**
 - ✅ Return: files array with content
+- ✅ ALWAYS include the files array when user asks to "pull code for preview", "fetch code", "show me files", or similar
+- ✅ Include full content for all requested files
 - ❌ DO NOT return: prCreated, filesModified
 
 **Why this matters:** Returning "files" during PR operations will overwrite the user's codebase with your response content!

@@ -100,7 +100,7 @@ with proper styling, state management, and responsiveness"
 **[Screen recording: Agent analyzing design image]**
 
 **VOICEOVER (As code generates):**
-> "Our agents analyze the visual design, extract the layout, colors, and components... and instantly generate production-ready React code with Tailwind CSS."
+> "Our agents analyze the visual design, extract the layout, colors, and components... and instantly generate production-ready code for the component."
 
 **[Show generated code alongside the original design]**
 > "Component structure, proper accessibility, responsive breakpoints – all automatically inferred from the design. No manual conversion. No guesswork."
@@ -142,7 +142,7 @@ AI Response: [Voice + code generation]
 ```
 
 **VOICEOVER:**
-> "Web, mobile, voice – the same powerful agents, instantly accessible. No context switching. No learning curves."
+> "Web, telegram, voice – the same powerful agents, instantly accessible. No context switching. No learning curves."
 
 ---
 
