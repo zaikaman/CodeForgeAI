@@ -1,13 +1,6 @@
-import axios from 'axios';
-import { Client } from '@gradio/client';
-import { getHuggingFaceKeyManager } from './HuggingFaceKeyManager';
-import { getSupabaseClient } from '../storage/SupabaseClient';
-import { v4 as uuidv4 } from 'uuid';
-
-/**
- * Image Generation Service - Using Official @gradio/client
- * Following the official Gradio JavaScript client documentation
- */
+import { Runware } from "@runware/sdk-js";
+import { getSupabaseClient } from "../storage/SupabaseClient";
+import { v4 as uuidv4 } from "uuid";
 
 export interface ImageGenerationOptions {
   prompt: string;
@@ -18,6 +11,7 @@ export interface ImageGenerationOptions {
   numInferenceSteps?: number;
   seed?: number;
   randomizeSeed?: boolean;
+  numberResults?: number;
 }
 
 export interface ImageGenerationResult {
@@ -25,120 +19,92 @@ export interface ImageGenerationResult {
   imageUrl?: string;
   imagePath?: string;
   error?: string;
-  keyUsed?: string;
+  seed?: number;
+  cost?: number;
 }
 
 const DEFAULT_OPTIONS: Partial<ImageGenerationOptions> = {
-  negativePrompt: '',
+  negativePrompt: "",
   width: 1024,
   height: 1024,
-  guidanceScale: 0,
-  numInferenceSteps: 4,
+  guidanceScale: 7.5,
+  numInferenceSteps: 25,
   seed: 0,
   randomizeSeed: true,
+  numberResults: 1,
 };
 
-// Gradio Space Configuration
-const GRADIO_SPACE = 'stabilityai/stable-diffusion-3.5-large-turbo';
+const RUNWARE_MODEL = "runware:101@1";
+const RUNWARE_API_KEY = process.env.RUNWARE_API_KEY || "";
 
-/**
- * Generate image using official @gradio/client library
- * Following the Gradio documentation exactly
- */
-async function generateImageWithKey(
+if (!RUNWARE_API_KEY) {
+  console.warn("RUNWARE_API_KEY not found in environment variables");
+}
+
+async function generateImageWithRunware(
   prompt: string,
-  apiKey: string,
   options: ImageGenerationOptions
-): Promise<Buffer> {
-  console.log(`🚀 Connecting to Gradio Space with key ...${apiKey.slice(-4)}`);
+): Promise<{ imageUrl: string; seed?: number; cost?: number }> {
+  console.log("Initializing Runware SDK");
+  
+  const runware = new Runware({
+    apiKey: RUNWARE_API_KEY,
+    shouldReconnect: true,
+    globalMaxRetries: 3,
+    timeoutDuration: 90000,
+  });
 
-  try {
-    // Connect to Gradio Space with HuggingFace token
-    // Using 'as any' to bypass TypeScript issues with dev version
-    const client = await Client.connect(GRADIO_SPACE, {
-      hf_token: apiKey,
-    } as any);
+  await runware.ensureConnection();
+  console.log("Connected to Runware");
 
-    console.log(`✅ Connected to ${GRADIO_SPACE}`);
+  const images = await runware.requestImages({
+    positivePrompt: prompt,
+    negativePrompt: options.negativePrompt || "",
+    model: RUNWARE_MODEL,
+    width: options.width || 1024,
+    height: options.height || 1024,
+    numberResults: options.numberResults || 1,
+    outputFormat: "PNG",
+    includeCost: true,
+  });
 
-    // Call the /infer endpoint with parameters
-    const result = await client.predict('/infer', {
-      prompt: prompt,
-      negative_prompt: options.negativePrompt || '',
-      seed: options.seed || 0,
-      randomize_seed: options.randomizeSeed ?? true,
-      width: options.width || 1024,
-      height: options.height || 1024,
-      guidance_scale: options.guidanceScale || 0,
-      num_inference_steps: options.numInferenceSteps || 4,
-    });
-
-    console.log(`✅ Generation complete!`);
-    console.log(`Result type:`, typeof result);
-
-    // The result.data is an array: [image_path, seed_used]
-    if (!result || !result.data) {
-      throw new Error('No data returned from Gradio');
-    }
-
-    const resultData = result.data as any[];
-    if (!Array.isArray(resultData) || resultData.length === 0) {
-      throw new Error('Invalid result format from Gradio');
-    }
-
-    const imageData = resultData[0];
-    let imageUrl: string;
-
-    // Handle different image data formats
-    if (typeof imageData === 'string') {
-      // Direct path or URL
-      imageUrl = imageData.startsWith('http') 
-        ? imageData 
-        : `https://${GRADIO_SPACE.replace('/', '-')}.hf.space/file=${imageData}`;
-    } else if (imageData?.url) {
-      imageUrl = imageData.url;
-    } else if (imageData?.path) {
-      imageUrl = `https://${GRADIO_SPACE.replace('/', '-')}.hf.space/file=${imageData.path}`;
-    } else {
-      throw new Error(`Unknown image format: ${JSON.stringify(imageData)}`);
-    }
-
-    console.log(`📥 Downloading image from: ${imageUrl.substring(0, 80)}...`);
-
-    // Download the generated image
-    const imageResponse = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 60000,
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-    });
-
-    return Buffer.from(imageResponse.data);
-  } catch (error: any) {
-    console.error(`❌ Gradio client error:`, error.message);
-    if (error.response) {
-      console.error(`Response status:`, error.response.status);
-      console.error(`Response data:`, error.response.data);
-    }
-    throw error;
+  if (!images || images.length === 0) {
+    throw new Error("No images returned from Runware");
   }
+
+  const firstImage = images[0];
+  if (!firstImage.imageURL) {
+    throw new Error("Image URL not found in response");
+  }
+
+  await runware.disconnect();
+
+  return {
+    imageUrl: firstImage.imageURL,
+    seed: firstImage.seed,
+    cost: firstImage.cost,
+  };
 }
 
 async function uploadImageToSupabase(
-  imageBuffer: Buffer,
+  imageUrl: string,
   userId: string
 ): Promise<{ url: string; path: string }> {
   const supabase = getSupabaseClient();
-  
+  const response = await fetch(imageUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  const imageBuffer = Buffer.from(arrayBuffer);
+
   const timestamp = Date.now();
   const randomString = uuidv4().substring(0, 8);
   const fileName = `generated-${timestamp}-${randomString}.png`;
   const filePath = `${userId}/generated/${fileName}`;
 
   const { error: uploadError } = await supabase.storage
-    .from('chat-images')
+    .from("chat-images")
     .upload(filePath, imageBuffer, {
-      contentType: 'image/png',
-      cacheControl: '3600',
+      contentType: "image/png",
+      cacheControl: "3600",
       upsert: false,
     });
 
@@ -147,11 +113,9 @@ async function uploadImageToSupabase(
   }
 
   const { data: urlData } = supabase.storage
-    .from('chat-images')
+    .from("chat-images")
     .getPublicUrl(filePath);
 
-  console.log(`✅ Uploaded to Supabase: ${urlData.publicUrl}`);
-  
   return {
     url: urlData.publicUrl,
     path: filePath,
@@ -163,8 +127,12 @@ export async function generateImage(
   userId: string,
   options: Partial<ImageGenerationOptions> = {}
 ): Promise<ImageGenerationResult> {
-  if (!prompt || prompt.trim() === '') {
-    return { success: false, error: 'Empty prompt' };
+  if (!prompt || prompt.trim() === "") {
+    return { success: false, error: "Empty prompt" };
+  }
+
+  if (!RUNWARE_API_KEY) {
+    return { success: false, error: "RUNWARE_API_KEY not configured" };
   }
 
   const finalOptions: ImageGenerationOptions = {
@@ -173,57 +141,24 @@ export async function generateImage(
     prompt,
   };
 
-  const keyManager = getHuggingFaceKeyManager();
-  const numKeys = keyManager.getKeyCount();
+  try {
+    const { imageUrl, seed, cost } = await generateImageWithRunware(prompt, finalOptions);
+    const { url, path } = await uploadImageToSupabase(imageUrl, userId);
 
-  if (numKeys === 0) {
-    return { success: false, error: 'No API keys available' };
+    return {
+      success: true,
+      imageUrl: url,
+      imagePath: path,
+      seed,
+      cost,
+    };
+  } catch (error: any) {
+    console.error("Generation failed:", error.message);
+    return {
+      success: false,
+      error: error.message || "Image generation failed",
+    };
   }
-
-  console.log(`🎨 Starting generation: "${prompt.substring(0, 100)}..."`);
-
-  for (let i = 0; i < numKeys; i++) {
-    let currentKey = '';
-    try {
-      currentKey = await keyManager.getNextKey();
-      const keyMasked = `...${currentKey.slice(-4)}`;
-      
-      console.log(`🔑 Attempt ${i + 1}/${numKeys} with key ${keyMasked}`);
-
-      const imageBuffer = await generateImageWithKey(prompt, currentKey, finalOptions);
-      const { url, path } = await uploadImageToSupabase(imageBuffer, userId);
-
-      console.log(`✅ Success with key ${keyMasked}`);
-
-      return {
-        success: true,
-        imageUrl: url,
-        imagePath: path,
-        keyUsed: keyMasked,
-      };
-    } catch (error: any) {
-      const keyMasked = currentKey ? `...${currentKey.slice(-4)}` : 'N/A';
-      console.error(`❌ Key ${keyMasked} failed: ${error.message}`);
-      console.error(`📋 Details:`, {
-        name: error.name,
-        code: error.code,
-        response: error.response ? {
-          status: error.response.status,
-          statusText: error.response.statusText,
-        } : undefined
-      });
-
-      if (i === numKeys - 1) {
-        console.log(`⚠️ All ${numKeys} keys failed`);
-      }
-      continue;
-    }
-  }
-
-  return {
-    success: false,
-    error: 'All API keys failed',
-  };
 }
 
 export async function generateMultipleImages(
@@ -231,27 +166,24 @@ export async function generateMultipleImages(
   userId: string,
   options: Partial<ImageGenerationOptions> = {}
 ): Promise<ImageGenerationResult[]> {
-  console.log(`🎨 Generating ${prompts.length} images...`);
-
   const results: ImageGenerationResult[] = [];
 
   for (let i = 0; i < prompts.length; i++) {
-    console.log(`\n🖼️ Image ${i + 1}/${prompts.length}`);
     const result = await generateImage(prompts[i], userId, options);
     results.push(result);
 
     if (i < prompts.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
-
-  const successCount = results.filter(r => r.success).length;
-  console.log(`\n✅ Generated ${successCount}/${prompts.length} images`);
 
   return results;
 }
 
-export function getKeyManagerStats(): Record<string, number> {
-  const keyManager = getHuggingFaceKeyManager();
-  return keyManager.getUsageStats();
+export function getKeyManagerStats(): Record<string, any> {
+  return {
+    provider: "runware",
+    model: RUNWARE_MODEL,
+    apiKeyConfigured: !!RUNWARE_API_KEY,
+  };
 }

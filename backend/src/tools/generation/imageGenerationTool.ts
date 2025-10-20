@@ -3,9 +3,10 @@ import { z } from 'zod';
 import { generateImage, generateMultipleImages, type ImageGenerationOptions } from '../../services/ImageGenerationService';
 
 /**
- * Image Generation Tool
- * Allows agents to generate product images using HuggingFace Stable Diffusion
- * Images are automatically uploaded to Supabase storage
+ * Image Generation Tool - Powered by Runware
+ * Allows agents to generate product images using Runware's high-performance AI image generation API
+ * Features: WebSocket-based real-time processing, automatic cloud upload to Supabase storage
+ * Model: runware:101@1 (Stable Diffusion optimized for speed and quality)
  */
 
 export interface GenerateImageInput {
@@ -234,8 +235,8 @@ export function createImageGenerationTool(userId: string) {
  * Export tool metadata for tool registry
  */
 export const imageGenerationToolMetadata = {
-  name: 'Image Generator',
-  description: 'Generate AI images for websites using Stable Diffusion',
+  name: 'Image Generator (Runware)',
+  description: 'Generate AI images for websites using Runware\'s high-performance API',
   category: 'GENERATION',
   capabilities: [
     'Generate product photos',
@@ -244,5 +245,7 @@ export const imageGenerationToolMetadata = {
     'Create visual content',
     'Multiple image generation',
     'Automatic cloud upload',
+    'Real-time WebSocket processing',
+    'Fast generation (model: runware:101@1)',
   ],
 };

@@ -6,28 +6,36 @@
 // AI Service
 export * from './AIService'
 
-// Database
-export * from './LocalDatabase'
+// Image Generation Service (Runware)
+export * from './ImageGenerationService'
 
-// Schemas (explicit exports to avoid conflicts)
-export {
-  MetadataSchema,
-  type Metadata,
-  DatabaseSchema as DBSchema,
-  type Database,
-  validateDatabase,
-  validatePartialDatabase,
-  isDatabaseValid,
-  CollectionSchemas,
-  type CollectionName,
-  validateCollection,
-  getEmptyDatabase,
-  CURRENT_DB_VERSION,
-  CURRENT_MIGRATION_VERSION,
-} from './schemas'
+// Chat & Memory Services
+export * from './ChatMemoryManager'
+export * from './VectorMemoryManager'
 
-// Migrations
-export * from './migrations'
+// Code Services
+export * from './CodeFormatterService'
+export * from './DiffGeneratorService'
+export * from './SmartAutoFixerService'
+export * from './FastValidatorService'
 
-// Backup & Restore
-export * from './backup'
+// Agent Services
+export * from './AgentRouterService'
+export * from './AgentStateManager'
+export * from './AgentInitService'
+
+// GitHub & Project Services
+export * from './GitHubTaskManager'
+export * from './ProjectContextService'
+
+// Queue & Event Services
+export * from './ChatQueue'
+export * from './GenerationQueue'
+export * from './JobEventEmitter'
+export * from './RealtimeJobEmitter'
+
+// Validation Services
+export * from './ValidationService'
+
+// Schemas
+export * from './schemas'

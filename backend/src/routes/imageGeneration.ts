@@ -1,11 +1,10 @@
 /**
- * Image Generation API Routes
- * Test and manage image generation service
+ * Image Generation API Routes - Powered by Runware
+ * Test and manage image generation service using Runware's high-performance API
  */
 
 import express from 'express';
 import { generateImage, getKeyManagerStats } from '../services/ImageGenerationService';
-import { getHuggingFaceKeyManager } from '../services/HuggingFaceKeyManager';
 
 const router = express.Router();
 
@@ -36,7 +35,8 @@ router.post('/generate', async (req, res) => {
         success: true,
         imageUrl: result.imageUrl,
         imagePath: result.imagePath,
-        keyUsed: result.keyUsed,
+        seed: result.seed,
+        cost: result.cost,
       });
     } else {
       return res.status(500).json({
@@ -54,17 +54,16 @@ router.post('/generate', async (req, res) => {
 
 /**
  * GET /api/images/stats
- * Get key manager statistics
+ * Get Runware API statistics
  */
 router.get('/stats', async (_req, res) => {
   try {
     const stats = getKeyManagerStats();
-    const keyManager = getHuggingFaceKeyManager();
 
     return res.json({
-      totalKeys: keyManager.getKeyCount(),
-      currentKeyIndex: keyManager.getCurrentKey().slice(-4),
-      usageStats: stats,
+      provider: stats.provider,
+      model: stats.model,
+      apiKeyConfigured: stats.apiKeyConfigured,
     });
   } catch (error: any) {
     console.error('Stats API error:', error);
@@ -91,7 +90,8 @@ router.post('/test', async (req, res) => {
       success: result.success,
       imageUrl: result.imageUrl,
       imagePath: result.imagePath,
-      keyUsed: result.keyUsed,
+      seed: result.seed,
+      cost: result.cost,
       error: result.error,
       testPrompt,
     });

@@ -175,8 +175,8 @@ export const TOOL_METADATA = {
 
   // Generation tools
   imageGenerationTool: {
-    name: 'Image Generator',
-    description: 'Generate AI images for websites using Stable Diffusion',
+    name: 'Image Generator (Runware)',
+    description: 'Generate AI images for websites using Runware\'s high-performance API (model: runware:101@1)',
     category: 'GENERATION',
     capabilities: [
       'Generate product photos',
@@ -185,6 +185,8 @@ export const TOOL_METADATA = {
       'Create visual content',
       'Multiple image generation',
       'Automatic cloud upload',
+      'Real-time WebSocket processing',
+      'Fast generation with Runware',
     ],
   },
 } as const
