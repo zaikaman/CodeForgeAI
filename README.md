@@ -114,19 +114,86 @@ Generate production-ready code from natural language descriptions:
 
 ### 🎨 AI Image Generation *(NEW!)*
 
-CodeForge AI now includes built-in AI image generation powered by **Stable Diffusion 3.5**:
+CodeForge AI now includes built-in AI image generation powered by **Runware's high-performance API**:
 
+- **Fast Generation**: WebSocket-based real-time processing with model `runware:101@1`
 - **Product Photo Generation**: Create professional product images for e-commerce sites
 - **Hero Images & Backgrounds**: Generate stunning visuals for landing pages
 - **On-Demand Creation**: Agents automatically generate images when needed
 - **Automatic Cloud Upload**: Images are uploaded to Supabase and ready to use
-- **No External Dependencies**: No need for Unsplash, Lorem Picsum, or other image services
+- **No External Dependencies**: All image generation handled internally
 
 **How It Works:**
 ```typescript
 // Agents automatically call the image generation tool
 // Example: "Create a shoe store website with product images"
-// Result: AI generates unique product photos for each item
+// Result: AI generates unique product photos for each item using Runware
+```
+
+### Use Cases
+
+```typescript
+// 1. E-Commerce Product Images
+"Create a shoe store website"
+// → Generates unique product photos for each shoe
+
+// 2. Hero Images for Landing Pages
+"Build a SaaS landing page"
+// → Creates professional hero images and backgrounds
+
+// 3. UI Elements and Icons
+"Design a dashboard with custom icons"
+// → Generates matching icon sets
+
+// 4. Marketing Materials
+"Create a portfolio website"
+// → Generates project thumbnails and visuals
+```
+
+### Technical Details
+
+- **Provider**: Runware API
+- **Model**: runware:101@1 (Stable Diffusion optimized for speed)
+- **Resolution**: 1024x1024 (configurable)
+- **Format**: PNG
+- **Storage**: Supabase Storage
+- **Access**: Public URLs with CDN
+- **Connection**: WebSocket (persistent, efficient)
+- **Performance**: Fast generation with real-time processing
+
+### Agent Integration
+
+All code generation agents have access to the image generation tool:
+
+```typescript
+// SimpleCoderAgent - HTML/CSS/JS projects
+// ComplexCoderAgent - React/TypeScript projects
+// CodeModificationAgent - Adding images to existing code
+
+// Agents automatically:
+// 1. Identify need for images
+// 2. Generate detailed prompts
+// 3. Call image generation tool (Runware)
+// 4. Integrate URLs into code
+// 5. Add proper styling and alt text
+```
+
+### Example Workflow
+
+```bash
+User: "Create an e-commerce site for sneakers"
+
+Agent Process:
+1. ✅ Generate HTML structure
+2. 🎨 Call generate_image 6 times with unique prompts using Runware:
+   - "Professional product photo of red running shoes..."
+   - "Professional product photo of black sneakers..."
+   - "Professional product photo of white athletic shoes..."
+3. 📦 Receive public URLs
+4. 🔗 Integrate into HTML/React code
+5. ✨ Apply responsive styling
+
+Result: Fully functional website with AI-generated product images!
 ```
 
 ### 💬 Interactive Chat Interface
@@ -408,7 +475,7 @@ Result: Fully functional website with AI-generated product images!
 - **OpenAI GPT-4** - Primary LLM
 - **Anthropic Claude** - Alternative LLM
 - **Google Gemini** - Alternative LLM
-- **HuggingFace Stable Diffusion 3.5** - Image generation
+- **Runware API** - High-performance image generation (model: runware:101@1)
 - **GitHub MCP Server** - Repository integration
 - **VAPI** - Voice assistant integration
 
@@ -436,7 +503,7 @@ Result: Fully functional website with AI-generated product images!
 - **Supabase Account** (for database and storage)
 - **API Keys**:
   - OpenAI API key (or Anthropic/Google)
-  - HuggingFace API key (for image generation)
+  - Runware API key (for image generation)
   - GitHub token (optional, for GitHub integration)
 
 ### Installation
@@ -472,10 +539,8 @@ OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_anthropic_key
 GOOGLE_API_KEY=your_google_key
 
-# HuggingFace (for image generation)
-HUGGINGFACE_API_KEY_1=your_hf_key_1
-HUGGINGFACE_API_KEY_2=your_hf_key_2
-HUGGINGFACE_API_KEY_3=your_hf_key_3
+# Runware (for image generation)
+RUNWARE_API_KEY=your_runware_key
 
 # Supabase
 SUPABASE_URL=your_supabase_url
@@ -728,7 +793,7 @@ Review code with specialized agents.
 
 #### POST `/api/images/generate`
 
-Generate AI images (internal use by agents).
+Generate AI images using Runware (internal use by agents).
 
 **Request:**
 ```json
@@ -745,7 +810,9 @@ Generate AI images (internal use by agents).
 {
   "success": true,
   "imageUrl": "https://supabase.co/storage/.../image.png",
-  "imagePath": "user_123/generated/image.png"
+  "imagePath": "user_123/generated/image.png",
+  "seed": 12345,
+  "cost": 0.005
 }
 ```
 
@@ -894,7 +961,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **[OpenAI](https://openai.com)** - GPT-4 language model
 - **[Anthropic](https://anthropic.com)** - Claude language model
 - **[Google](https://ai.google)** - Gemini language model
-- **[HuggingFace](https://huggingface.co)** - Stable Diffusion image generation
+- **[Runware](https://runware.ai)** - High-performance image generation API
 - **[Supabase](https://supabase.com)** - Database and storage
 - **[Vercel](https://vercel.com)** - Frontend hosting
 - **[WebContainer API](https://webcontainers.io)** - Browser-based runtime
