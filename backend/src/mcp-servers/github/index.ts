@@ -81,6 +81,27 @@ export class GitHubMcpServer {
         },
       },
       {
+        name: 'create_repository',
+        description: 'Create a new repository for the authenticated user',
+        parameters: {
+          name: 'string',
+          description: 'string (optional)',
+          private: 'boolean (optional)',
+          autoInit: 'boolean (optional)',
+          gitignoreTemplate: 'string (optional)',
+          licenseTemplate: 'string (optional)',
+          homepage: 'string (optional)',
+        },
+      },
+      {
+        name: 'delete_repository',
+        description: 'Delete a repository (use with caution)',
+        parameters: {
+          owner: 'string (optional)',
+          repo: 'string (optional)',
+        },
+      },
+      {
         name: 'fork_repository',
         description: 'Fork a repository to your account',
         parameters: {
@@ -92,6 +113,27 @@ export class GitHubMcpServer {
         name: 'list_collaborators',
         description: 'List repository collaborators',
         parameters: {
+          owner: 'string (optional)',
+          repo: 'string (optional)',
+        },
+      },
+      {
+        name: 'get_tree',
+        description: 'Get repository tree structure',
+        parameters: {
+          treeSha: 'string (optional)',
+          recursive: 'boolean (default: false)',
+          owner: 'string (optional)',
+          repo: 'string (optional)',
+        },
+      },
+      {
+        name: 'push_files',
+        description: 'Push multiple files to repository in a single commit',
+        parameters: {
+          files: 'Array<{path: string, content: string}>',
+          message: 'string (commit message)',
+          branch: 'string (optional)',
           owner: 'string (optional)',
           repo: 'string (optional)',
         },
@@ -140,6 +182,16 @@ export class GitHubMcpServer {
           repo: 'string (optional)',
         },
       },
+      {
+        name: 'create_comment',
+        description: 'Add a comment to an issue or pull request',
+        parameters: {
+          issueNumber: 'number',
+          body: 'string',
+          owner: 'string (optional)',
+          repo: 'string (optional)',
+        },
+      },
 
       // Pull Request operations
       {
@@ -150,6 +202,15 @@ export class GitHubMcpServer {
           body: 'string',
           head: 'string (branch name)',
           base: 'string (target branch)',
+          owner: 'string (optional)',
+          repo: 'string (optional)',
+        },
+      },
+      {
+        name: 'get_pull_request',
+        description: 'Get details of a specific pull request',
+        parameters: {
+          pullNumber: 'number',
           owner: 'string (optional)',
           repo: 'string (optional)',
         },
@@ -283,6 +344,13 @@ export class GitHubMcpServer {
         },
       },
 
+      // User operations
+      {
+        name: 'get_authenticated_user',
+        description: 'Get information about the authenticated user',
+        parameters: {},
+      },
+
       // Workflow operations
       {
         name: 'list_workflow_runs',
@@ -404,6 +472,14 @@ export class GitHubMcpServer {
             parameters.repo
           )
 
+        case 'create_comment':
+          return await this.github.createComment(
+            parameters.issueNumber,
+            parameters.body,
+            parameters.owner,
+            parameters.repo
+          )
+
         // Pull Request operations
         case 'create_pull_request':
           return await this.github.createPullRequest(
@@ -411,6 +487,13 @@ export class GitHubMcpServer {
             parameters.body,
             parameters.head,
             parameters.base,
+            parameters.owner,
+            parameters.repo
+          )
+
+        case 'get_pull_request':
+          return await this.github.getPullRequest(
+            parameters.pullNumber,
             parameters.owner,
             parameters.repo
           )
@@ -540,6 +623,18 @@ export class GitHubMcpServer {
         case 'get_commit_diff':
           return await this.github.getCommitDiff(
             parameters.commitSha,
+            parameters.owner,
+            parameters.repo
+          )
+
+        // User operations
+        case 'get_authenticated_user':
+          return await this.github.getAuthenticatedUser()
+
+        case 'get_tree':
+          return await this.github.getTree(
+            parameters.treeSha,
+            parameters.recursive,
             parameters.owner,
             parameters.repo
           )
