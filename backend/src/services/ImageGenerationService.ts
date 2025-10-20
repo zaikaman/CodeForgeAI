@@ -1,14 +1,11 @@
 import axios from 'axios';
-import { Client } from '@gradio/client';
 import { getHuggingFaceKeyManager } from './HuggingFaceKeyManager';
 import { getSupabaseClient } from '../storage/SupabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Image Generation Service
- * Generates images using HuggingFace's Stable Diffusion via Gradio Client
- * Uses the same space and model as QuillNova: stabilityai/stable-diffusion-3.5-large-turbo
- * Implementation based on QuillNova's Python code
+ * Image Generation Service - Pure HTTP Implementation
+ * No library dependencies, just direct HTTP calls to Gradio API
  */
 
 export interface ImageGenerationOptions {
@@ -30,9 +27,6 @@ export interface ImageGenerationResult {
   keyUsed?: string;
 }
 
-/**
- * Default options for image generation
- */
 const DEFAULT_OPTIONS: Partial<ImageGenerationOptions> = {
   negativePrompt: '',
   width: 1024,
@@ -43,92 +37,147 @@ const DEFAULT_OPTIONS: Partial<ImageGenerationOptions> = {
   randomizeSeed: true,
 };
 
+const GRADIO_SPACE = 'stabilityai/stable-diffusion-3.5-large-turbo';
+const GRADIO_API_URL = `https://${GRADIO_SPACE.replace('/', '-')}.hf.space`;
+
 /**
- * Generate image using Gradio Client (exactly like QuillNova's Python implementation)
- * Space: stabilityai/stable-diffusion-3.5-large-turbo
- * API endpoint: /infer
+ * Generate image using pure HTTP requests (no @gradio/client)
  */
 async function generateImageWithKey(
   prompt: string,
   apiKey: string,
   options: ImageGenerationOptions
 ): Promise<Buffer> {
-  console.log(`🚀 Connecting to Gradio with key ...${apiKey.slice(-4)}`);
-  
-  // Connect to Gradio client with HF token (same as Python: Client("space", hf_token=key))
-  const client = await Client.connect(
-    'stabilityai/stable-diffusion-3.5-large-turbo',
-    { hf_token: apiKey as `hf_${string}` }
+  console.log(`🚀 HTTP request to Gradio with key ...${apiKey.slice(-4)}`);
+
+  const sessionHash = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
+  // Step 1: Join queue
+  const joinResponse = await axios.post(
+    `${GRADIO_API_URL}/queue/join`,
+    {
+      data: [
+        prompt,
+        options.negativePrompt || '',
+        options.seed || 0,
+        options.randomizeSeed ?? true,
+        options.width || 1024,
+        options.height || 1024,
+        options.guidanceScale || 0,
+        options.numInferenceSteps || 4,
+      ],
+      event_data: null,
+      fn_index: 3,
+      session_hash: sessionHash,
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      timeout: 15000,
+    }
   );
 
-  console.log(`📤 Calling /infer with prompt: "${prompt.substring(0, 60)}..."`);
+  console.log(`📡 Queue response:`, JSON.stringify(joinResponse.data).substring(0, 200));
 
-  // Call predict with api_name="/infer" (same as Python)
-  const result = await client.predict('/infer', {
-    prompt: prompt,
-    negative_prompt: options.negativePrompt || '',
-    seed: options.seed || 0,
-    randomize_seed: options.randomizeSeed ?? true,
-    width: options.width || 1024,
-    height: options.height || 1024,
-    guidance_scale: options.guidanceScale || 0,
-    num_inference_steps: options.numInferenceSteps || 4,
-  });
+  // Step 2: Poll for result
+  const maxAttempts = 120;
+  const pollInterval = 1000;
 
-  console.log(`� Received result from Gradio`);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const dataResponse = await axios.get(
+        `${GRADIO_API_URL}/queue/data`,
+        {
+          params: { session_hash: sessionHash },
+          headers: {
+            'Accept': 'text/event-stream',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          timeout: 10000,
+          responseType: 'text',
+        }
+      );
 
-  // Python code: if result and isinstance(result, (list, tuple)) and isinstance(result[0], str):
-  //              local_image_path = result[0]
-  if (!result || typeof result !== 'object') {
-    throw new Error(`Unexpected result type: ${typeof result}`);
+      const lines = dataResponse.data.split('\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const jsonStr = line.substring(6).trim();
+            if (!jsonStr || jsonStr === '[]') continue;
+            
+            const data = JSON.parse(jsonStr);
+            
+            if (data.msg === 'process_completed' && data.output?.data) {
+              console.log(`✅ Generation complete!`);
+              const resultData = data.output.data;
+              
+              if (!Array.isArray(resultData) || resultData.length === 0) {
+                throw new Error(`Invalid result: ${JSON.stringify(resultData)}`);
+              }
+
+              const imageData = resultData[0];
+              let imageUrl: string;
+
+              if (typeof imageData === 'string') {
+                imageUrl = imageData.startsWith('http') ? imageData : `${GRADIO_API_URL}/file=${imageData}`;
+              } else if (imageData?.url) {
+                imageUrl = imageData.url;
+              } else if (imageData?.path) {
+                imageUrl = `${GRADIO_API_URL}/file=${imageData.path}`;
+              } else if (imageData?.name) {
+                imageUrl = `${GRADIO_API_URL}/file=${imageData.name}`;
+              } else {
+                throw new Error(`Unknown image format: ${JSON.stringify(imageData)}`);
+              }
+
+              console.log(`📥 Downloading from: ${imageUrl.substring(0, 80)}...`);
+
+              const imageResponse = await axios.get(imageUrl, {
+                responseType: 'arraybuffer',
+                timeout: 60000,
+                headers: { 'Authorization': `Bearer ${apiKey}` },
+              });
+
+              return Buffer.from(imageResponse.data);
+            }
+
+            if (data.msg === 'process_error') {
+              throw new Error(data.output || 'Generation failed');
+            }
+
+            if (attempt % 10 === 0 && data.msg) {
+              console.log(`💫 ${data.msg}`);
+            }
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    } catch (err: any) {
+      if (attempt === maxAttempts - 1) throw err;
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
   }
 
-  const resultData = (result as any).data;
-  if (!Array.isArray(resultData) || resultData.length === 0) {
-    throw new Error(`Invalid result format: ${JSON.stringify(result)}`);
-  }
-
-  const imageData = resultData[0];
-  let imageUrl: string;
-
-  // Handle different path formats
-  if (typeof imageData === 'string') {
-    imageUrl = imageData;
-  } else if (imageData?.url) {
-    imageUrl = imageData.url;
-  } else if (imageData?.path) {
-    imageUrl = imageData.path;
-  } else {
-    throw new Error(`Unexpected image data format: ${JSON.stringify(imageData)}`);
-  }
-
-  console.log(`📥 Downloading image from: ${imageUrl.substring(0, 80)}...`);
-
-  // Download the generated image
-  const imageResponse = await axios.get(imageUrl, {
-    responseType: 'arraybuffer',
-    timeout: 60000,
-  });
-
-  return Buffer.from(imageResponse.data);
+  throw new Error('Timeout after 120s');
 }
 
-/**
- * Upload generated image to Supabase Storage
- */
 async function uploadImageToSupabase(
   imageBuffer: Buffer,
   userId: string
 ): Promise<{ url: string; path: string }> {
   const supabase = getSupabaseClient();
   
-  // Generate unique filename
   const timestamp = Date.now();
   const randomString = uuidv4().substring(0, 8);
   const fileName = `generated-${timestamp}-${randomString}.png`;
   const filePath = `${userId}/generated/${fileName}`;
 
-  // Upload to Supabase storage (same bucket as uploaded images)
   const { error: uploadError } = await supabase.storage
     .from('chat-images')
     .upload(filePath, imageBuffer, {
@@ -138,15 +187,14 @@ async function uploadImageToSupabase(
     });
 
   if (uploadError) {
-    throw new Error(`Failed to upload image to Supabase: ${uploadError.message}`);
+    throw new Error(`Failed to upload: ${uploadError.message}`);
   }
 
-  // Get public URL
   const { data: urlData } = supabase.storage
     .from('chat-images')
     .getPublicUrl(filePath);
 
-  console.log(`✅ Image uploaded to Supabase: ${urlData.publicUrl}`);
+  console.log(`✅ Uploaded to Supabase: ${urlData.publicUrl}`);
   
   return {
     url: urlData.publicUrl,
@@ -154,20 +202,13 @@ async function uploadImageToSupabase(
   };
 }
 
-/**
- * Generate image with automatic key rotation and retry
- * Similar to Narrato's generate_image function
- */
 export async function generateImage(
   prompt: string,
   userId: string,
   options: Partial<ImageGenerationOptions> = {}
 ): Promise<ImageGenerationResult> {
   if (!prompt || prompt.trim() === '') {
-    return {
-      success: false,
-      error: 'Empty prompt provided',
-    };
+    return { success: false, error: 'Empty prompt' };
   }
 
   const finalOptions: ImageGenerationOptions = {
@@ -177,96 +218,58 @@ export async function generateImage(
   };
 
   const keyManager = getHuggingFaceKeyManager();
-  const maxCycles = 1; // Only try once - if it fails, report to agent
   const numKeys = keyManager.getKeyCount();
 
   if (numKeys === 0) {
-    return {
-      success: false,
-      error: 'No HuggingFace API keys available',
-    };
+    return { success: false, error: 'No API keys available' };
   }
 
-  console.log(`🎨 Starting image generation with prompt: "${prompt.substring(0, 100)}..."`);
+  console.log(`🎨 Starting generation: "${prompt.substring(0, 100)}..."`);
 
-  for (let cycle = 0; cycle < maxCycles; cycle++) {
-    for (let i = 0; i < numKeys; i++) {
-      let currentKey = '';
-      try {
-        currentKey = await keyManager.getNextKey();
-        const keyMasked = `...${currentKey.slice(-4)}`;
-        
-        console.log(
-          `🔑 Attempting image generation with key ${keyMasked} ` +
-          `(Attempt ${i + 1}/${numKeys})`
-        );
+  for (let i = 0; i < numKeys; i++) {
+    let currentKey = '';
+    try {
+      currentKey = await keyManager.getNextKey();
+      const keyMasked = `...${currentKey.slice(-4)}`;
+      
+      console.log(`🔑 Attempt ${i + 1}/${numKeys} with key ${keyMasked}`);
 
-        // Generate image
-        const imageBuffer = await generateImageWithKey(prompt, currentKey, finalOptions);
+      const imageBuffer = await generateImageWithKey(prompt, currentKey, finalOptions);
+      const { url, path } = await uploadImageToSupabase(imageBuffer, userId);
 
-        // Upload to Supabase
-        const { url, path } = await uploadImageToSupabase(imageBuffer, userId);
+      console.log(`✅ Success with key ${keyMasked}`);
 
-        console.log(`✅ Image generation successful with key ${keyMasked}`);
+      return {
+        success: true,
+        imageUrl: url,
+        imagePath: path,
+        keyUsed: keyMasked,
+      };
+    } catch (error: any) {
+      const keyMasked = currentKey ? `...${currentKey.slice(-4)}` : 'N/A';
+      console.error(`❌ Key ${keyMasked} failed: ${error.message}`);
+      console.error(`📋 Details:`, {
+        name: error.name,
+        code: error.code,
+        response: error.response ? {
+          status: error.response.status,
+          statusText: error.response.statusText,
+        } : undefined
+      });
 
-        return {
-          success: true,
-          imageUrl: url,
-          imagePath: path,
-          keyUsed: keyMasked,
-        };
-      } catch (error: any) {
-        const keyMasked = currentKey ? `...${currentKey.slice(-4)}` : 'N/A';
-        const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
-        const errorName = error.name || 'Error';
-        
-        console.error(
-          `❌ Key ${keyMasked} failed: ${errorName} - ${errorMessage}`
-        );
-        
-        // Log full error details for debugging
-        console.error(`📋 Full error details:`, {
-          name: error.name,
-          message: error.message,
-          cause: error.cause,
-          code: error.code,
-          response: error.response ? {
-            status: error.response.status,
-            data: JSON.stringify(error.response.data).substring(0, 200)
-          } : undefined
-        });
-        
-        // Log more details for debugging
-        if (error.stack) {
-          console.error(`📚 Stack trace: ${error.stack.split('\n').slice(0, 5).join('\n')}`);
-        }
-
-        // Check if it's a rate limit error
-        if (error.response?.status === 429 || errorMessage.includes('rate limit')) {
-          console.log(`⏳ Rate limit hit on key ${keyMasked}, rotating to next key`);
-        }
-
-        // If this was the last key in the cycle
-        if (i === numKeys - 1) {
-          console.log(`⚠️ All ${numKeys} keys failed in cycle ${cycle + 1}`);
-        }
-
-        continue;
+      if (i === numKeys - 1) {
+        console.log(`⚠️ All ${numKeys} keys failed`);
       }
+      continue;
     }
   }
 
-  console.error('❌ Image generation cycle failed. Service temporarily unavailable.');
-  
   return {
     success: false,
-    error: 'Image generation service is temporarily unavailable. Proceeding without generated images.',
+    error: 'All API keys failed',
   };
 }
 
-/**
- * Generate multiple images with the same or different prompts
- */
 export async function generateMultipleImages(
   prompts: string[],
   userId: string,
@@ -277,25 +280,21 @@ export async function generateMultipleImages(
   const results: ImageGenerationResult[] = [];
 
   for (let i = 0; i < prompts.length; i++) {
-    console.log(`\n🖼️ Generating image ${i + 1}/${prompts.length}`);
+    console.log(`\n🖼️ Image ${i + 1}/${prompts.length}`);
     const result = await generateImage(prompts[i], userId, options);
     results.push(result);
 
-    // Small delay between requests to avoid overwhelming the API
     if (i < prompts.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
 
-  const successCount = results.filter((r) => r.success).length;
-  console.log(`\n✅ Generated ${successCount}/${prompts.length} images successfully`);
+  const successCount = results.filter(r => r.success).length;
+  console.log(`\n✅ Generated ${successCount}/${prompts.length} images`);
 
   return results;
 }
 
-/**
- * Get key manager statistics
- */
 export function getKeyManagerStats(): Record<string, number> {
   const keyManager = getHuggingFaceKeyManager();
   return keyManager.getUsageStats();
