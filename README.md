@@ -13,7 +13,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.2-61dafb.svg)](https://reactjs.org/)
 
-[🚀 Live Demo](https://codeforge-ai.vercel.app) | [📚 Documentation](https://codeforge-ai.vercel.app/docs) | [💬 Telegram Bot](https://t.me/codeforge_ai_bot)
+[🚀 Live Demo](https://codeforge-adk.vercel.app) | [📚 Documentation](https://codeforge-adk.vercel.app/docs) | [💬 Telegram Bot](https://t.me/codeforge_ai_bot)
 
 </div>
 
