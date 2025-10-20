@@ -53,50 +53,61 @@ async function generateImageWithKey(
   options: ImageGenerationOptions
 ): Promise<Buffer> {
   // Connect to Gradio space with HuggingFace token
-  const client = await Client.connect('stabilityai/stable-diffusion-3.5-large-turbo', {
-    hf_token: apiKey,
-  } as any);
+  // Set the token in environment for this request
+  const originalToken = process.env.HF_TOKEN;
+  process.env.HF_TOKEN = apiKey;
+  
+  try {
+    const client = await Client.connect('stabilityai/stable-diffusion-3.5-large-turbo');
 
-  // Call the /infer endpoint with parameters (same as Narrato)
-  const result = await client.predict('/infer', {
-    prompt: prompt,
-    negative_prompt: options.negativePrompt || '',
-    seed: options.seed || 0,
-    randomize_seed: options.randomizeSeed ?? true,
-    width: options.width || 1024,
-    height: options.height || 1024,
-    guidance_scale: options.guidanceScale || 0,
-    num_inference_steps: options.numInferenceSteps || 4,
-  });
+    // Call the /infer endpoint with parameters (exactly as in docs)
+    const result = await client.predict('/infer', {
+      prompt: prompt,
+      negative_prompt: options.negativePrompt || '',
+      seed: options.seed || 0,
+      randomize_seed: options.randomizeSeed ?? true,
+      width: options.width || 1024,
+      height: options.height || 1024,
+      guidance_scale: options.guidanceScale || 0,
+      num_inference_steps: options.numInferenceSteps || 4,
+    });
 
-  // Extract image path from result
-  // Result format: { data: [image_path, seed] }
-  const imageData = result.data as any[];
-  if (!imageData || !imageData[0]) {
-    throw new Error('No image data returned from Gradio');
+    // Extract image path from result
+    // Result format: { data: [image_path, seed] }
+    const imageData = result.data as any[];
+    if (!imageData || !imageData[0]) {
+      throw new Error('No image data returned from Gradio');
+    }
+
+    const imagePath = imageData[0];
+    let imageUrl: string;
+
+    // Handle different path formats
+    if (typeof imagePath === 'string') {
+      imageUrl = imagePath;
+    } else if (imagePath?.url) {
+      imageUrl = imagePath.url;
+    } else if (imagePath?.path) {
+      imageUrl = imagePath.path;
+    } else {
+      throw new Error(`Unexpected image data format: ${JSON.stringify(imagePath)}`);
+    }
+
+    // Download the generated image
+    const imageResponse = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 60000,
+    });
+
+    return Buffer.from(imageResponse.data);
+  } finally {
+    // Restore original token
+    if (originalToken) {
+      process.env.HF_TOKEN = originalToken;
+    } else {
+      delete process.env.HF_TOKEN;
+    }
   }
-
-  const imagePath = imageData[0];
-  let imageUrl: string;
-
-  // Handle different path formats
-  if (typeof imagePath === 'string') {
-    imageUrl = imagePath;
-  } else if (imagePath?.url) {
-    imageUrl = imagePath.url;
-  } else if (imagePath?.path) {
-    imageUrl = imagePath.path;
-  } else {
-    throw new Error(`Unexpected image data format: ${JSON.stringify(imagePath)}`);
-  }
-
-  // Download the generated image
-  const imageResponse = await axios.get(imageUrl, {
-    responseType: 'arraybuffer',
-    timeout: 60000,
-  });
-
-  return Buffer.from(imageResponse.data);
 }
 
 /**
@@ -204,10 +215,16 @@ export async function generateImage(
       } catch (error: any) {
         const keyMasked = currentKey ? `...${currentKey.slice(-4)}` : 'N/A';
         const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
+        const errorName = error.name || 'Error';
         
         console.error(
-          `❌ Key ${keyMasked} failed: ${errorMessage}`
+          `❌ Key ${keyMasked} failed: ${errorName} - ${errorMessage}`
         );
+        
+        // Log more details for debugging
+        if (error.stack) {
+          console.error(`Stack trace: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
+        }
 
         // Check if it's a rate limit error
         if (error.response?.status === 429 || errorMessage.includes('rate limit')) {
