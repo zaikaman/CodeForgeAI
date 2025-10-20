@@ -1,12 +1,11 @@
 import axios from 'axios';
-import { Client } from '@gradio/client';
 import { getHuggingFaceKeyManager } from './HuggingFaceKeyManager';
 import { getSupabaseClient } from '../storage/SupabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Image Generation Service
- * Generates images using HuggingFace's Stable Diffusion via Gradio Client
+ * Generates images using HuggingFace's Stable Diffusion via Gradio HTTP API
  * Uses the same space and model as Narrato: stabilityai/stable-diffusion-3.5-large-turbo
  */
 
@@ -43,71 +42,143 @@ const DEFAULT_OPTIONS: Partial<ImageGenerationOptions> = {
 };
 
 /**
- * Generate image using Gradio Client (same as Narrato implementation)
+ * Gradio API configuration
+ */
+const GRADIO_SPACE_URL = 'https://stabilityai-stable-diffusion-3-5-large-turbo.hf.space';
+const GRADIO_API_BASE = `${GRADIO_SPACE_URL}/gradio_api`;
+
+/**
+ * Generate image using Gradio HTTP API (cURL equivalent)
  * Space: stabilityai/stable-diffusion-3.5-large-turbo
  * API endpoint: /infer
+ * 
+ * Two-step process:
+ * 1. POST to /call/infer to start generation (returns event_id)
+ * 2. GET /call/infer/{event_id} to poll for results
  */
 async function generateImageWithKey(
   prompt: string,
   apiKey: string,
   options: ImageGenerationOptions
 ): Promise<Buffer> {
-  // Connect to Gradio space with HuggingFace token
-  // Set the token in environment for this request
-  const originalToken = process.env.HF_TOKEN;
-  process.env.HF_TOKEN = apiKey;
-  
-  try {
-    const client = await Client.connect('stabilityai/stable-diffusion-3.5-large-turbo');
-
-    // Call the /infer endpoint with parameters (exactly as in docs)
-    const result = await client.predict('/infer', {
-      prompt: prompt,
-      negative_prompt: options.negativePrompt || '',
-      seed: options.seed || 0,
-      randomize_seed: options.randomizeSeed ?? true,
-      width: options.width || 1024,
-      height: options.height || 1024,
-      guidance_scale: options.guidanceScale || 0,
-      num_inference_steps: options.numInferenceSteps || 4,
-    });
-
-    // Extract image path from result
-    // Result format: { data: [image_path, seed] }
-    const imageData = result.data as any[];
-    if (!imageData || !imageData[0]) {
-      throw new Error('No image data returned from Gradio');
+  // Step 1: POST to start image generation
+  const postResponse = await axios.post(
+    `${GRADIO_API_BASE}/call/infer`,
+    {
+      data: [
+        prompt,                                    // [0] prompt
+        options.negativePrompt || '',              // [1] negative_prompt
+        options.seed || 0,                         // [2] seed
+        options.randomizeSeed ?? true,             // [3] randomize_seed
+        options.width || 1024,                     // [4] width
+        options.height || 1024,                    // [5] height
+        options.guidanceScale || 0,                // [6] guidance_scale
+        options.numInferenceSteps || 4,            // [7] num_inference_steps
+      ],
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      timeout: 10000,
     }
+  );
 
-    const imagePath = imageData[0];
-    let imageUrl: string;
+  // Extract event_id from response
+  const eventId = postResponse.data?.event_id;
+  if (!eventId) {
+    throw new Error('No event_id returned from Gradio API');
+  }
 
-    // Handle different path formats
-    if (typeof imagePath === 'string') {
-      imageUrl = imagePath;
-    } else if (imagePath?.url) {
-      imageUrl = imagePath.url;
-    } else if (imagePath?.path) {
-      imageUrl = imagePath.path;
-    } else {
-      throw new Error(`Unexpected image data format: ${JSON.stringify(imagePath)}`);
-    }
+  // Step 2: Poll GET endpoint for results
+  const maxAttempts = 60; // 60 seconds max wait
+  const pollInterval = 1000; // 1 second between polls
 
-    // Download the generated image
-    const imageResponse = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 60000,
-    });
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const getResponse = await axios.get(
+        `${GRADIO_API_BASE}/call/infer/${eventId}`,
+        {
+          headers: {
+            Accept: 'text/event-stream',
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          timeout: 5000,
+          responseType: 'text',
+        }
+      );
 
-    return Buffer.from(imageResponse.data);
-  } finally {
-    // Restore original token
-    if (originalToken) {
-      process.env.HF_TOKEN = originalToken;
-    } else {
-      delete process.env.HF_TOKEN;
+      // Parse SSE (Server-Sent Events) response
+      const lines = getResponse.data.split('\n');
+      let resultData: any = null;
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const jsonData = JSON.parse(line.substring(6));
+            
+            // Check if generation is complete
+            if (jsonData.msg === 'process_completed' && jsonData.output?.data) {
+              resultData = jsonData.output.data;
+              break;
+            }
+            
+            // Check for errors
+            if (jsonData.msg === 'process_error') {
+              throw new Error(jsonData.error || 'Image generation failed');
+            }
+          } catch (parseError) {
+            // Skip malformed JSON
+            continue;
+          }
+        }
+      }
+
+      if (resultData) {
+        // Extract image URL from result data
+        // Format: [image_data, seed]
+        const imageData = resultData[0];
+        let imageUrl: string;
+
+        if (typeof imageData === 'string') {
+          imageUrl = imageData;
+        } else if (imageData?.url) {
+          imageUrl = imageData.url;
+        } else if (imageData?.path) {
+          // Convert path to full URL
+          imageUrl = `${GRADIO_SPACE_URL}/file=${imageData.path}`;
+        } else {
+          throw new Error(`Unexpected image data format: ${JSON.stringify(imageData)}`);
+        }
+
+        // Ensure URL is absolute
+        if (!imageUrl.startsWith('http')) {
+          imageUrl = `${GRADIO_SPACE_URL}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+        }
+
+        // Download the generated image
+        const imageResponse = await axios.get(imageUrl, {
+          responseType: 'arraybuffer',
+          timeout: 60000,
+        });
+
+        return Buffer.from(imageResponse.data);
+      }
+
+      // Wait before next poll
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    } catch (pollError: any) {
+      // Only throw on final attempt
+      if (attempt === maxAttempts - 1) {
+        throw pollError;
+      }
+      // Otherwise continue polling
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
   }
+
+  throw new Error('Image generation timed out after 60 seconds');
 }
 
 /**
