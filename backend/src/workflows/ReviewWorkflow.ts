@@ -1,6 +1,7 @@
 import { BugHunterAgent } from '../agents/specialized/BugHunterAgent';
 import { SecuritySentinelAgent } from '../agents/specialized/SecuritySentinelAgent';
 import { PerformanceProfilerAgent } from '../agents/specialized/PerformanceProfilerAgent';
+import { QualityAssuranceAgentRunner } from '../agents/specialized/QualityAssuranceAgent';
 
 export interface ReviewRequest {
   code: any[]; // Array of files to review
@@ -38,9 +39,11 @@ export class ReviewWorkflow {
   private agents: Map<string, any> = new Map();
   private initialized = false;
   private githubContext: any = null;
+  private progressCallback?: (agent: string, status: string, message: string) => void;
 
-  constructor(options?: { githubContext?: any }) {
+  constructor(options?: { githubContext?: any; onProgress?: (agent: string, status: string, message: string) => void }) {
     this.githubContext = options?.githubContext || null;
+    this.progressCallback = options?.onProgress;
     
     if (this.githubContext) {
       console.log('[ReviewWorkflow] GitHub context available:', this.githubContext.username);
@@ -59,18 +62,20 @@ export class ReviewWorkflow {
 
     try {
       // Initialize all agents in parallel with GitHub context
-      const [bugHunter, securitySentinel, performanceProfiler] = await Promise.all([
+      const [bugHunter, securitySentinel, performanceProfiler, qualityAssurance] = await Promise.all([
         BugHunterAgent({ githubContext: this.githubContext }),
         SecuritySentinelAgent({ githubContext: this.githubContext }),
         PerformanceProfilerAgent({ githubContext: this.githubContext }),
+        QualityAssuranceAgentRunner({ githubContext: this.githubContext }),
       ]);
 
       this.agents.set('BugHunter', bugHunter);
       this.agents.set('SecuritySentinel', securitySentinel);
       this.agents.set('PerformanceProfiler', performanceProfiler);
+      this.agents.set('QualityAssurance', qualityAssurance);
 
       this.initialized = true;
-      console.log('[ReviewWorkflow] All agents initialized successfully');
+      console.log('[ReviewWorkflow] All 4 review agents initialized successfully');
     } catch (error) {
       console.error('[ReviewWorkflow] Failed to initialize agents:', error);
       throw error;
@@ -138,9 +143,24 @@ export class ReviewWorkflow {
     }
 
     if (options.checkStyle) {
+      const qualityAssurance = this.agents.get('QualityAssurance');
+      if (qualityAssurance) {
+        reviewTasks.push({
+          agent: 'QualityAssurance',
+          promise: qualityAssurance.runner.ask(codeContext),
+        });
+        agentsInvolved.push('QualityAssurance');
+      }
     }
 
     console.log(`[ReviewWorkflow] Running ${reviewTasks.length} review agents in parallel...`);
+
+    // Emit progress for each agent starting
+    if (this.progressCallback) {
+      agentsInvolved.forEach(agent => {
+        this.progressCallback!(agent, 'started', `${agent} is analyzing your code...`);
+      });
+    }
 
     // Run all agents in parallel
     const results = await Promise.allSettled(
@@ -157,8 +177,23 @@ export class ReviewWorkflow {
         const agentFindings = this.parseAgentResult(agentName, result.value);
         findings.push(...agentFindings);
         console.log(`[ReviewWorkflow] ${agentName} found ${agentFindings.length} issues`);
+        
+        // Emit progress for agent completion
+        if (this.progressCallback) {
+          this.progressCallback(
+            agentName, 
+            'completed', 
+            `${agentName} completed - Found ${agentFindings.length} issue${agentFindings.length !== 1 ? 's' : ''}`
+          );
+        }
       } else {
         console.error(`[ReviewWorkflow] ${agentName} failed:`, result.reason);
+        
+        // Emit progress for agent failure
+        if (this.progressCallback) {
+          this.progressCallback(agentName, 'error', `${agentName} encountered an error`);
+        }
+        
         // Add error as a finding
         findings.push({
           agent: agentName,
@@ -263,6 +298,7 @@ export class ReviewWorkflow {
       'BugHunter': 'bug',
       'SecuritySentinel': 'security',
       'PerformanceProfiler': 'performance',
+      'QualityAssurance': 'quality',
     };
     return categoryMap[agentName] || 'quality';
   }

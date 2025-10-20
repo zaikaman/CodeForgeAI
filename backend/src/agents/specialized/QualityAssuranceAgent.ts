@@ -229,3 +229,19 @@ export const QualityAssuranceAgentADK = AgentBuilder.create('QualityAssuranceAge
   .withModel('gpt-5-nano-2025-08-07') // Fast model for validation
   .withInstruction(systemPrompt)
   .build()
+
+/**
+ * Wrapper function to initialize QualityAssuranceAgent with options
+ */
+export const QualityAssuranceAgentRunner = async (options?: { githubContext?: any }) => {
+  const agent = await QualityAssuranceAgentADK;
+  
+  // Log initialization
+  if (options?.githubContext) {
+    console.log('[QualityAssuranceAgent] Initialized with GitHub context:', options.githubContext.username);
+  } else {
+    console.log('[QualityAssuranceAgent] Initialized without GitHub context');
+  }
+  
+  return agent;
+}

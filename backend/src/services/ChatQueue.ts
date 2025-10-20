@@ -711,7 +711,7 @@ class ChatQueueManager {
         }
         
         // Determine which workflow to use based on the agent
-        const reviewAgents = ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler'];
+        const reviewAgents = ['BugHunter', 'SecuritySentinel', 'PerformanceProfiler', 'CodeReview'];
         const isReviewWorkflow = reviewAgents.includes(specialistAgent);
         
         // Build context with conversation history for specialist agents
@@ -732,17 +732,30 @@ class ChatQueueManager {
           await this.emitProgress(job.id, specialistAgent, 'started', `Starting code review process...`);
           
           const { ReviewWorkflow } = await import('../workflows/ReviewWorkflow');
-          const workflow = new ReviewWorkflow({
-            githubContext: job.githubContext, // Pass GitHub context to ReviewWorkflow
-          });
           
           // Map specialist agent to review options
+          // If specialistAgent is 'CodeReview', run ALL review agents in parallel
           const reviewOptions = {
-            checkBugs: specialistAgent === 'BugHunter',
-            checkSecurity: specialistAgent === 'SecuritySentinel',
-            checkPerformance: specialistAgent === 'PerformanceProfiler',
-            checkStyle: false,
+            checkBugs: specialistAgent === 'BugHunter' || specialistAgent === 'CodeReview',
+            checkSecurity: specialistAgent === 'SecuritySentinel' || specialistAgent === 'CodeReview',
+            checkPerformance: specialistAgent === 'PerformanceProfiler' || specialistAgent === 'CodeReview',
+            checkStyle: specialistAgent === 'CodeReview', // Only for comprehensive review
           };
+          
+          console.log(`[ChatQueue] Review options:`, reviewOptions);
+          
+          // Create workflow with progress callback
+          const workflow = new ReviewWorkflow({
+            githubContext: job.githubContext, // Pass GitHub context to ReviewWorkflow
+            onProgress: (agent: string, status: string, message: string) => {
+              // Emit progress for each individual review agent
+              const mappedStatus = status === 'completed' ? 'completed' as const : 
+                                   status === 'error' ? 'error' as const : 
+                                   status === 'started' ? 'started' as const : 
+                                   'processing' as const;
+              this.emitProgress(job.id, agent, mappedStatus, message);
+            }
+          });
           
           workflowResult = await workflow.run({
             code: job.currentFiles,
@@ -779,10 +792,15 @@ class ChatQueueManager {
           // Use the full summary which now includes detailed findings
           const reviewSummary = workflowResult.summary || 'Code review completed';
           
+          // For CodeReview (comprehensive), show which agents were involved
+          const agentLabel = specialistAgent === 'CodeReview' 
+            ? `CodeReview (${workflowResult.agentsInvolved?.join(', ') || 'Multiple Agents'})`
+            : specialistAgent;
+          
           jobResult = {
             files: [], // Review doesn't modify files
             summary: reviewSummary, // Use full detailed summary
-            agent: specialistAgent,
+            agent: agentLabel,
             suggestions: workflowResult.findings?.slice(0, 3).map((f: any) => 
               `${f.severity}: ${f.message}${f.file ? ` in ${f.file}` : ''}`
             ),

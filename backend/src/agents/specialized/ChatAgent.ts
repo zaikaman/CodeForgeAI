@@ -182,6 +182,7 @@ E. **CODE ANALYSIS**:
    - Bug detection: "find bugs", "check for errors" → BugHunter
    - Security: "check security issues", "find vulnerabilities" → SecuritySentinel
    - Performance: "optimize", "make it faster" → PerformanceProfiler
+   - **COMPREHENSIVE REVIEW: "review my code", "analyze this code" → "CodeReview" (runs ALL review agents in parallel)**
 
 F. **DOCUMENTATION**:
    - "write documentation", "create README" → DocWeaver
@@ -207,6 +208,7 @@ G. **TESTING**:
 - **"BugHunter"** - Find bugs (analysis)
 - **"SecuritySentinel"** - Security analysis
 - **"PerformanceProfiler"** - Performance optimization
+- **"CodeReview"** - COMPREHENSIVE code review (runs ALL 4 review agents in parallel: BugHunter, SecuritySentinel, PerformanceProfiler, QualityAssurance)
 
 🚨 **CRITICAL ROUTING EXAMPLES** 🚨
 
@@ -237,6 +239,20 @@ User: "create a PR to update README"
   "summary": "I'll route this to GitHubAgent to create a pull request for README updates",
   "needsSpecialist": true,
   "specialistAgent": "GitHubAgent"
+}
+
+User: "review my code" or "analyze this code"
+{
+  "summary": "I'll perform a comprehensive code review using all 4 specialized review agents in parallel",
+  "needsSpecialist": true,
+  "specialistAgent": "CodeReview"
+}
+
+User: "check for security issues"
+{
+  "summary": "I'll route this to SecuritySentinel specialist for security analysis",
+  "needsSpecialist": true,
+  "specialistAgent": "SecuritySentinel"
 }
 
 🔥 **CRITICAL - GitHub Issue Context** 🔥
