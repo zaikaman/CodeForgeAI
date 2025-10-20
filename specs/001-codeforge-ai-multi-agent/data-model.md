@@ -91,7 +91,7 @@ interface Agent {
   id: string;                      // UUID
   type: AgentType;
   role: string;                    // Human-readable role description
-  model: 'gpt-5-mini-2025-08-07';             // LLM model name (passed to ADK-TS)
+  model: 'gpt-5-nano-2025-08-07';             // LLM model name (passed to ADK-TS)
   systemPrompt: string;            // Role-specific instructions
   tools: Tool[];                   // Available tools
   temperature: number;             // 0-1, default 0.2

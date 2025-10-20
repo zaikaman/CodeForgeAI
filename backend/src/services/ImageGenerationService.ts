@@ -86,7 +86,7 @@ async function generateImageWithKey(
   console.log(`📡 Event ID: ${eventId}`);
 
   // Step 2: GET /call/infer/{EVENT_ID} - streaming SSE
-  const maxAttempts = 120;
+  const maxAttempts = 30;
   const pollInterval = 1000;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -178,7 +178,7 @@ async function generateImageWithKey(
     }
   }
 
-  throw new Error('Timeout after 120s');
+  throw new Error('Image generation timed out after 30s');
 }
 
 async function uploadImageToSupabase(

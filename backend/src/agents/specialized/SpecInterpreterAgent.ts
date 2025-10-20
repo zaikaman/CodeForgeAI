@@ -57,7 +57,7 @@ Provide structured, prioritized requirements that developers can implement with 
 
 export const SpecInterpreterAgent = async () => {
   return AgentBuilder.create('SpecInterpreterAgent')
-    .withModel('gpt-5-mini-2025-08-07')
+    .withModel('gpt-5-nano-2025-08-07')
     .withInstruction(systemPrompt)
     .build();
 };

@@ -155,7 +155,7 @@ import { ADK } from '@iqai/adk-ts';
 
 describe('Orchestrator with Local ADK', () => {
   it('should initialize ADK from local source', () => {
-    const adk = new ADK({ model: 'gpt-5-mini-2025-08-07' });
+    const adk = new ADK({ model: 'gpt-5-nano-2025-08-07' });
     expect(adk).toBeDefined();
   });
 });

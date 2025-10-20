@@ -51,10 +51,10 @@ export enum AgentRole {
  */
 const DEFAULT_MODELS = {
   // Coding agents - use gpt-5-mini for better quality
-  [AgentRole.LEAD_ENGINEER]: 'gpt-5-mini-2025-08-07',
-  [AgentRole.SPEC_INTERPRETER]: 'gpt-5-mini-2025-08-07',
-  [AgentRole.CODE_GENERATOR]: 'gpt-5-mini-2025-08-07',
-  [AgentRole.TEST_CRAFTER]: 'gpt-5-mini-2025-08-07',
+  [AgentRole.LEAD_ENGINEER]: 'gpt-5-nano-2025-08-07',
+  [AgentRole.SPEC_INTERPRETER]: 'gpt-5-nano-2025-08-07',
+  [AgentRole.CODE_GENERATOR]: 'gpt-5-nano-2025-08-07',
+  [AgentRole.TEST_CRAFTER]: 'gpt-5-nano-2025-08-07',
   // Other agents - use gpt-5-nano for efficiency
   [AgentRole.BUG_HUNTER]: 'gpt-5-nano-2025-08-07',
   [AgentRole.SECURITY_SENTINEL]: 'gpt-5-nano-2025-08-07',
@@ -101,7 +101,7 @@ export class AgentFactory {
    */
   async createAgent(config: AgentConfig): Promise<Agent> {
     const builder = AgentBuilder.create(config.name)
-      .withModel(config.model || 'gpt-5-mini-2025-08-07')
+      .withModel(config.model || 'gpt-5-nano-2025-08-07')
       .withInstruction(config.systemPrompt)
 
     // Register tools if specified
@@ -340,7 +340,7 @@ export class AgentFactory {
     const config = this.getRoleConfig(role)
     return {
       name: config.name,
-      model: config.model || 'gpt-5-mini-2025-08-07',
+      model: config.model || 'gpt-5-nano-2025-08-07',
       description: config.systemPrompt,
       tools: config.tools || [],
     }

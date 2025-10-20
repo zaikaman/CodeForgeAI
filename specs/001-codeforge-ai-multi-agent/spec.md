@@ -182,7 +182,7 @@
 ## Notes & Assumptions
 
 **Assumptions**:
-1. OpenAI API (gpt-5-mini-2025-08-07 model) availability and access via ADK-TS framework
+1. OpenAI API (gpt-5-nano-2025-08-07 model) availability and access via ADK-TS framework
 2. Developers have Node.js environment and can install npm packages
 3. Primary target users are solo developers or small teams
 4. Projects are primarily TypeScript/JavaScript with Python support as secondary
@@ -192,7 +192,7 @@
 
 **Dependencies**:
 - ADK-TS framework for agent orchestration and LLM integration
-- OpenAI API access with gpt-5-mini-2025-08-07 model support
+- OpenAI API access with gpt-5-nano-2025-08-07 model support
 - Node.js runtime environment (version 18+ recommended)
 - TypeScript compiler and type definitions
 - npm package ecosystem for dependencies

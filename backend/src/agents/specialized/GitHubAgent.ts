@@ -191,7 +191,7 @@ export const GitHubAgent = async (
         '\n3. Validate completeness (all file types addressed)';
       
       return AgentBuilder.create('GitHubAgent')
-        .withModel('gpt-5-mini-2025-08-07')
+        .withModel('gpt-5-nano-2025-08-07')
         .withInstruction(systemPrompt)
         .withTools(...cachedTools.tools)
         .withOutputSchema(githubAgentResponseSchema)
@@ -225,7 +225,7 @@ export const GitHubAgent = async (
           '\n\n**📋 Remember: Think → Plan → Execute → Validate**';
         
         return AgentBuilder.create('GitHubAgent')
-          .withModel('gpt-5-mini-2025-08-07')
+          .withModel('gpt-5-nano-2025-08-07')
           .withInstruction(systemPrompt)
           .withTools(...cachedTools.tools)
           .withOutputSchema(githubAgentResponseSchema)
