@@ -28,7 +28,7 @@ export const BugHunterAgent = async (options?: BugHunterOptions) => {
   const enhancedPrompt = enhancePromptWithGitHub(systemPrompt, githubContext);
   
   let builder = AgentBuilder.create('BugHunterAgent')
-    .withModel('gpt-5-mini-2025-08-07')
+    .withModel('gpt-5-nano-2025-08-07')
     .withInstruction(enhancedPrompt);
   
   // Add GitHub tools if context is available
