@@ -181,7 +181,6 @@ export function createImageGenerationTool(userId: string) {
         height,
       };
 
-      // Generate single or multiple images based on count
       if (count === 1) {
         const result = await generateImage(prompt, userId, options);
         
