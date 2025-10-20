@@ -306,7 +306,8 @@ export const TerminalPage: React.FC = () => {
       setMessages(prev => [...prev, agentResponseMessage]);
 
       // Update files if present AND ensure panel becomes visible
-      if (result.files && id) {
+      // 🐛 FIX: Check files.length > 0 to avoid clearing workspace with empty array
+      if (result.files && result.files.length > 0 && id) {
         console.log(`📦 Updating generation ${id} with ${result.files.length} files`);
         console.log('Files received:', result.files.map((f: any) => f.path));
         

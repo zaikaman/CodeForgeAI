@@ -29,7 +29,7 @@ interface ChatJob {
   errorContext?: string; // Detailed error information for error fixing tasks
   status: 'pending' | 'processing' | 'completed' | 'error';
   result?: {
-    files: Array<{ path: string; content: string }>;
+    files?: Array<{ path: string; content: string }>; // Optional - not present for conversational/review responses
     summary: string;
     repoCreated?: {
       owner: string;
@@ -478,7 +478,9 @@ class ChatQueueManager {
           // Update job with result in database
           job.status = 'completed';
           job.result = {
-            files: isConversational ? [] : updatedFiles, // Empty array for conversational responses
+            // 🐛 FIX: Don't include files for conversational responses at all
+            // Empty array would cause frontend to clear workspace files
+            ...(isConversational ? {} : { files: updatedFiles }),
             summary: response.summary || (isConversational ? 'Chat response' : 'Applied requested changes to the codebase'),
           };
           job.updatedAt = new Date();
@@ -798,13 +800,18 @@ class ChatQueueManager {
             : specialistAgent;
           
           jobResult = {
-            files: [], // Review doesn't modify files
+            // 🐛 FIX: Don't include files field at all for review (not even empty array)
+            // Empty array would cause frontend to clear workspace files
+            files: undefined as any, // TypeScript workaround - will be omitted in JSON
             summary: reviewSummary, // Use full detailed summary
             agent: agentLabel,
             suggestions: workflowResult.findings?.slice(0, 3).map((f: any) => 
               `${f.severity}: ${f.message}${f.file ? ` in ${f.file}` : ''}`
             ),
           };
+          
+          // Remove undefined files property to avoid sending it to frontend
+          delete (jobResult as any).files;
         } else {
           // GenerateWorkflow returns { files, summary, ... }
           jobResult = {
