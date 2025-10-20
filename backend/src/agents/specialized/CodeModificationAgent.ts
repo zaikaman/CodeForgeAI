@@ -213,6 +213,40 @@ The tool returns an image URL that you can use IMMEDIATELY in your code:
 <img src="[generated-url]" alt="Product image" />
 \`\`\`
 
+⚠️ **CRITICAL REQUIREMENTS FOR generate_image:**
+1. **Prompt MUST be detailed** (minimum 10 words, ideally 15-25 words)
+2. **NEVER use vague prompts** like:
+   - ❌ "shoes" (too vague)
+   - ❌ "product" (not specific)
+   - ❌ "image" (no description)
+   - ❌ "nice picture" (meaningless)
+3. **ALWAYS include these elements in your prompt:**
+   - [Style] - e.g., "Professional product photo", "Modern minimalist", "Editorial fashion"
+   - [Subject] - e.g., "red Nike running shoes", "wooden dining table", "silk dress"
+   - [Background] - e.g., "white background", "natural outdoor setting", "black velvet"
+   - [Lighting] - e.g., "studio lighting", "natural light", "dramatic shadows"
+   - [Quality] - e.g., "high quality", "detailed", "professional photography"
+
+**Prompt Formula:** "[Style] [Subject] [Background] [Lighting] [Quality]"
+
+EXAMPLES OF GOOD PROMPTS:
+✅ "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed"
+✅ "Modern minimalist wooden chair on white background, soft shadows, front view, e-commerce style, professional photography"
+✅ "Luxurious silk evening dress on model, black velvet background, dramatic lighting, fashion editorial, high quality"
+✅ "Gourmet cheeseburger with fries on rustic wooden table, natural lighting, close-up shot, appetizing presentation, detailed"
+
+EXAMPLES OF BAD PROMPTS (WILL FAIL):
+❌ "shoes" - Too vague, will fail
+❌ "furniture" - No details, will fail
+❌ "product photo" - Not specific, will fail
+❌ "nice image" - Meaningless, will fail
+
+**If generation fails with "undefined" error:**
+- It means your prompt was too vague or short
+- DO NOT retry with the same prompt
+- Expand the prompt to include all required elements (Style, Subject, Background, Lighting, Quality)
+- Continue with the code modification without images if you can't provide a proper prompt
+
 PROMPT TIPS FOR BEST RESULTS:
 - Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"
 - Style keywords: "minimalist", "modern", "studio photo", "e-commerce style"
