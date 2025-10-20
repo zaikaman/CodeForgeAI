@@ -224,9 +224,21 @@ export async function generateImage(
           `❌ Key ${keyMasked} failed: ${errorName} - ${errorMessage}`
         );
         
+        // Log full error details for debugging
+        console.error(`📋 Full error details:`, {
+          name: error.name,
+          message: error.message,
+          cause: error.cause,
+          code: error.code,
+          response: error.response ? {
+            status: error.response.status,
+            data: JSON.stringify(error.response.data).substring(0, 200)
+          } : undefined
+        });
+        
         // Log more details for debugging
         if (error.stack) {
-          console.error(`Stack trace: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
+          console.error(`📚 Stack trace: ${error.stack.split('\n').slice(0, 5).join('\n')}`);
         }
 
         // Check if it's a rate limit error
