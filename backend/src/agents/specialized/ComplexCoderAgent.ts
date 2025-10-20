@@ -140,48 +140,49 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
      - **ANY TIME images are needed and user hasn't uploaded any**
      
      HOW TO USE generate_image:
+     **CRITICAL REQUIREMENTS:**
+     1. Prompt MUST be detailed (minimum 10 words)
+     2. Include: [Style] [Subject] [Background] [Lighting] [Quality]
+     3. NEVER use vague prompts like "shoes", "image", "product"
+     
      {
        "name": "generate_image",
        "arguments": {
-         "prompt": "Professional product photo of red Nike running shoes on white background, studio lighting, front view",
+         "prompt": "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed",
          "count": 1,
          "width": 1024,
          "height": 1024
        }
      }
      
-     The tool returns an image URL that you can use in your React components.
-     Example React component structure:
-     - Import React
-     - Create functional component with props
-     - Use img tag with src={{generated-url}}, alt, and className props
-     - Return JSX with proper styling
+     ✅ GOOD PROMPTS (Will work):
+     - "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed"
+     - "Modern minimalist wooden dining chair with natural finish, white background, soft studio lighting, 45-degree angle, professional photography, high resolution"
+     - "Gourmet cheeseburger with lettuce and tomato on wooden cutting board, natural lighting, top-down view, food photography, high quality"
      
-     PROMPT TIPS:
-     - Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"
-     - Style keywords: "minimalist", "modern", "studio photo", "e-commerce style"
-     - Background: "white background", "natural setting", "solid color"
-     - Lighting: "studio lighting", "natural light", "soft shadows"
+     ❌ BAD PROMPTS (Will fail):
+     - "shoes" (too vague, missing details)
+     - "product image" (no specific subject)
+     - "red sneakers" (missing style, background, lighting)
      
-     EXAMPLES:
-     - Shoe store: "Professional product photo of running shoes on white background, studio lighting"
-     - Furniture site: "Modern minimalist chair, white background, soft shadows, front view"
-     - Food website: "Gourmet burger on wooden table, natural lighting, close-up shot"
-     - Fashion store: "T-shirt mockup on model, white background, professional photography"
+     PROMPT FORMULA:
+     "[Style adjectives] product photo of [specific item with color/material] on [background type], [lighting type], [camera angle], [quality keywords]"
      
      WORKFLOW:
      1. User requests a TypeScript/React website (e.g., "shoe store app")
      2. If no images uploaded → **MUST** use generate_image to create product images
-     3. **CRITICAL**: Call generate_image tool **MULTIPLE TIMES** (3-6 calls) with **DIFFERENT PROMPTS**
-        - Each call should generate 1 image with a UNIQUE product description
+     3. **CRITICAL**: Call generate_image tool **MULTIPLE TIMES** (3-6 calls) with **DIFFERENT DETAILED PROMPTS**
+        - Each call should generate 1 image with a UNIQUE, DETAILED product description
         - Example for shoe store:
-          * Call 1: generate_image with prompt "Professional product photo of red Nike running shoes..."
-          * Call 2: generate_image with prompt "Professional product photo of black leather dress shoes..."
-          * Call 3: generate_image with prompt "Professional product photo of white sneakers..."
+          * Call 1: "Professional product photo of red Nike Air Max running shoes on white background, studio lighting, side view, high quality, detailed"
+          * Call 2: "Professional product photo of black leather Oxford dress shoes on white background, soft lighting, front angle, premium quality, detailed"
+          * Call 3: "Professional product photo of white canvas sneakers with blue accents on white background, studio lighting, three-quarter view, high resolution"
+        - Each prompt MUST be 10+ words and highly specific
         - DO NOT call once with count > 1 and same prompt - that creates duplicates!
      4. Wait for each image URL to be returned before making the next call
-     5. Embed ALL returned URLs in your React components with proper product names
-     6. Style them properly with Tailwind or CSS modules
+     5. If a generation fails with "undefined" error, it means the prompt was too vague - retry with MORE DETAIL
+     6. Embed ALL returned URLs in your React components with proper product names
+     7. Style them properly with Tailwind or CSS modules
      
      TypeScript types for images:
      - Create ProductImageProps interface with: src (string), alt (string), className (optional string)
@@ -190,8 +191,8 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
      - Render img element with received props and loading="lazy" attribute
      
      **WHAT IF IMAGE GENERATION FAILS?**
-     If image generation tool fails with an error like "temporarily unavailable" or "service down":
-     1. DO NOT retry the tool
+     If image generation tool fails even with detailed prompts:
+     1. DO NOT retry more than once per image
      2. Continue building the app WITHOUT the images
      3. Use CSS placeholders or skeleton loaders for images:
         - Create a Skeleton component with loading animation

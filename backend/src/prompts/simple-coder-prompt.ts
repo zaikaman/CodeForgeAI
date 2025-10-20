@@ -95,13 +95,18 @@ IMPORTANT: You have access to TWO types of images:
    - **ANY TIME images are needed and user hasn't uploaded any**
    
    HOW TO USE generate_image:
+   **CRITICAL REQUIREMENTS:**
+   1. Prompt MUST be detailed (minimum 10 words)
+   2. Include: [Style] [Subject] [Background] [Lighting] [Quality]
+   3. NEVER use vague prompts like "shoes", "image", "product"
+   
    **For a shoe store with 4 products, call the tool 4 SEPARATE TIMES:**
    
    Call 1:
    {
      "name": "generate_image",
      "arguments": {
-       "prompt": "Professional product photo of red Nike running shoes on white background, studio lighting, front view",
+       "prompt": "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed",
        "count": 1
      }
    }
@@ -110,7 +115,7 @@ IMPORTANT: You have access to TWO types of images:
    {
      "name": "generate_image",
      "arguments": {
-       "prompt": "Professional product photo of black leather dress shoes on white background, studio lighting, side view",
+       "prompt": "Professional product photo of black leather Oxford dress shoes on white background, soft lighting, front angle, premium quality, detailed",
        "count": 1
      }
    }
@@ -119,40 +124,42 @@ IMPORTANT: You have access to TWO types of images:
    {
      "name": "generate_image",
      "arguments": {
-       "prompt": "Professional product photo of white casual sneakers on white background, studio lighting, front view",
+       "prompt": "Professional product photo of white canvas sneakers with blue accents on white background, studio lighting, three-quarter view, high resolution",
        "count": 1
      }
    }
    
    ... and so on for each unique product.
    
+   ✅ GOOD PROMPTS (Will work):
+   - "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed"
+   - "Modern minimalist wooden dining chair with natural finish, white background, soft studio lighting, 45-degree angle, professional"
+   
+   ❌ BAD PROMPTS (Will fail with "undefined" error):
+   - "shoes" (too vague)
+   - "product image" (no details)
+   - "red sneakers" (missing style, background, lighting)
+   
    The tool returns ONE image URL per call that you can use in your HTML.
    
-   PROMPT TIPS:
-   - Be specific: "Professional product photo of [item] on [background], [lighting], [angle]"
-   - Style keywords: "minimalist", "modern", "studio photo", "e-commerce style"
-   - Background: "white background", "natural setting", "solid color"
-   - Lighting: "studio lighting", "natural light", "soft shadows"
-   
-   EXAMPLES:
-   - Shoe store: "Professional product photo of running shoes on white background, studio lighting"
-   - Furniture site: "Modern minimalist chair, white background, soft shadows, front view"
-   - Food website: "Gourmet burger on wooden table, natural lighting, close-up shot"
-   - Fashion store: "T-shirt mockup on model, white background, professional photography"
+   PROMPT FORMULA:
+   "[Style adjectives] product photo of [specific item with color/material] on [background type], [lighting type], [camera angle], [quality keywords]"
    
    WORKFLOW:
    1. User requests a website (e.g., "shoe store")
    2. If no images uploaded → **MUST** use generate_image to create product images
-   3. **CRITICAL**: Call generate_image tool **MULTIPLE TIMES** (3-6 calls) with **DIFFERENT PROMPTS**
-      - Each call should generate 1 image with a UNIQUE product description
+   3. **CRITICAL**: Call generate_image tool **MULTIPLE TIMES** (3-6 calls) with **DIFFERENT DETAILED PROMPTS**
+      - Each call generates 1 image with a UNIQUE, DETAILED product description (10+ words)
       - Example for shoe store:
-        * Call 1: "Professional product photo of red Nike running shoes on white background, studio lighting"
-        * Call 2: "Professional product photo of black leather dress shoes on white background, studio lighting"
-        * Call 3: "Professional product photo of white sneakers on white background, studio lighting"
-        * Call 4: "Professional product photo of brown hiking boots on white background, studio lighting"
-   4. Wait for each image URL to be returned before making the next call
-   5. Embed ALL returned URLs in your HTML with proper product names
-   6. Style them properly in CSS
+        * Call 1: "Professional product photo of red Nike Air Max running shoes on white background, studio lighting, side view, high quality, detailed"
+        * Call 2: "Professional product photo of black leather Oxford dress shoes on white background, soft lighting, front angle, premium quality"
+        * Call 3: "Professional product photo of white canvas sneakers with blue accents on white background, studio lighting, three-quarter view, high resolution"
+      - Each prompt MUST be 10+ words and highly specific
+      - DO NOT call once with count > 1 - creates duplicates!
+   4. Wait for each image URL to be returned
+   5. If generation fails with "undefined", it means prompt was too vague - DON'T RETRY, use CSS placeholder instead
+   6. Embed ALL returned URLs in your HTML with proper product names
+   7. Style them properly in CSS
    
    **IMPORTANT**: Do NOT call generate_image once with count > 1 and same prompt!
    Call it multiple times (3-6 times) with DIFFERENT, SPECIFIC prompts for product variety.

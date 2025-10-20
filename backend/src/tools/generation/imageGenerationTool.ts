@@ -147,9 +147,15 @@ export async function multipleImageGenerationTool(input: GenerateMultipleImagesI
 export function createImageGenerationTool(userId: string) {
   return createTool({
     name: 'generate_image',
-    description: `Generate a product image or any other image using AI. Perfect for creating product photos, 
+    description: `Generate AI product images or visual content using Runware API. Perfect for creating product photos, 
     hero images, backgrounds, or any visual content for websites. The generated image will be automatically 
     uploaded to cloud storage and you'll receive a URL that can be used directly in HTML/CSS code.
+    
+    IMPORTANT RULES:
+    - ALWAYS provide a detailed, descriptive prompt (minimum 10 words)
+    - Be SPECIFIC about subject, style, background, and lighting
+    - Include quality keywords like "professional", "high quality", "detailed"
+    - For products: mention material, color, angle, and background
     
     WHEN TO USE:
     - User needs product images but doesn't have any (e.g., "shoe store", "furniture website")
@@ -157,74 +163,124 @@ export function createImageGenerationTool(userId: string) {
     - User asks for "generate images", "create product photos", "AI images"
     - Building e-commerce sites, portfolios, or any visual-heavy websites
     
+    EXAMPLE GOOD PROMPTS:
+    ✅ "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed"
+    ✅ "Modern minimalist hero image with geometric shapes, gradient blue to purple background, abstract, high resolution"
+    ✅ "Wooden dining table with 6 chairs, natural wood finish, top-down view, soft natural lighting, professional product photography"
+    
+    EXAMPLE BAD PROMPTS:
+    ❌ "shoes" (too vague)
+    ❌ "image" (no description)
+    ❌ "product" (not specific)
+    
     The generated image URL can be used in:
     - HTML: <img src="URL" alt="description" />
     - CSS: background-image: url('URL');
     - React/TSX: <img src="URL" />`,
     schema: z.object({
-      prompt: z.string().describe(`Detailed description of the image to generate. Be specific about:
-        - Subject (e.g., "red Nike running shoes")
-        - Style (e.g., "professional product photo", "minimalist", "modern")
-        - Background (e.g., "white background", "natural setting")
-        - Lighting (e.g., "studio lighting", "natural light")
-        - Angle (e.g., "front view", "45-degree angle")
+      prompt: z.string().min(10).describe(`REQUIRED: Detailed description of the image to generate (minimum 10 characters). 
         
-        Example: "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality"`),
-      count: z.number().min(1).max(10).optional().default(1).describe('Number of images to generate (1-10). Default is 1.'),
-      width: z.number().optional().default(1024).describe('Image width in pixels. Default is 1024.'),
-      height: z.number().optional().default(1024).describe('Image height in pixels. Default is 1024.'),
+        Must include:
+        1. Subject - What is the main object/scene?
+        2. Style - What style/aesthetic? (e.g., "professional product photo", "minimalist", "modern art")
+        3. Background - What background? (e.g., "white background", "natural outdoor setting", "gradient")
+        4. Lighting - What lighting? (e.g., "studio lighting", "natural light", "dramatic shadows")
+        5. Quality - Quality keywords (e.g., "high quality", "detailed", "professional")
+        
+        Format: "[Style] [Subject] [Background] [Lighting] [Quality]"
+        Example: "Professional product photo of red Nike running shoes on white background, studio lighting, front view, high quality, detailed"`),
+      count: z.number().min(1).max(10).optional().default(1).describe('Number of images to generate (1-10). Default is 1. Each image takes ~5 seconds.'),
+      width: z.number().min(512).max(2048).optional().default(1024).describe('Image width in pixels (512-2048). Default is 1024.'),
+      height: z.number().min(512).max(2048).optional().default(1024).describe('Image height in pixels (512-2048). Default is 1024.'),
     }),
     fn: async (args) => {
-      const { prompt, count = 1, width = 1024, height = 1024 } = args;
+      try {
+        const { prompt, count = 1, width = 1024, height = 1024 } = args;
 
-      const options: Partial<ImageGenerationOptions> = {
-        width,
-        height,
-      };
-
-      if (count === 1) {
-        const result = await generateImage(prompt, userId, options);
-        
-        if (result.success) {
-          return {
-            success: true,
-            imageUrl: result.imageUrl,
-            imagePath: result.imagePath,
-            message: 'Image generated successfully. You can now use this URL in your HTML/CSS code.',
-            usage: {
-              html: `<img src="${result.imageUrl}" alt="Generated image" />`,
-              css: `background-image: url('${result.imageUrl}');`,
-              react: `<img src="${result.imageUrl}" alt="Generated image" className="..." />`,
-            },
-          };
-        } else {
+        // Validate prompt
+        if (!prompt || prompt.trim().length < 10) {
           return {
             success: false,
-            error: result.error,
-            message: 'Failed to generate image. Please try again with a different prompt.',
+            error: 'Prompt must be at least 10 characters long and descriptive',
+            message: 'Please provide a detailed prompt with subject, style, background, lighting, and quality keywords.',
           };
         }
-      } else {
-        // Generate multiple variations
-        const prompts = Array(Math.min(count, 10)).fill(prompt);
-        const results = await generateMultipleImages(prompts, userId, options);
-        
-        const successfulImages = results.filter(r => r.success);
-        
+
+        // Validate dimensions
+        if (width < 512 || width > 2048 || height < 512 || height > 2048) {
+          return {
+            success: false,
+            error: 'Invalid dimensions. Width and height must be between 512 and 2048 pixels.',
+          };
+        }
+
+        console.log(`[ImageGenTool] Generating ${count} image(s) for user ${userId}`);
+        console.log(`[ImageGenTool] Prompt: "${prompt.substring(0, 100)}..."`);
+
+        const options: Partial<ImageGenerationOptions> = {
+          width,
+          height,
+        };
+
+        if (count === 1) {
+          const result = await generateImage(prompt, userId, options);
+          
+          if (result.success) {
+            console.log(`[ImageGenTool] ✅ Success: ${result.imageUrl}`);
+            return {
+              success: true,
+              imageUrl: result.imageUrl,
+              imagePath: result.imagePath,
+              seed: result.seed,
+              cost: result.cost,
+              message: 'Image generated successfully. You can now use this URL in your HTML/CSS code.',
+              usage: {
+                html: `<img src="${result.imageUrl}" alt="Generated image" />`,
+                css: `background-image: url('${result.imageUrl}');`,
+                react: `<img src="${result.imageUrl}" alt="Generated image" className="..." />`,
+              },
+            };
+          } else {
+            console.error(`[ImageGenTool] ❌ Failed: ${result.error}`);
+            return {
+              success: false,
+              error: result.error || 'Unknown error',
+              message: `Failed to generate image: ${result.error}. Please try again with a different prompt.`,
+            };
+          }
+        } else {
+          // Generate multiple variations
+          const prompts = Array(Math.min(count, 10)).fill(prompt);
+          const results = await generateMultipleImages(prompts, userId, options);
+          
+          const successfulImages = results.filter(r => r.success);
+          
+          console.log(`[ImageGenTool] Generated ${successfulImages.length}/${count} images`);
+          
+          return {
+            success: successfulImages.length > 0,
+            totalRequested: count,
+            totalGenerated: successfulImages.length,
+            totalFailed: results.length - successfulImages.length,
+            images: results.map((result, index) => ({
+              index,
+              success: result.success,
+              imageUrl: result.imageUrl,
+              imagePath: result.imagePath,
+              seed: result.seed,
+              cost: result.cost,
+              error: result.error,
+            })),
+            imageUrls: successfulImages.map(r => r.imageUrl),
+            message: `Generated ${successfulImages.length} out of ${count} images successfully.`,
+          };
+        }
+      } catch (error: any) {
+        console.error(`[ImageGenTool] ❌ Unexpected error:`, error);
         return {
-          success: successfulImages.length > 0,
-          totalRequested: count,
-          totalGenerated: successfulImages.length,
-          totalFailed: results.length - successfulImages.length,
-          images: results.map((result, index) => ({
-            index,
-            success: result.success,
-            imageUrl: result.imageUrl,
-            imagePath: result.imagePath,
-            error: result.error,
-          })),
-          imageUrls: successfulImages.map(r => r.imageUrl),
-          message: `Generated ${successfulImages.length} out of ${count} images successfully.`,
+          success: false,
+          error: error.message || 'Unexpected error during image generation',
+          message: 'An unexpected error occurred. Please try again.',
         };
       }
     },

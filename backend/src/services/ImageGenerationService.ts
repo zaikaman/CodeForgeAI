@@ -45,45 +45,81 @@ async function generateImageWithRunware(
   prompt: string,
   options: ImageGenerationOptions
 ): Promise<{ imageUrl: string; seed?: number; cost?: number }> {
-  console.log("Initializing Runware SDK");
-  
-  const runware = new Runware({
-    apiKey: RUNWARE_API_KEY,
-    shouldReconnect: true,
-    globalMaxRetries: 3,
-    timeoutDuration: 90000,
-  });
+  console.log(`🚀 Initializing Runware SDK for prompt: "${prompt.substring(0, 100)}..."`);
 
-  await runware.ensureConnection();
-  console.log("Connected to Runware");
+  try {
+    // Validate prompt
+    if (!prompt || prompt.trim() === '') {
+      throw new Error('Empty or invalid prompt provided');
+    }
 
-  const images = await runware.requestImages({
-    positivePrompt: prompt,
-    negativePrompt: options.negativePrompt || "",
-    model: RUNWARE_MODEL,
-    width: options.width || 1024,
-    height: options.height || 1024,
-    numberResults: options.numberResults || 1,
-    outputFormat: "PNG",
-    includeCost: true,
-  });
+    // Initialize Runware client
+    const runware = new Runware({
+      apiKey: RUNWARE_API_KEY,
+      shouldReconnect: true,
+      globalMaxRetries: 3,
+      timeoutDuration: 90000,
+    });
 
-  if (!images || images.length === 0) {
-    throw new Error("No images returned from Runware");
+    await runware.ensureConnection();
+    console.log(`✅ Connected to Runware`);
+
+    // Request image generation with validation
+    const requestParams = {
+      positivePrompt: prompt.trim(),
+      negativePrompt: options.negativePrompt?.trim() || "",
+      model: RUNWARE_MODEL,
+      width: options.width || 1024,
+      height: options.height || 1024,
+      numberResults: options.numberResults || 1,
+      outputFormat: "PNG" as const,
+      includeCost: true,
+    };
+
+    console.log(`📝 Request params:`, {
+      promptLength: requestParams.positivePrompt.length,
+      model: requestParams.model,
+      dimensions: `${requestParams.width}x${requestParams.height}`,
+      numberResults: requestParams.numberResults,
+    });
+
+    const images = await runware.requestImages(requestParams);
+
+    console.log(`📥 Received response:`, {
+      hasImages: !!images,
+      imageCount: images?.length || 0,
+      firstImageURL: images?.[0]?.imageURL ? 'present' : 'missing',
+    });
+
+    if (!images || images.length === 0) {
+      throw new Error("No images returned from Runware API");
+    }
+
+    const firstImage = images[0];
+    if (!firstImage || !firstImage.imageURL) {
+      throw new Error(`Invalid image response: ${JSON.stringify(firstImage)}`);
+    }
+
+    console.log(`✅ Generation complete! Image URL: ${firstImage.imageURL.substring(0, 50)}...`);
+
+    // Clean up connection
+    await runware.disconnect();
+    console.log(`🔌 Disconnected from Runware`);
+
+    return {
+      imageUrl: firstImage.imageURL,
+      seed: firstImage.seed,
+      cost: firstImage.cost,
+    };
+  } catch (error: any) {
+    console.error(`❌ Runware error:`, {
+      message: error.message,
+      name: error.name,
+      stack: error.stack?.split('\n').slice(0, 3),
+      response: error.response,
+    });
+    throw new Error(`Runware generation failed: ${error.message || 'Unknown error'}`);
   }
-
-  const firstImage = images[0];
-  if (!firstImage.imageURL) {
-    throw new Error("Image URL not found in response");
-  }
-
-  await runware.disconnect();
-
-  return {
-    imageUrl: firstImage.imageURL,
-    seed: firstImage.seed,
-    cost: firstImage.cost,
-  };
 }
 
 async function uploadImageToSupabase(
