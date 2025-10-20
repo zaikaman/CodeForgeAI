@@ -37,11 +37,15 @@ const DEFAULT_OPTIONS: Partial<ImageGenerationOptions> = {
   randomizeSeed: true,
 };
 
-const GRADIO_SPACE = 'stabilityai/stable-diffusion-3.5-large-turbo';
-const GRADIO_API_URL = `https://${GRADIO_SPACE.replace('/', '-')}.hf.space`;
+// Gradio Space URL - note: dots in version need to be converted to hyphens
+const GRADIO_API_URL = `https://stabilityai-stable-diffusion-3-5-large-turbo.hf.space`;
+const GRADIO_API_BASE = `${GRADIO_API_URL}/gradio_api`;
 
 /**
- * Generate image using pure HTTP requests (no @gradio/client)
+ * Generate image using pure HTTP requests (following Gradio API docs)
+ * Two-step process:
+ * 1. POST to /call/infer to get EVENT_ID
+ * 2. GET /call/infer/{EVENT_ID} to stream results
  */
 async function generateImageWithKey(
   prompt: string,
@@ -50,11 +54,9 @@ async function generateImageWithKey(
 ): Promise<Buffer> {
   console.log(`🚀 HTTP request to Gradio with key ...${apiKey.slice(-4)}`);
 
-  const sessionHash = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-
-  // Step 1: Join queue
-  const joinResponse = await axios.post(
-    `${GRADIO_API_URL}/queue/join`,
+  // Step 1: POST to /call/infer
+  const postResponse = await axios.post(
+    `${GRADIO_API_BASE}/call/infer`,
     {
       data: [
         prompt,
@@ -66,9 +68,6 @@ async function generateImageWithKey(
         options.guidanceScale || 0,
         options.numInferenceSteps || 4,
       ],
-      event_data: null,
-      fn_index: 3,
-      session_hash: sessionHash,
     },
     {
       headers: {
@@ -79,18 +78,22 @@ async function generateImageWithKey(
     }
   );
 
-  console.log(`📡 Queue response:`, JSON.stringify(joinResponse.data).substring(0, 200));
+  const eventId = postResponse.data?.event_id;
+  if (!eventId) {
+    throw new Error('No event_id returned from Gradio API');
+  }
 
-  // Step 2: Poll for result
+  console.log(`📡 Event ID: ${eventId}`);
+
+  // Step 2: GET /call/infer/{EVENT_ID} - streaming SSE
   const maxAttempts = 120;
   const pollInterval = 1000;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const dataResponse = await axios.get(
-        `${GRADIO_API_URL}/queue/data`,
+        `${GRADIO_API_BASE}/call/infer/${eventId}`,
         {
-          params: { session_hash: sessionHash },
           headers: {
             'Accept': 'text/event-stream',
             'Authorization': `Bearer ${apiKey}`,
@@ -101,34 +104,43 @@ async function generateImageWithKey(
       );
 
       const lines = dataResponse.data.split('\n');
+      let currentEvent = '';
       
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
+        const trimmed = line.trim();
+        
+        // Parse event type
+        if (trimmed.startsWith('event: ')) {
+          currentEvent = trimmed.substring(7).trim();
+          continue;
+        }
+        
+        // Parse data
+        if (trimmed.startsWith('data: ')) {
           try {
-            const jsonStr = line.substring(6).trim();
+            const jsonStr = trimmed.substring(6).trim();
             if (!jsonStr || jsonStr === '[]') continue;
             
             const data = JSON.parse(jsonStr);
             
-            if (data.msg === 'process_completed' && data.output?.data) {
+            // On 'complete' event, data is directly the result array
+            if (currentEvent === 'complete' && Array.isArray(data)) {
               console.log(`✅ Generation complete!`);
-              const resultData = data.output.data;
               
-              if (!Array.isArray(resultData) || resultData.length === 0) {
-                throw new Error(`Invalid result: ${JSON.stringify(resultData)}`);
+              if (data.length === 0) {
+                throw new Error('Empty result array');
               }
 
-              const imageData = resultData[0];
+              const imageData = data[0];
               let imageUrl: string;
 
+              // Handle Gradio FileData format
               if (typeof imageData === 'string') {
                 imageUrl = imageData.startsWith('http') ? imageData : `${GRADIO_API_URL}/file=${imageData}`;
               } else if (imageData?.url) {
                 imageUrl = imageData.url;
               } else if (imageData?.path) {
-                imageUrl = `${GRADIO_API_URL}/file=${imageData.path}`;
-              } else if (imageData?.name) {
-                imageUrl = `${GRADIO_API_URL}/file=${imageData.name}`;
+                imageUrl = `${GRADIO_API_BASE}/file=${imageData.path}`;
               } else {
                 throw new Error(`Unknown image format: ${JSON.stringify(imageData)}`);
               }
@@ -144,12 +156,14 @@ async function generateImageWithKey(
               return Buffer.from(imageResponse.data);
             }
 
-            if (data.msg === 'process_error') {
-              throw new Error(data.output || 'Generation failed');
+            // Handle error event
+            if (currentEvent === 'error') {
+              throw new Error(typeof data === 'string' ? data : JSON.stringify(data));
             }
 
-            if (attempt % 10 === 0 && data.msg) {
-              console.log(`💫 ${data.msg}`);
+            // Log progress
+            if (attempt % 10 === 0 && currentEvent) {
+              console.log(`💫 Event: ${currentEvent}`);
             }
           } catch (e) {
             continue;
