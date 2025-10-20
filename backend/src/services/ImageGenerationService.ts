@@ -25,14 +25,30 @@ export interface ImageGenerationResult {
 
 const DEFAULT_OPTIONS: Partial<ImageGenerationOptions> = {
   negativePrompt: "",
-  width: 1024,
-  height: 1024,
+  width: 512,
+  height: 512,
   guidanceScale: 7.5,
   numInferenceSteps: 25,
   seed: 0,
   randomizeSeed: true,
   numberResults: 1,
 };
+
+/**
+ * Normalize dimensions to nearest valid Runware size
+ * Runware typically supports dimensions in multiples of 64
+ * Common valid sizes: 512, 576, 640, 704, 768, 832, 896, 960, 1024, etc.
+ */
+function normalizeImageDimension(dimension: number): number {
+  // Clamp to valid range
+  const clamped = Math.max(512, Math.min(2048, dimension));
+  
+  // Round to nearest multiple of 64
+  const normalized = Math.round(clamped / 64) * 64;
+  
+  // Ensure it's within valid range after rounding
+  return Math.max(512, Math.min(2048, normalized));
+}
 
 const RUNWARE_MODEL = "runware:101@1";
 const RUNWARE_API_KEY = process.env.RUNWARE_API_KEY || "";
@@ -43,9 +59,15 @@ if (!RUNWARE_API_KEY) {
 
 async function generateImageWithRunware(
   prompt: string,
-  options: ImageGenerationOptions
+  options: ImageGenerationOptions,
+  retryCount = 0
 ): Promise<{ imageUrl: string; seed?: number; cost?: number }> {
-  console.log(`🚀 Initializing Runware SDK for prompt: "${prompt.substring(0, 100)}..."`);
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY = 2000; // 2 seconds
+
+  console.log(`🚀 Initializing Runware SDK for prompt: "${prompt.substring(0, 100)}..." (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
+
+  let runware: any = null;
 
   try {
     // Validate prompt
@@ -53,58 +75,72 @@ async function generateImageWithRunware(
       throw new Error('Empty or invalid prompt provided');
     }
 
+    // Validate API key
+    if (!RUNWARE_API_KEY || RUNWARE_API_KEY.trim() === '') {
+      throw new Error('RUNWARE_API_KEY is not configured or empty');
+    }
+
     // Initialize Runware client
-    const runware = new Runware({
+    runware = new Runware({
       apiKey: RUNWARE_API_KEY,
-      shouldReconnect: true,
-      globalMaxRetries: 3,
-      timeoutDuration: 90000,
     });
 
+    console.log(`🔌 Attempting connection to Runware...`);
     await runware.ensureConnection();
-    console.log(`✅ Connected to Runware`);
+    console.log(`✅ Connected to Runware successfully`);
+
+    // Normalize dimensions to valid Runware sizes (multiples of 64)
+    const normalizedWidth = normalizeImageDimension(options.width || 512);
+    const normalizedHeight = normalizeImageDimension(options.height || 512);
+
+    if (normalizedWidth !== options.width || normalizedHeight !== options.height) {
+      console.log(`📐 Dimensions normalized: ${options.width}x${options.height} → ${normalizedWidth}x${normalizedHeight}`);
+    }
 
     // Request image generation with validation
     const requestParams = {
       positivePrompt: prompt.trim(),
-      negativePrompt: options.negativePrompt?.trim() || "",
       model: RUNWARE_MODEL,
-      width: options.width || 1024,
-      height: options.height || 1024,
-      numberResults: options.numberResults || 1,
+      width: normalizedWidth,
+      height: normalizedHeight,
+      numberResults: 1,
       outputFormat: "PNG" as const,
       includeCost: true,
     };
 
-    console.log(`📝 Request params:`, {
+    // Add optional parameters only if they exist
+    if (options.negativePrompt && options.negativePrompt.trim()) {
+      (requestParams as any).negativePrompt = options.negativePrompt.trim();
+    }
+
+    console.log(`📝 Sending request with params:`, {
       promptLength: requestParams.positivePrompt.length,
       model: requestParams.model,
       dimensions: `${requestParams.width}x${requestParams.height}`,
-      numberResults: requestParams.numberResults,
+      outputFormat: requestParams.outputFormat,
+      includeCost: requestParams.includeCost,
     });
 
+    const requestStartTime = Date.now();
     const images = await runware.requestImages(requestParams);
+    const requestDuration = Date.now() - requestStartTime;
 
-    console.log(`📥 Received response:`, {
+    console.log(`📥 Received response in ${requestDuration}ms:`, {
       hasImages: !!images,
       imageCount: images?.length || 0,
       firstImageURL: images?.[0]?.imageURL ? 'present' : 'missing',
     });
 
     if (!images || images.length === 0) {
-      throw new Error("No images returned from Runware API");
+      throw new Error("No images returned from Runware API - empty response array");
     }
 
     const firstImage = images[0];
     if (!firstImage || !firstImage.imageURL) {
-      throw new Error(`Invalid image response: ${JSON.stringify(firstImage)}`);
+      throw new Error(`Invalid image response structure: ${JSON.stringify(firstImage)}`);
     }
 
-    console.log(`✅ Generation complete! Image URL: ${firstImage.imageURL.substring(0, 50)}...`);
-
-    // Clean up connection
-    await runware.disconnect();
-    console.log(`🔌 Disconnected from Runware`);
+    console.log(`✅ Generation complete! Image URL received`);
 
     return {
       imageUrl: firstImage.imageURL,
@@ -112,13 +148,80 @@ async function generateImageWithRunware(
       cost: firstImage.cost,
     };
   } catch (error: any) {
-    console.error(`❌ Runware error:`, {
-      message: error.message,
-      name: error.name,
-      stack: error.stack?.split('\n').slice(0, 3),
-      response: error.response,
+    // Enhanced error logging
+    console.error(`❌ Runware error occurred after attempt ${retryCount + 1}:`, {
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name,
+      message: error?.message || 'No message',
+      name: error?.name || 'No name',
+      code: error?.code,
+      statusCode: error?.statusCode,
+      status: error?.status,
+      response: error?.response,
+      data: error?.data,
+      errorString: String(error),
     });
-    throw new Error(`Runware generation failed: ${error.message || 'Unknown error'}`);
+
+    // Try to provide helpful error messages
+    let errorMessage = 'Unknown error';
+    let shouldRetry = false;
+    
+    if (error?.message) {
+      errorMessage = error.message;
+      
+      // Determine if we should retry based on error type
+      if (error.message.includes('timeout') || 
+          error.message.includes('ETIMEDOUT') ||
+          error.message.includes('ECONNREFUSED') ||
+          error.message.includes('network') ||
+          error.message.includes('socket')) {
+        shouldRetry = true;
+        errorMessage = `Network error: ${error.message}`;
+      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        shouldRetry = true;
+        errorMessage = 'Rate limit exceeded - too many requests';
+      }
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (error?.code === 'ECONNREFUSED') {
+      shouldRetry = true;
+      errorMessage = 'Cannot connect to Runware API - connection refused';
+    } else if (error?.statusCode === 401 || error?.status === 401) {
+      errorMessage = 'Invalid API key - authentication failed';
+    } else if (error?.statusCode === 429 || error?.status === 429) {
+      shouldRetry = true;
+      errorMessage = 'Rate limit exceeded - too many requests';
+    } else if (error?.code === 'ETIMEDOUT') {
+      shouldRetry = true;
+      errorMessage = 'Request timeout - Runware API did not respond in time';
+    }
+
+    // Retry logic
+    if (shouldRetry && retryCount < MAX_RETRIES) {
+      console.log(`🔄 Retrying in ${RETRY_DELAY}ms... (${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      
+      // Disconnect before retry
+      if (runware) {
+        try {
+          await runware.disconnect();
+        } catch {}
+      }
+      
+      return generateImageWithRunware(prompt, options, retryCount + 1);
+    }
+
+    throw new Error(`Runware generation failed: ${errorMessage}`);
+  } finally {
+    // Always try to disconnect
+    if (runware) {
+      try {
+        await runware.disconnect();
+        console.log(`🔌 Disconnected from Runware`);
+      } catch (disconnectError) {
+        console.warn(`⚠️ Warning: Failed to disconnect from Runware:`, disconnectError);
+      }
+    }
   }
 }
 
