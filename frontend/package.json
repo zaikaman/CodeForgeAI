@@ -31,6 +31,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@gradio/client": "^2.0.0-dev.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@types/react": "^18.2.0",

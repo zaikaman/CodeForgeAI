@@ -27,6 +27,7 @@
   "author": "CodeForge AI Team",
   "license": "MIT",
   "devDependencies": {
+    "@gradio/client": "^2.0.0-dev.0",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
     "eslint": "^8.56.0",
