@@ -81,6 +81,6 @@ Your orchestration:
 Remember: You coordinate, you don't code. Trust your specialized agents.`;
 
 export const LeadEngineerAgent = AgentBuilder.create('LeadEngineerAgent')
-	.withModel('gpt-5-nano-2025-08-07')  // Use better model for orchestration decisions
+	.withModel('gpt-5-mini-2025-08-07')  // Use better model for orchestration decisions
 	.withInstruction(systemPrompt)
 	.build();

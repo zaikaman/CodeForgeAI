@@ -87,7 +87,7 @@ The fixed code should be production-ready with no errors.`;
 
 export const CodeFixerAgent = async () => {
   return AgentBuilder.create('CodeFixerAgent')
-    .withModel('gpt-5-nano-2025-08-07')
+    .withModel('gpt-5-mini-2025-08-07')
     .withInstruction(systemPrompt)
     .withOutputSchema(generationSchema)
     .build();

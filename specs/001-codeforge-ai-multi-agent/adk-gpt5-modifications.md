@@ -1,4 +1,4 @@
-# ADK-TS gpt-5-nano-2025-08-07 Support
+# ADK-TS gpt-5-mini-2025-08-07 Support
 
 **Date Modified**: 2025-10-07  
 **Status**: ✅ Complete  
@@ -85,30 +85,30 @@ Supported OpenAI model patterns: [
 ]
 
 Model matching tests:
-  gpt-5-nano-2025-08-07: ✅ SUPPORTED
+  gpt-5-mini-2025-08-07: ✅ SUPPORTED
   gpt-5-turbo: ✅ SUPPORTED
   gpt-5-large: ✅ SUPPORTED
 ```
 
 ### Instance Creation
-✅ OpenAiLlm can be instantiated with gpt-5-nano-2025-08-07:
+✅ OpenAiLlm can be instantiated with gpt-5-mini-2025-08-07:
 ```javascript
-const llm = new OpenAiLlm('gpt-5-nano-2025-08-07');
-console.log(llm.model); // Output: "gpt-5-nano-2025-08-07"
+const llm = new OpenAiLlm('gpt-5-mini-2025-08-07');
+console.log(llm.model); // Output: "gpt-5-mini-2025-08-07"
 ```
 
 ---
 
 ## Usage in CodeForge AI
 
-Now you can use `gpt-5-nano-2025-08-07` throughout the project:
+Now you can use `gpt-5-mini-2025-08-07` throughout the project:
 
 ### Agent Creation
 ```typescript
 import { AgentBuilder } from '@iqai/adk';
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-nano-2025-08-07')  // ✅ Now fully supported
+  .withModel('gpt-5-mini-2025-08-07')  // ✅ Now fully supported
   .withSystemPrompt('You are a code generation expert.')
   .withTemperature(0.2)
   .build();
@@ -117,22 +117,22 @@ const agent = await AgentBuilder
 ### Hierarchical Agents
 ```typescript
 const leadAgent = await AgentBuilder
-  .withModel('gpt-5-nano-2025-08-07')
+  .withModel('gpt-5-mini-2025-08-07')
   .withSystemPrompt('Lead Engineer Agent')
   .build();
 
 const codeGenerator = await AgentBuilder
-  .withModel('gpt-5-nano-2025-08-07')
+  .withModel('gpt-5-mini-2025-08-07')
   .withSystemPrompt('Code Generator Agent')
   .build();
 ```
 
 ### Model Registry
-The ADK-TS LLMRegistry will automatically resolve `gpt-5-nano-2025-08-07`:
+The ADK-TS LLMRegistry will automatically resolve `gpt-5-mini-2025-08-07`:
 ```typescript
 import { LLMRegistry } from '@iqai/adk';
 
-const llm = LLMRegistry.newLLM('gpt-5-nano-2025-08-07'); // ✅ Works!
+const llm = LLMRegistry.newLLM('gpt-5-mini-2025-08-07'); // ✅ Works!
 ```
 
 ---
@@ -141,7 +141,7 @@ const llm = LLMRegistry.newLLM('gpt-5-nano-2025-08-07'); // ✅ Works!
 
 ### Pattern Matching
 The regex pattern `gpt-5.*` matches:
-- ✅ `gpt-5-nano-2025-08-07`
+- ✅ `gpt-5-mini-2025-08-07`
 - ✅ `gpt-5-turbo`
 - ✅ `gpt-5-large`
 - ✅ `gpt-5` (base model)
@@ -175,7 +175,7 @@ The regex pattern `gpt-5.*` matches:
 
 - **No separate OpenAI SDK needed**: ADK-TS includes `openai@^5.20.0` internally
 - **API Key**: Set `OPENAI_API_KEY` environment variable
-- **Model availability**: Ensure OpenAI API actually supports `gpt-5-nano-2025-08-07` when deployed
+- **Model availability**: Ensure OpenAI API actually supports `gpt-5-mini-2025-08-07` when deployed
 - **Examples unchanged**: Didn't modify ADK-TS examples or env files as requested
 
 ---
