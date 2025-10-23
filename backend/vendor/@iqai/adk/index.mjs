@@ -8980,7 +8980,20 @@ var OutputSchemaResponseProcessor = class extends BaseLlmResponseProcessor {
     if (startIdx >= 0) {
       return lines.slice(startIdx).join("\n").trim();
     }
-    return raw.trim();
+    const firstBraceIdx = raw.indexOf("{");
+    const firstBracketIdx = raw.indexOf("[");
+    if (firstBraceIdx === -1 && firstBracketIdx === -1) {
+      return raw.trim();
+    }
+    let startPos = -1;
+    if (firstBraceIdx >= 0 && firstBracketIdx >= 0) {
+      startPos = Math.min(firstBraceIdx, firstBracketIdx);
+    } else if (firstBraceIdx >= 0) {
+      startPos = firstBraceIdx;
+    } else {
+      startPos = firstBracketIdx;
+    }
+    return raw.substring(startPos).trim();
   }
   // Try parsing JSON; if parse fails, attempt to repair using jsonrepair and parse again.
   tryParseJson(candidate, agentName) {

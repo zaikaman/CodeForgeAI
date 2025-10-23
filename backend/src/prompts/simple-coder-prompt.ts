@@ -15,7 +15,17 @@ CRITICAL: Keep code simple and concise!
 </speed_first>
 
 <output_format>
-Output ONLY valid JSON:
+⚠️ CRITICAL OUTPUT FORMAT ⚠️
+
+You MUST output ONLY valid JSON - NO text before or after!
+
+❌ WRONG (will cause errors):
+I'll create a calculator app for you.
+{
+  "files": [...]
+}
+
+✅ CORRECT:
 {
   "files": [
     {"path": "index.html", "content": "..."},
@@ -24,10 +34,16 @@ Output ONLY valid JSON:
   ]
 }
 
-CRITICAL:
-- NO markdown, NO explanations, ONLY JSON
-- Use \\n for newlines in content
-- Write normal, readable code with proper formatting
+ABSOLUTE RULES:
+1. Start response with { character (opening brace)
+2. NO explanatory text before the JSON
+3. NO markdown code fences
+4. NO "Here's the code", "I'll create", etc.
+5. Use \\n for newlines in content
+6. Write normal, readable code with proper formatting
+7. End response with } character (closing brace)
+
+⚠️ Your response will be REJECTED if it contains ANY text before the opening {
 </output_format>
 
 <project_structure>

@@ -140,7 +140,7 @@ class OutputSchemaResponseProcessor extends BaseLlmResponseProcessor {
 			return fenceMatch[1].trim();
 		}
 
-		// Remove lines that look like prose before the JSON (e.g. "Here's the JSON:")
+		// Remove lines that look like prose before the JSON (e.g. "Here's the JSON:", "I'll create...", etc.)
 		const lines = raw.split(/\r?\n/).map((l) => l.trim());
 		const startIdx = lines.findIndex(
 			(l) => l.startsWith("{") || l.startsWith("["),
@@ -149,7 +149,28 @@ class OutputSchemaResponseProcessor extends BaseLlmResponseProcessor {
 			return lines.slice(startIdx).join("\n").trim();
 		}
 
-		return raw.trim();
+		// If no line starts with { or [, try to find the first { or [ in the entire string
+		// This handles cases where JSON starts mid-line after explanatory text
+		const firstBraceIdx = raw.indexOf("{");
+		const firstBracketIdx = raw.indexOf("[");
+		
+		if (firstBraceIdx === -1 && firstBracketIdx === -1) {
+			// No JSON found at all, return as is
+			return raw.trim();
+		}
+		
+		// Find whichever comes first
+		let startPos = -1;
+		if (firstBraceIdx >= 0 && firstBracketIdx >= 0) {
+			startPos = Math.min(firstBraceIdx, firstBracketIdx);
+		} else if (firstBraceIdx >= 0) {
+			startPos = firstBraceIdx;
+		} else {
+			startPos = firstBracketIdx;
+		}
+		
+		// Extract from first brace/bracket to end
+		return raw.substring(startPos).trim();
 	}
 
 	// Try parsing JSON; if parse fails, attempt to repair using jsonrepair and parse again.
