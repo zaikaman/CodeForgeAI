@@ -582,8 +582,8 @@ class ChatQueueManager {
             job.message        // taskDescription
           );
           
-          // Use streaming API to get real-time agent thoughts with timeout (4 minutes max)
-          const GITHUB_AGENT_TIMEOUT = 4 * 60 * 1000; // 4 minutes
+          // Use streaming API to get real-time agent thoughts with timeout (10 minutes max)
+          const GITHUB_AGENT_TIMEOUT = 10 * 60 * 1000; // 10 minutes
           
           const responsePromise = safeAgentCallWithStreaming(builtAgent, contextMessage, {
             maxRetries: 3,
