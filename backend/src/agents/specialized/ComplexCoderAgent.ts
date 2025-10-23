@@ -261,7 +261,7 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
   console.log(`  - Checklist: ✓`);
   
   let builder = AgentBuilder.create('ComplexCoderAgent')
-    .withModel('glm-4.6')
+    .withModel('gpt-5-mini')
     .withInstruction(finalPrompt)
     .withOutputSchema(generationSchema);
   
