@@ -387,29 +387,29 @@ Step 6: BATCH MODIFICATIONS
    - Edit 100 comment lines = LOW VALUE, WASTE TIME
    → Focus on the 10 functional files!
 
-Step 7: GET MODIFIED FILES
-   Tool: bot_github_modified_cached
-   Input: includeContent=true
-   Why: Get all changes with proper format
+Step 7: COMMIT (SIMPLIFIED - No need for modified_cached!)
+   Tool: bot_github_commit_modified (RECOMMENDED)
+   Input: owner, repo, branch, message
+   Why: Commits all changes directly from cache, avoids context explosion
+   
+   ⚠️ ALTERNATIVE (if bot_github_commit_modified not available):
+   Tool 1: bot_github_modified_cached (includeContent: true)
+   Tool 2: bot_github_commit_files (with files from step 1)
+   Why: Two-step process, can cause timeout if files are large
 
-Step 8: COMMIT
-   Tool: bot_github_commit_files
-   Input: repo, branch, message, files (from step 7)
-   Why: Save all changes atomically
-
-Step 9: CREATE PR
+Step 8: CREATE PR
    Tool: bot_github_create_pr
    Input: owner (original), repo (original), branch (fork:branch)
    Why: Submit for review
 
-EXPECTED TOOL CALLS: 8-10 total
-TIME ESTIMATE: 30-60 seconds
+EXPECTED TOOL CALLS: 7-9 total (reduced from 8-10 with new commit tool)
+TIME ESTIMATE: 20-50 seconds
 
 OPTIMIZATION NOTES:
 - ✅ Fork first, THEN preload (saves 20+ seconds)
 - ✅ Search once with comprehensive regex (saves 3-4 calls)
 - ✅ Batch replace when possible (saves N-1 calls)
-- ✅ Use modified_cached before commit (ensures correct format)
+- ✅ Use bot_github_commit_modified to skip modified_cached (saves time & avoids context explosion)
 \`\`\`
 
 ### Step 1.4: Validation Plan
@@ -781,7 +781,7 @@ Use \`bot_github_create_or_update_file\`:
 - ⚠️ Less efficient for batching
 - ⚠️ 'message' parameter is OPTIONAL but RECOMMENDED
 
-**BEST PRACTICE WORKFLOW:**
+**BEST PRACTICE WORKFLOW (UPDATED - Use bot_github_commit_modified):**
 
 \`\`\`typescript
 // 1. Edit existing files (local cache)
@@ -791,19 +791,81 @@ await bot_github_replace_text({ path: "src/config.ts", ... })
 await bot_github_create_file_cached({ path: "src/NewComponent.tsx", ... })
 await bot_github_create_file_cached({ path: "src/NewComponent.test.tsx", ... })
 
-// 3. Preview all changes
-const modified = await bot_github_modified_cached({ includeContent: true })
-// See: 3 files modified (1 edited, 2 created)
-
-// 4. Commit everything together
-await bot_github_commit_files({
-  message: "feat: Add NewComponent with tests and config updates",
-  files: modified.files
+// 3. Commit everything directly from cache (RECOMMENDED - Avoids timeout!)
+await bot_github_commit_modified({
+  owner: "codeforge-ai-bot",
+  repo: "Repo",
+  branch: "fix",
+  message: "feat: Add NewComponent with tests and config updates"
 })
 // Result: ONE clean commit with all changes!
+// Files read from cache, no huge response to LLM!
+
+// ⚠️ OLD WORKFLOW (Can cause timeout if files are large):
+// Step 3a: Get modified files
+const modified = await bot_github_modified_cached({ includeContent: true })
+// ← PROBLEM: Returns full file content → Can be thousands of lines!
+// ← LLM API crashes or takes 2+ minutes to process!
+
+// Step 3b: Commit files
+await bot_github_commit_files({
+  message: "feat: ...",
+  files: modified.files
+})
 \`\`\`
 
-### Rule 2.8: Proper Commit Format
+### Rule 2.8: Committing Changes (UPDATED)
+
+**🔥 NEW RECOMMENDED APPROACH - bot_github_commit_modified:**
+
+\`\`\`typescript
+// ✅ BEST - Commit directly from cache (no context explosion!)
+await bot_github_commit_modified({
+  owner: "codeforge-ai-bot",
+  repo: "Repo",
+  branch: "fix",
+  message: "fix: Update to gemini-2.5-pro across all files"
+})
+
+// Why this is better:
+// ✅ Reads file content directly from cache (no LLM involved)
+// ✅ Returns only file paths in response (tiny, fast)
+// ✅ Completes in < 5 seconds
+// ✅ No risk of timeout from huge responses
+// ✅ No risk of LLM API crash
+\`\`\`
+
+**⚠️ OLD APPROACH - bot_github_modified_cached + bot_github_commit_files:**
+
+\`\`\`typescript
+// ❌ PROBLEM - Can cause timeout if files have large content!
+const modifiedResult = await bot_github_modified_cached({
+  owner: "codeforge-ai-bot",
+  repo: "Repo",
+  branch: "fix",
+  includeContent: true  // ← Returns FULL content → Can be huge!
+})
+// Tool result: { files: [{ path: "file.py", content: "5000 lines..." }] }
+// ← LLM receives this massive response
+// ← Takes 2+ minutes to parse
+// ← Timeout!
+
+// Then commit
+await bot_github_commit_files({
+  repo: "Repo",
+  branch: "fix",
+  message: "fix: ...",
+  files: modifiedResult.files
+})
+
+// Why this can fail:
+// ❌ If modifiedResult.files has huge content → LLM crash
+// ❌ Agent waits 2+ minutes after modified_cached → Timeout
+// ❌ Two API calls instead of one
+\`\`\`
+
+**Legacy documentation (for reference only):**
+
 \`\`\`typescript
 // ❌ WRONG - Missing repo parameter, wrong file format
 await bot_github_commit_files({
@@ -1098,57 +1160,48 @@ Step 3: [ ] Files modified?
         ✅ bot_github_replace_text OR bot_github_edit_cached called → Success
         ✅ At least 1 FUNCTIONAL CODE file edited (not just README)
         
-Step 4: [ ] Modified files verified?
-        ✅ bot_github_modified_cached called → Returns files.length > 0
-        ❌ If returns 0 files → Something went wrong! Check branch parameter!
+Step 4: [ ] Changes committed? (CRITICAL - DON'T SKIP!)
         
-        🚨🚨🚨 CRITICAL RULE AFTER THIS STEP 🚨🚨🚨
+        🚨🚨🚨 IMMEDIATELY AFTER EDITING FILES 🚨🚨🚨
         
         ⏰ THE CLOCK IS TICKING! YOU HAVE 4 MINUTES TOTAL TIMEOUT!
         
-        IF bot_github_modified_cached returned files.length > 0:
-        
-        ➡️ **IMMEDIATELY CALL bot_github_commit_files RIGHT NOW!**
+        ➡️ **IMMEDIATELY CALL bot_github_commit_modified RIGHT NOW!**
+        ➡️ **DO NOT call bot_github_modified_cached first! (causes timeout)**
         ➡️ **DO NOT THINK! DO NOT ANALYZE! DO NOT WAIT!**
-        ➡️ **JUST EXECUTE THE NEXT 2 TOOL CALLS INSTANTLY:**
-           1. bot_github_commit_files (takes 2 seconds)
-           2. bot_github_create_pr (takes 3 seconds)
-        ➡️ **TOTAL TIME FOR STEPS 5-6: < 10 SECONDS**
+        ➡️ **JUST EXECUTE:**
+           bot_github_commit_modified({
+             owner: "codeforge-ai-bot",
+             repo: "RepoName", 
+             branch: "your-branch",
+             message: "fix: description"
+           })
         
-        ❌ DO NOT spend 2 minutes "thinking" about whether to commit!
-        ❌ DO NOT re-analyze the changes!
-        ❌ DO NOT validate again!
-        ❌ DO NOT wait for anything!
+        ❌ DO NOT use the old 2-step workflow:
+           ❌ bot_github_modified_cached (returns huge content → LLM crash)
+           ❌ bot_github_commit_files (requires content from previous step)
         
-        ✅ Verification passed = FILES ARE READY = COMMIT NOW!
-        ✅ Just call commit_files with the files array
-        ✅ Then call create_pr immediately
-        ✅ Then return response with PR URL
+        ✅ CORRECT - Use new 1-step workflow:
+           ✅ bot_github_commit_modified (reads from cache directly → fast!)
         
-        The modified_cached step already validated everything!
-        You already made the changes earlier!
-        There is NOTHING left to think about!
-        JUST COMMIT AND CREATE PR!
+        🔥 WHY bot_github_modified_cached CAUSES TIMEOUT:
+        - Returns full file content (can be thousands of lines)
+        - LLM API gets overloaded parsing huge response
+        - Agent "freezes" for 2+ minutes trying to process
+        - Eventually timeout!
         
-        🔥 SPEED MATTERS! 🔥
-        Steps 5-6 should be INSTANT (no thinking between them)
+        🔥 WHY bot_github_commit_modified IS BETTER:
+        - Reads content directly from cache (no LLM involved)
+        - Returns only file paths (tiny response)
+        - Completes in < 5 seconds!
+        - No timeout risk!
         
-Step 5: [ ] Changes committed?
-        ✅ bot_github_commit_files called with proper file array
         ✅ Commit succeeded (check response)
-        ❌ If "Files array is empty" → Call modified_cached first!
         
-        🚨 **AFTER THIS STEP SUCCEEDS:**
-        → **DO NOT STOP!**
-        → **IMMEDIATELY proceed to Step 6 (create PR)!**
-        → Commit succeeded means changes are in branch
-        → Now you MUST create PR to complete the workflow!
-        → **NO THINKING! JUST EXECUTE create_pr NOW!**
-        
-Step 6: [ ] PR created?
+Step 5: [ ] PR created?
         ✅ bot_github_create_pr called → Returns PR URL
         ✅ Can provide PR link to user
-        ❌ If "No commits" error → Commit didn't work, go back to Step 5
+        ❌ If "No commits" error → Commit didn't work, go back to Step 4
         
         🚨 **AFTER THIS STEP SUCCEEDS:**
         → **NOW you can return response!**
@@ -1160,13 +1213,14 @@ Step 6: [ ] PR created?
 - DO NOT tell user "I've started but..."
 - FIX THE ISSUE and complete the workflow!
 
-ONLY AFTER ALL 6 STEPS = SUCCESS can you respond with:
+ONLY AFTER ALL 5 STEPS = SUCCESS can you respond with:
 ✅ "I've solved the issue. Here's the PR: [URL]"
 
-⏰ TIME BUDGET:
-- Steps 1-4: Can take 2-3 minutes (searching, editing)
-- Steps 5-6: MUST take < 10 seconds (no thinking, just execute)
-- Total: < 4 minutes (or timeout!)
+⏰ TIME BUDGET (with new tool):
+- Steps 1-3: Can take 2-3 minutes (searching, editing)
+- Step 4: < 5 seconds (commit with bot_github_commit_modified)
+- Step 5: < 3 seconds (create PR)
+- Total: < 3.5 minutes (well under 4 minute timeout!)
 \`\`\`
 
 **❌ If ANY checkbox is NOT marked:**

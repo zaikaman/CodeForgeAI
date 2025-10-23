@@ -417,7 +417,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
         owner: z.string().describe('Repository owner'),
         repo: z.string().describe('Repository name'),
         branch: z.string().optional().describe('Branch name (default: main)'),
-        includeContent: z.boolean().optional().describe('Include full file content (default: true, recommended for commits)'),
+        includeContent: z.boolean().optional().describe('Include full file content (default: false for performance). Only set to true if you need to preview file contents before commit. For regular commits, false is recommended to avoid context explosion.'),
       }),
       fn: async (args) => {
         try {
@@ -427,7 +427,7 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             args.branch || 'main'
           );
 
-          const includeContent = args.includeContent !== false; // Default to true
+          const includeContent = args.includeContent === true; // Default to false for performance
 
           // If includeContent, fetch content for each modified file
           const filesWithContent = [];
@@ -486,6 +486,161 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             success: false,
             error: error.message,
             message: `❌ Failed to get modified files: ${error.message}`,
+          };
+        }
+      },
+    }),
+
+    /**
+     * Commit modified files directly from cache (RECOMMENDED - avoids context explosion)
+     */
+    createTool({
+      name: 'bot_github_commit_modified',
+      description: `Commit ALL modified files from local cache and push to branch.
+        This is the PREFERRED way to commit changes - it reads file content directly from cache
+        instead of requiring the agent to provide it, avoiding context window explosion.
+        
+        RECOMMENDED WORKFLOW:
+        1. Edit files using bot_github_replace_text or bot_github_edit_cached
+        2. Call this tool to commit all changes at once (no need for bot_github_modified_cached!)
+        3. Create PR using bot_github_create_pr
+        
+        This tool automatically:
+        - Fetches modified file content from cache
+        - Creates commit with all changes
+        - Pushes to the specified branch
+        - Clears modified files tracking
+        
+        Use this instead of bot_github_modified_cached + bot_github_commit_files for better performance.`,
+      schema: z.object({
+        owner: z.string().describe('Repository owner (usually "codeforge-ai-bot" for fork)'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().describe('Branch to commit to'),
+        message: z.string().describe('Commit message'),
+      }),
+      fn: async (args) => {
+        try {
+          // Get modified files from cache
+          const modified = await cache.getModifiedFiles(
+            args.owner,
+            args.repo,
+            args.branch
+          );
+
+          if (modified.length === 0) {
+            return {
+              success: false,
+              error: 'No modified files to commit',
+              message: '❌ No files have been modified in the working directory. Make changes first using bot_github_replace_text or bot_github_edit_cached.',
+            };
+          }
+
+          // Fetch content for each modified file from cache
+          const filesWithContent = [];
+          for (const file of modified) {
+            if (file.status !== 'deleted') {
+              try {
+                const content = await cache.getFileContent(
+                  args.owner,
+                  args.repo,
+                  file.path,
+                  args.branch
+                );
+                
+                filesWithContent.push({
+                  path: file.path,
+                  content: content,
+                });
+              } catch (error: any) {
+                console.warn(`[bot_github_commit_modified] Could not get content for ${file.path}:`, error.message);
+                return {
+                  success: false,
+                  error: `Failed to read ${file.path}: ${error.message}`,
+                  message: `❌ Could not read file ${file.path} from cache: ${error.message}`,
+                };
+              }
+            }
+          }
+
+          if (filesWithContent.length === 0) {
+            return {
+              success: false,
+              error: 'No files with content to commit (all deleted?)',
+              message: '❌ No files with content to commit.',
+            };
+          }
+
+          // Get current branch tree
+          const { data: branchRef } = await _octokit.rest.git.getRef({
+            owner: args.owner,
+            repo: args.repo,
+            ref: `heads/${args.branch}`,
+          });
+
+          const { data: commit } = await _octokit.rest.git.getCommit({
+            owner: args.owner,
+            repo: args.repo,
+            commit_sha: branchRef.object.sha,
+          });
+
+          // Create blobs and tree entries
+          let treeEntries: any[] = [];
+          for (const file of filesWithContent) {
+            const { data: blob } = await _octokit.rest.git.createBlob({
+              owner: args.owner,
+              repo: args.repo,
+              content: file.content,
+              encoding: 'utf-8',
+            });
+
+            treeEntries.push({
+              path: file.path,
+              mode: '100644',
+              type: 'blob',
+              sha: blob.sha,
+            });
+          }
+
+          // Create new tree
+          const { data: newTree } = await _octokit.rest.git.createTree({
+            owner: args.owner,
+            repo: args.repo,
+            base_tree: commit.tree.sha,
+            tree: treeEntries,
+          });
+
+          // Create new commit
+          const { data: newCommit } = await _octokit.rest.git.createCommit({
+            owner: args.owner,
+            repo: args.repo,
+            message: args.message,
+            tree: newTree.sha,
+            parents: [branchRef.object.sha],
+          });
+
+          // Update branch reference
+          await _octokit.rest.git.updateRef({
+            owner: args.owner,
+            repo: args.repo,
+            ref: `heads/${args.branch}`,
+            sha: newCommit.sha,
+          });
+
+          // Clear modified files tracking after successful commit
+          cache.clearModifiedFiles(args.owner, args.repo, args.branch);
+
+          return {
+            success: true,
+            filesCommitted: filesWithContent.length,
+            files: filesWithContent.map(f => ({ path: f.path })), // Return only paths, not content
+            commit: newCommit.sha,
+            message: `✅ Committed ${filesWithContent.length} files to ${args.branch}: ${args.message}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to commit modified files: ${error.message}`,
           };
         }
       },
