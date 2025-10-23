@@ -14,14 +14,15 @@ export const chatFileSchema = z.object({
  * 1. ChatAgent (Router):
  *    - Conversational: { summary: string }
  *    - Routing: { summary: string, needsSpecialist: true, specialistAgent: string }
- *    - NEVER uses 'files' field
+ *    - GitHub Fetch: { summary: string, files: [...] } - When using github_fetch_all_files tool
+ *    - ONLY uses 'files' when calling github_fetch_all_files tool for repo previews
  * 
  * 2. Specialist Agents (SimpleCoder, ComplexCoder, CodeModification, etc.):
  *    - Code generation: { summary: string, files: [...] }
  *    - Can optionally include githubOperation for GitHub integration
  */
 export const chatResponseSchema = z.object({
-  files: z.array(chatFileSchema).optional(), // Only for specialist agents, NOT ChatAgent
+  files: z.array(chatFileSchema).optional(), // For specialist agents AND ChatAgent when fetching repos
   summary: z.string().describe('Brief explanation of the action taken or routing decision'),
   needsSpecialist: z.boolean().optional().describe('True if routing to a specialist agent'),
   specialistAgent: z.string().optional().describe('Name of specialist agent to route to (GitHubAgent, SimpleCoder, ComplexCoder, CodeModification, etc.)'),

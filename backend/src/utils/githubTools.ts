@@ -211,6 +211,101 @@ export function createGitHubTools(context: GitHubToolsContext) {
       }),
       fn: async (args) => server.executeTool('delete_repository', args),
     }),
+
+    createTool({
+      name: 'github_fetch_all_files',
+      description: 'Fetch all files from a GitHub repository and return them as an array. This is the PREFERRED tool for pulling a codebase for preview or analysis. Returns complete file contents ready to be used.',
+      schema: z.object({
+        owner: z.string().describe('Repository owner/username'),
+        repo: z.string().describe('Repository name'),
+        branch: z.string().optional().describe('Branch name (defaults to main/master)'),
+      }),
+      fn: async (args) => {
+        try {
+          const { Octokit } = await import('@octokit/rest');
+          const client = new Octokit({ auth: context.token });
+          
+          // Get default branch if not specified
+          let branch = args.branch;
+          if (!branch) {
+            const repoInfo = await client.repos.get({
+              owner: args.owner,
+              repo: args.repo,
+            });
+            branch = repoInfo.data.default_branch;
+          }
+
+          // Get the tree recursively
+          const { data: refData } = await client.git.getRef({
+            owner: args.owner,
+            repo: args.repo,
+            ref: `heads/${branch}`,
+          });
+
+          const { data: treeData } = await client.git.getTree({
+            owner: args.owner,
+            repo: args.repo,
+            tree_sha: refData.object.sha,
+            recursive: 'true',
+          });
+
+          // Filter only files (not trees/directories)
+          const files = treeData.tree.filter((item: any) => item.type === 'blob');
+
+          // Fetch content for each file
+          const fileContents = await Promise.all(
+            files.map(async (file: any) => {
+              try {
+                const { data: contentData } = await client.repos.getContent({
+                  owner: args.owner,
+                  repo: args.repo,
+                  path: file.path!,
+                  ref: branch,
+                });
+
+                // Decode base64 content
+                const content = Buffer.from(
+                  (contentData as any).content,
+                  'base64'
+                ).toString('utf-8');
+
+                return {
+                  path: file.path,
+                  content,
+                  size: file.size,
+                  sha: file.sha,
+                };
+              } catch (error: any) {
+                console.error(`Failed to fetch ${file.path}:`, error.message);
+                return {
+                  path: file.path,
+                  content: '',
+                  size: file.size,
+                  sha: file.sha,
+                  error: error.message,
+                };
+              }
+            })
+          );
+
+          return {
+            success: true,
+            owner: args.owner,
+            repo: args.repo,
+            branch: branch,
+            totalFiles: fileContents.length,
+            files: fileContents,
+            message: `✅ Successfully fetched ${fileContents.length} files from ${args.owner}/${args.repo}`,
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message,
+            message: `❌ Failed to fetch files: ${error.message}`,
+          };
+        }
+      },
+    }),
   ]
 
   return {
@@ -411,6 +506,7 @@ The following GitHub tools are registered and ready to use:
 - github_delete_repository - Delete a repository
 - github_list_repositories - List ALL user's repositories
 - github_get_repo_info - Get specific repository details
+- github_fetch_all_files - ⭐ **PREFERRED** Fetch entire codebase from a repo (returns file array ready for preview)
 
 **File Operations:**
 - github_get_file_content - Read file from repo
@@ -430,12 +526,17 @@ The following GitHub tools are registered and ready to use:
 - github_search_code - Search code in repository
 
 **Usage Examples:**
-1. Create new repo with code:
+1. Pull codebase for live preview (SIMPLE):
+   - Use github_fetch_all_files with owner/repo/branch
+   - Returns complete file array ready to display
+   - ONE tool call, done!
+
+2. Create new repo with code:
    - Use github_create_repository to create repo
    - Use github_push_files to push all files at once (faster than multiple single commits)
    - Optionally use github_create_pull_request if working on a branch
 
-2. Update existing repo:
+3. Update existing repo:
    - Use github_create_branch to create feature branch
    - Use github_push_files to commit changes
    - Use github_create_pull_request to open PR
