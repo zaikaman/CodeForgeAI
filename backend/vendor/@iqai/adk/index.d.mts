@@ -2918,9 +2918,27 @@ interface LlmModel {
 declare class LLMRegistry {
     private static llmRegistry;
     private static modelInstances;
+    /**
+     * Default provider to use when model doesn't match any pattern
+     * Can be set via environment variable ADK_DEFAULT_LLM_PROVIDER
+     */
+    private static defaultProvider?;
     private static logger;
     static newLLM(model: string): BaseLlm;
     static resolve(model: string): LLMClass | null;
+    /**
+     * Detect provider based on model name patterns or environment configuration
+     */
+    private static detectProviderFallback;
+    /**
+     * Set the default provider to use for models that don't match any pattern
+     * @param providerName - 'openai', 'anthropic', or 'google'
+     */
+    static setDefaultProvider(providerName: 'openai' | 'anthropic' | 'google'): void;
+    /**
+     * Clear the default provider
+     */
+    static clearDefaultProvider(): void;
     static register(modelNameRegex: string, llmClass: LLMClass): void;
     static registerLLM(llmClass: LLMClass): void;
     static registerModel(name: string, model: LlmModel): void;
@@ -2932,6 +2950,10 @@ declare class LLMRegistry {
     static clearModels(): void;
     static clearClasses(): void;
     static logRegisteredModels(): void;
+    /**
+     * Get list of available provider names based on registered LLM classes
+     */
+    private static getAvailableProviders;
 }
 
 /**

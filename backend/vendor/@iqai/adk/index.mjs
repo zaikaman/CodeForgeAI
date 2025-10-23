@@ -2827,11 +2827,21 @@ init_logger();
 var LLMRegistry = class _LLMRegistry {
   static llmRegistry = /* @__PURE__ */ new Map();
   static modelInstances = /* @__PURE__ */ new Map();
+  /**
+   * Default provider to use when model doesn't match any pattern
+   * Can be set via environment variable ADK_DEFAULT_LLM_PROVIDER
+   */
+  static defaultProvider;
   static logger = new Logger({ name: "LLMRegistry" });
   static newLLM(model) {
     const llmClass = _LLMRegistry.resolve(model);
     if (!llmClass) {
-      throw new Error(`No LLM class found for model: ${model}`);
+      const availableProviders = _LLMRegistry.getAvailableProviders();
+      throw new Error(
+        `No LLM class found for model: ${model}
+Available providers: ${availableProviders.join(", ")}
+Set the appropriate API key environment variable (OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY) to enable fallback detection.`
+      );
     }
     return new llmClass(model);
   }
@@ -2841,7 +2851,79 @@ var LLMRegistry = class _LLMRegistry {
         return llmClass;
       }
     }
+    const fallbackClass = _LLMRegistry.detectProviderFallback(model);
+    if (fallbackClass) {
+      return fallbackClass;
+    }
     return null;
+  }
+  /**
+   * Detect provider based on model name patterns or environment configuration
+   */
+  static detectProviderFallback(model) {
+    if (_LLMRegistry.defaultProvider) {
+      _LLMRegistry.logger.debug(`Using default provider for model: ${model}`);
+      return _LLMRegistry.defaultProvider;
+    }
+    const defaultProviderName = process.env.ADK_DEFAULT_LLM_PROVIDER?.toLowerCase();
+    if (defaultProviderName) {
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (defaultProviderName === "openai" && patterns.some((p) => p.includes("gpt")) || defaultProviderName === "anthropic" && patterns.some((p) => p.includes("claude")) || defaultProviderName === "google" && patterns.some((p) => p.includes("gemini"))) {
+          _LLMRegistry.logger.debug(`Using ${defaultProviderName} provider (from ADK_DEFAULT_LLM_PROVIDER) for model: ${model}`);
+          return llmClass;
+        }
+      }
+    }
+    if (process.env.OPENAI_API_KEY) {
+      _LLMRegistry.logger.debug(`Fallback: Using OpenAI provider for model: ${model}`);
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (patterns.some((p) => p.includes("gpt") || p.includes("o1") || p.includes("o3"))) {
+          return llmClass;
+        }
+      }
+    }
+    if (process.env.ANTHROPIC_API_KEY) {
+      _LLMRegistry.logger.debug(`Fallback: Using Anthropic provider for model: ${model}`);
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (patterns.some((p) => p.includes("claude"))) {
+          return llmClass;
+        }
+      }
+    }
+    if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_USE_VERTEXAI === "true") {
+      _LLMRegistry.logger.debug(`Fallback: Using Google provider for model: ${model}`);
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (patterns.some((p) => p.includes("gemini"))) {
+          return llmClass;
+        }
+      }
+    }
+    return null;
+  }
+  /**
+   * Set the default provider to use for models that don't match any pattern
+   * @param providerName - 'openai', 'anthropic', or 'google'
+   */
+  static setDefaultProvider(providerName) {
+    for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+      const patterns = llmClass.supportedModels();
+      if (providerName === "openai" && patterns.some((p) => p.includes("gpt")) || providerName === "anthropic" && patterns.some((p) => p.includes("claude")) || providerName === "google" && patterns.some((p) => p.includes("gemini"))) {
+        _LLMRegistry.defaultProvider = llmClass;
+        _LLMRegistry.logger.debug(`Default provider set to: ${providerName}`);
+        return;
+      }
+    }
+    throw new Error(`Provider ${providerName} not found in registry`);
+  }
+  /**
+   * Clear the default provider
+   */
+  static clearDefaultProvider() {
+    _LLMRegistry.defaultProvider = void 0;
   }
   static register(modelNameRegex, llmClass) {
     _LLMRegistry.llmRegistry.set(new RegExp(modelNameRegex), llmClass);
@@ -2891,6 +2973,25 @@ var LLMRegistry = class _LLMRegistry {
     const instanceNames = [..._LLMRegistry.modelInstances.keys()];
     _LLMRegistry.logger.debug("Registered LLM class patterns:", classPatterns);
     _LLMRegistry.logger.debug("Registered LLM instances:", instanceNames);
+  }
+  /**
+   * Get list of available provider names based on registered LLM classes
+   */
+  static getAvailableProviders() {
+    const providers = [];
+    for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+      const patterns = llmClass.supportedModels();
+      if (patterns.some((p) => p.includes("gpt") || p.includes("o1") || p.includes("o3"))) {
+        if (!providers.includes("OpenAI")) providers.push("OpenAI");
+      }
+      if (patterns.some((p) => p.includes("claude"))) {
+        if (!providers.includes("Anthropic")) providers.push("Anthropic");
+      }
+      if (patterns.some((p) => p.includes("gemini"))) {
+        if (!providers.includes("Google")) providers.push("Google");
+      }
+    }
+    return providers;
   }
 };
 
@@ -8429,7 +8530,8 @@ async function injectSessionState(template, readonlyContext) {
       if (optional) {
         return "";
       }
-      throw new Error(`Context variable not found: \`${varName}\`.`);
+      console.warn(`Context variable not found: \`${varName}\`. Returning original text.`);
+      return match[0];
     }
   }
   return await asyncReplace(/{[^{}]*}/g, replaceMatch, template);
