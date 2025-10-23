@@ -413,7 +413,11 @@ export class RepositoryFileSystemCache {
       const repoInfo = await this.ensureRepository(owner, repo, branch);
 
       const results: GitGrepResult[] = [];
-      const regex = new RegExp(pattern, 'i'); // Case-insensitive regex
+      
+      // Remove inline flags like (?i) since we add 'i' flag separately
+      const cleanPattern = pattern.replace(/\(\?[imsx]+\)/g, '');
+      
+      const regex = new RegExp(cleanPattern, 'i'); // Case-insensitive regex
 
       console.log(`[RepositoryFileSystemCache] Searching locally for "${pattern}" in ${owner}/${repo}...`);
 
