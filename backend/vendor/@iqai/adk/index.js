@@ -8936,6 +8936,14 @@ var OutputSchemaResponseProcessor = (_class26 = class extends BaseLlmResponsePro
         validatedKeys: Object.keys(validated)
       });
     } catch (error) {
+      const skipError = error instanceof Error ? error.message : String(error);
+      if (skipError.includes("SKIP_VALIDATION")) {
+        this.logger.debug("Skipping validation for thinking/explanation text", {
+          agent: agent.name,
+          contentPreview: textContent.substring(0, 200)
+        });
+        return;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       const detailedError = `Output schema validation failed for agent '${agent.name}': ${errorMessage}`;
       this.logger.error(detailedError, {
@@ -8983,6 +8991,26 @@ var OutputSchemaResponseProcessor = (_class26 = class extends BaseLlmResponsePro
     const firstBraceIdx = raw.indexOf("{");
     const firstBracketIdx = raw.indexOf("[");
     if (firstBraceIdx === -1 && firstBracketIdx === -1) {
+      const thinkingPhrases = [
+        "I'll help",
+        "I'll ",
+        "Let me",
+        "I will",
+        "First, I",
+        "I'm going to",
+        "I need to",
+        "I should"
+      ];
+      const lowerRaw = raw.toLowerCase();
+      const isThinkingText = thinkingPhrases.some(
+        (phrase) => lowerRaw.includes(phrase.toLowerCase())
+      );
+      if (isThinkingText && raw.length < 500) {
+        this.logger.debug("Detected thinking/explanation text without JSON, skipping validation", {
+          contentPreview: raw.substring(0, 200)
+        });
+        throw new Error("SKIP_VALIDATION: Agent is thinking/explaining, JSON output will come in next response");
+      }
       return raw.trim();
     }
     let startPos = -1;

@@ -88,6 +88,17 @@ class OutputSchemaResponseProcessor extends BaseLlmResponseProcessor {
 				validatedKeys: Object.keys(validated),
 			});
 		} catch (error) {
+			// Check if this is a SKIP_VALIDATION error (agent thinking/explaining)
+			const skipError = error instanceof Error ? error.message : String(error);
+			if (skipError.includes("SKIP_VALIDATION")) {
+				this.logger.debug("Skipping validation for thinking/explanation text", {
+					agent: agent.name,
+					contentPreview: textContent.substring(0, 200),
+				});
+				// Don't treat this as an error - just pass through the original content
+				// The agent will send the actual JSON output in the next response
+				return;
+			}
 			// Create error message with detailed information
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
@@ -155,7 +166,34 @@ class OutputSchemaResponseProcessor extends BaseLlmResponseProcessor {
 		const firstBracketIdx = raw.indexOf("[");
 		
 		if (firstBraceIdx === -1 && firstBracketIdx === -1) {
-			// No JSON found at all, return as is
+			// No JSON found at all - check if this is just thinking/explanation text
+			// This is common when agents want to explain before taking action
+			const thinkingPhrases = [
+				"I'll help",
+				"I'll ",
+				"Let me",
+				"I will",
+				"First, I",
+				"I'm going to",
+				"I need to",
+				"I should",
+			];
+			
+			const lowerRaw = raw.toLowerCase();
+			const isThinkingText = thinkingPhrases.some(phrase => 
+				lowerRaw.includes(phrase.toLowerCase())
+			);
+			
+			if (isThinkingText && raw.length < 500) {
+				// This looks like agent thinking/explanation text without JSON
+				// Skip validation for this response - it's not the final output yet
+				this.logger.debug("Detected thinking/explanation text without JSON, skipping validation", {
+					contentPreview: raw.substring(0, 200),
+				});
+				throw new Error("SKIP_VALIDATION: Agent is thinking/explaining, JSON output will come in next response");
+			}
+			
+			// No JSON found at all and not thinking text, return as is to trigger error
 			return raw.trim();
 		}
 		
