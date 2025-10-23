@@ -20,6 +20,7 @@ import { smartCompress, getCompressionStats } from '../../utils/PromptCompressio
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
 import { createImageGenerationTool } from '../../tools/generation/imageGenerationTool';
 import type { GitHubToolsContext } from '../../utils/githubTools';
+import { JSON_ONLY_OUTPUT_INSTRUCTION } from '../../prompts/json-only-instruction';
 
 interface CodeModificationOptions {
   language?: string;
@@ -415,11 +416,12 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
   const escapedBasePrompt = CODE_MODIFICATION_BASE_PROMPT.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
   
   // Combine all prompts:
-  // Base modification prompt + Language prompt + Static rules + Checklist
+  // Base modification prompt + Language prompt + Static rules + Checklist + JSON-only instruction
   let combinedPrompt = escapedBasePrompt +
                        '\n\n' + languagePrompt +
                        '\n\n' + staticValidationRules + 
-                       '\n\n' + checklist;
+                       '\n\n' + checklist +
+                       '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
   
   // Add error context if provided
   if (options?.errorContext) {

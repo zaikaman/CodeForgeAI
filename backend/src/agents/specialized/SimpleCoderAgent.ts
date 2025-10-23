@@ -10,6 +10,7 @@ import { SIMPLE_CODER_PROMPT } from '../../prompts/simple-coder-prompt';
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
 import { createImageGenerationTool } from '../../tools/generation/imageGenerationTool';
 import type { GitHubToolsContext } from '../../utils/githubTools';
+import { JSON_ONLY_OUTPUT_INSTRUCTION } from '../../prompts/json-only-instruction';
 
 interface SimpleCoderOptions {
   language?: string;
@@ -24,7 +25,7 @@ export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
   console.log('[SimpleCoderAgent] Fast mode - using lightweight prompt');
   
   // Use the ultra-lightweight prompt (no cache needed - it's already minimal)
-  const systemPrompt = SIMPLE_CODER_PROMPT;
+  const systemPrompt = SIMPLE_CODER_PROMPT + '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
   
   // Escape curly braces
   const escapedPrompt = systemPrompt.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');

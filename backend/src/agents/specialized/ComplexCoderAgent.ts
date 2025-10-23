@@ -13,6 +13,7 @@ import { smartCompress, getCompressionStats } from '../../utils/PromptCompressio
 import { withGitHubIntegration, enhancePromptWithGitHub } from '../../utils/agentGitHubIntegration';
 import { createImageGenerationTool } from '../../tools/generation/imageGenerationTool';
 import type { GitHubToolsContext } from '../../utils/githubTools';
+import { JSON_ONLY_OUTPUT_INSTRUCTION } from '../../prompts/json-only-instruction';
 
 interface ComplexCoderOptions {
   language?: string;
@@ -103,47 +104,6 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
   
   This is NON-NEGOTIABLE. If you're generating TypeScript code, you MUST create package.json.
 </complex_coder_restrictions>
-
-<CRITICAL_JSON_OUTPUT_REQUIREMENT>
-  🚨 ABSOLUTELY CRITICAL - READ THIS CAREFULLY 🚨
-  
-  YOUR FINAL RESPONSE **MUST** BE A VALID JSON OBJECT.
-  
-  ⚠️ WORKFLOW WHEN USING TOOLS (like generate_image):
-  
-  1. **TOOL PHASE**: You MAY call tools (generate_image, github_*, etc.) as needed
-     - Call generate_image multiple times if you need multiple product images
-     - Each tool call will complete and return results
-     - You can see the tool results and use the returned URLs
-  
-  2. **FINAL RESPONSE PHASE** (AFTER ALL TOOLS COMPLETE):
-     - ✅ Output ONLY a JSON object: {{ "files": [...] }}
-     - ✅ NO explanatory text before the JSON
-     - ✅ NO explanatory text after the JSON
-     - ✅ NO markdown code fences
-     - ✅ NO conversational messages
-     - ✅ JUST THE PURE JSON OBJECT
-  
-  ❌ WRONG - Do NOT do this:
-  "I will help you build..." then JSON
-  
-  ❌ WRONG - Do NOT do this:
-  "Here is the code:" then JSON
-  
-  ✅ CORRECT - Do this:
-  Just output the JSON object directly with no text before or after
-  
-  🎯 REMEMBER:
-  - After ALL tool calls finish, output ONLY the JSON object
-  - No explanations, no markdown, no extra text
-  - Just pure JSON: {{ "files": [...] }}
-  
-  If you need to generate images:
-  1. Call generate_image tool(s)
-  2. Wait for results with image URLs
-  3. Create your files array with those URLs in the code
-  4. Output ONLY the JSON object with all files - NO OTHER TEXT
-</CRITICAL_JSON_OUTPUT_REQUIREMENT>
 `;
   
   // Add images and generation support section
@@ -282,7 +242,8 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
                          '\n\n' + escapedValidationRules + 
                          '\n\n' + escapedChecklist +
                          '\n\n' + typeScriptOnlyRule +
-                         '\n\n' + imagesAndGenerationSupport;
+                         '\n\n' + imagesAndGenerationSupport +
+                         '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
   
   const finalPrompt = smartCompress(combinedPrompt);
   
