@@ -416,12 +416,11 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
   const escapedBasePrompt = CODE_MODIFICATION_BASE_PROMPT.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
   
   // Combine all prompts:
-  // Base modification prompt + Language prompt + Static rules + Checklist + JSON-only instruction
+  // Base modification prompt + Language prompt + Static rules + Checklist
   let combinedPrompt = escapedBasePrompt +
                        '\n\n' + languagePrompt +
                        '\n\n' + staticValidationRules + 
-                       '\n\n' + checklist +
-                       '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
+                       '\n\n' + checklist;
   
   // Add error context if provided
   if (options?.errorContext) {
@@ -430,8 +429,12 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
     combinedPrompt += `\n\n## ERROR CONTEXT TO FIX:\n${escapedErrorContext}\n`;
   }
   
-  // Compress the final prompt (all curly braces already escaped above)
+  // Compress the prompt first
   const compressedPrompt = smartCompress(combinedPrompt);
+  
+  // CRITICAL: Add JSON-only instruction AFTER compression at the very end
+  // This ensures model sees it last and remembers it clearly
+  const finalPrompt = compressedPrompt + '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
   
   // Log compression stats
   const stats = getCompressionStats(combinedPrompt, compressedPrompt);
@@ -445,7 +448,7 @@ export const CodeModificationAgent = async (options?: CodeModificationOptions) =
   
   let builder = AgentBuilder.create('CodeModificationAgent')
     .withModel('glm-4.6')
-    .withInstruction(compressedPrompt)
+    .withInstruction(finalPrompt)
     .withOutputSchema(generationSchema);
   
   // Add image generation tool if userId is available

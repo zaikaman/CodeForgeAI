@@ -25,13 +25,16 @@ export const SimpleCoderAgent = async (options?: SimpleCoderOptions) => {
   console.log('[SimpleCoderAgent] Fast mode - using lightweight prompt');
   
   // Use the ultra-lightweight prompt (no cache needed - it's already minimal)
-  const systemPrompt = SIMPLE_CODER_PROMPT + '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
+  const systemPrompt = SIMPLE_CODER_PROMPT;
   
   // Escape curly braces
   const escapedPrompt = systemPrompt.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, '{{$1}}');
   
   // Enhance with GitHub tools if available
-  const finalPrompt = enhancePromptWithGitHub(escapedPrompt, options?.githubContext || null);
+  const enhancedPrompt = enhancePromptWithGitHub(escapedPrompt, options?.githubContext || null);
+  
+  // CRITICAL: Add JSON-only instruction at the VERY END so model sees it last
+  const finalPrompt = enhancedPrompt + '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
   
   const promptTime = Date.now() - startTime;
   console.log(`[SimpleCoderAgent] Prompt loaded: ${promptTime}ms (${finalPrompt.length} chars)`);

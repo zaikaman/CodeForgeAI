@@ -237,15 +237,18 @@ export const ComplexCoderAgent = async (options?: ComplexCoderOptions) => {
 </images_and_generation>
 `;
 
-  // Apply smart compression
+  // Apply smart compression - but keep JSON instruction AFTER compression
   const combinedPrompt = enhancedPrompt + 
                          '\n\n' + escapedValidationRules + 
                          '\n\n' + escapedChecklist +
                          '\n\n' + typeScriptOnlyRule +
-                         '\n\n' + imagesAndGenerationSupport +
-                         '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
+                         '\n\n' + imagesAndGenerationSupport;
   
-  const finalPrompt = smartCompress(combinedPrompt);
+  const compressedPrompt = smartCompress(combinedPrompt);
+  
+  // CRITICAL: Add JSON-only instruction AFTER compression so it's at the very end
+  // This ensures the model sees it last and remembers it most clearly
+  const finalPrompt = compressedPrompt + '\n\n' + JSON_ONLY_OUTPUT_INSTRUCTION;
   
   // Log compression stats
   const stats = getCompressionStats(combinedPrompt, finalPrompt);
