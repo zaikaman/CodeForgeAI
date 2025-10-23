@@ -78,7 +78,6 @@
 		}
 	},
 	"devDependencies": {
-		"@iqai/tsconfig": "workspace:*",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/dockerode": "^3.3.43",
 		"@types/node": "^24.3.1",

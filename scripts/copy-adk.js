@@ -56,14 +56,28 @@ try {
   fs.copyFileSync(packageJsonSource, path.join(targetDirNodeModules, 'package.json'));
   console.log('✓ Copied ADK dist files to node_modules');
 
-  // Copy to vendor (for Heroku deployment)
+  // Copy to vendor (for Heroku deployment) with cleaned package.json
   if (!fs.existsSync(targetDirVendor)) {
     fs.mkdirSync(targetDirVendor, { recursive: true });
     console.log('✓ Created vendor target directory');
   }
   copyRecursiveSync(sourceDir, targetDirVendor);
-  fs.copyFileSync(packageJsonSource, path.join(targetDirVendor, 'package.json'));
-  console.log('✓ Copied ADK dist files to vendor');
+  
+  // Clean package.json for vendor (remove workspace dependencies)
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonSource, 'utf8'));
+  if (packageJson.devDependencies) {
+    // Remove all workspace: dependencies
+    Object.keys(packageJson.devDependencies).forEach(key => {
+      if (packageJson.devDependencies[key].startsWith('workspace:')) {
+        delete packageJson.devDependencies[key];
+      }
+    });
+  }
+  fs.writeFileSync(
+    path.join(targetDirVendor, 'package.json'), 
+    JSON.stringify(packageJson, null, '\t')
+  );
+  console.log('✓ Copied ADK dist files to vendor (cleaned package.json)');
 
   console.log('✅ ADK copied successfully!');
   console.log('   node_modules: backend/node_modules/@iqai/adk');
