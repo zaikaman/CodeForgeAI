@@ -905,6 +905,9 @@ export function createCachedGitHubTools(_octokit: Octokit) {
             sha: newCommit.sha,
           });
 
+          // Clear modified files tracking after successful commit
+          cache.clearModifiedFiles('codeforge-ai-bot', args.repo, args.branch);
+
           return {
             success: true,
             filesCommitted: args.files.length,

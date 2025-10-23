@@ -102,6 +102,7 @@ export class RepositoryFileSystemCache {
   private memoryCache: Map<string, { data: any; entry: CacheEntry }> = new Map();
   private repositoryIndex: Map<string, RepositoryCacheInfo> = new Map();
   private fileIndex: Map<string, RepositoryFileIndex> = new Map(); // File index for fast lookup
+  private modifiedFiles: Map<string, Set<string>> = new Map(); // Track local modifications: repoKey => Set<filePath>
   private cleanupInterval: NodeJS.Timeout | null = null;
   private octokit: any = null;
 
@@ -622,6 +623,13 @@ export class RepositoryFileSystemCache {
       // Invalidate cache
       this.invalidateFileCache(owner, repo, filePath);
 
+      // Track as modified
+      const repoKey = `${owner}/${repo}@${branch}`;
+      if (!this.modifiedFiles.has(repoKey)) {
+        this.modifiedFiles.set(repoKey, new Set());
+      }
+      this.modifiedFiles.get(repoKey)!.add(filePath);
+
       return updated;
     } catch (error) {
       console.error(`[RepositoryFileSystemCache] Edit error:`, error);
@@ -630,7 +638,7 @@ export class RepositoryFileSystemCache {
   }
 
   /**
-   * Get list of all modified files using GitHub Compare API
+   * Get list of all modified files from local tracking
    */
   async getModifiedFiles(
     owner: string,
@@ -644,35 +652,22 @@ export class RepositoryFileSystemCache {
       newContent?: string;
     }>
   > {
-    if (!this.octokit) {
-      throw new Error('Octokit instance required');
-    }
-
     try {
-      // Get default branch first
-      const repoInfo = await this.octokit.repos.get({
-        owner,
-        repo,
-      });
+      const repoKey = `${owner}/${repo}@${branch}`;
+      const modifiedSet = this.modifiedFiles.get(repoKey);
 
-      const defaultBranch = repoInfo.data.default_branch;
-
-      // Compare branches
-      const comparison = await this.octokit.repos.compareCommits({
-        owner,
-        repo,
-        base: defaultBranch,
-        head: branch,
-      });
+      if (!modifiedSet || modifiedSet.size === 0) {
+        console.log(
+          `[RepositoryFileSystemCache] No local modifications found in ${owner}/${repo}@${branch}`
+        );
+        return [];
+      }
 
       const results = [];
-
-      for (const file of comparison.data.files || []) {
+      for (const filePath of modifiedSet) {
         results.push({
-          path: file.filename,
-          status: (file.status as 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'changed' | 'unchanged') 
-            === 'renamed' ? 'modified' : 
-            file.status as 'modified' | 'added' | 'deleted',
+          path: filePath,
+          status: 'modified' as const,
         });
       }
 
@@ -719,6 +714,15 @@ export class RepositoryFileSystemCache {
   }
 
   /**
+   * Clear modified files tracking after successful commit
+   */
+  clearModifiedFiles(owner: string, repo: string, branch: string = 'main') {
+    const repoKey = `${owner}/${repo}@${branch}`;
+    this.modifiedFiles.delete(repoKey);
+    console.log(`[RepositoryFileSystemCache] Cleared modified files tracking for ${repoKey}`);
+  }
+
+  /**
    * Clear cache for specific repository
    */
   async clearRepository(owner: string, repo: string) {
@@ -735,6 +739,13 @@ export class RepositoryFileSystemCache {
         for (const key of this.memoryCache.keys()) {
           if (key.includes(`${owner}/${repo}`)) {
             this.memoryCache.delete(key);
+          }
+        }
+
+        // Clear modified files tracking
+        for (const key of this.modifiedFiles.keys()) {
+          if (key.startsWith(`${owner}/${repo}@`)) {
+            this.modifiedFiles.delete(key);
           }
         }
 
