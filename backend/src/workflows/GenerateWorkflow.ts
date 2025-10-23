@@ -1222,10 +1222,36 @@ Return the result as JSON with the following structure:
           `🤖 AI is now generating code... This may take a moment for complex projects.`
         )
 
-        const response = (await runner.ask(message)) as any
+        let response = (await runner.ask(message)) as any
 
         console.log(`Raw response from ${agentName}:`, JSON.stringify(response, null, 2))
         console.log('Response type:', typeof response)
+        
+        // CRITICAL FIX: If response is a string (ADK failed to parse), manually extract JSON
+        if (typeof response === 'string') {
+          console.warn('⚠️ Response is a string, attempting to extract JSON...')
+          
+          // Try to find the first { and last } to extract JSON
+          const firstBrace = response.indexOf('{')
+          const lastBrace = response.lastIndexOf('}')
+          
+          if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+            const jsonString = response.substring(firstBrace, lastBrace + 1)
+            console.log('📄 Extracted JSON string (first 200 chars):', jsonString.substring(0, 200))
+            
+            try {
+              response = JSON.parse(jsonString)
+              console.log('✅ Successfully parsed extracted JSON')
+            } catch (parseError) {
+              console.error('❌ Failed to parse extracted JSON:', parseError)
+              throw new Error(`Agent returned string instead of JSON object. Raw: ${response.substring(0, 500)}`)
+            }
+          } else {
+            console.error('❌ Could not find valid JSON braces in response')
+            throw new Error(`Agent returned invalid string response: ${response.substring(0, 500)}`)
+          }
+        }
+        
         console.log('Response has files:', response?.files ? 'yes' : 'no')
 
         // Progress update for successful generation
