@@ -47,19 +47,20 @@ export enum AgentRole {
 
 /**
  * Default models for different agent types
- * Coding agents (mini) vs. other agents (nano)
+ * Coding agents use glm-4.6 for better code quality
+ * Non-coding agents use gpt-5-nano-2025-08-07 for efficiency
  */
 const DEFAULT_MODELS = {
-  // Coding agents - use gpt-5-mini for better quality
+  // Coding agents - use glm-4.6 for better quality
   [AgentRole.LEAD_ENGINEER]: 'glm-4.6',
   [AgentRole.SPEC_INTERPRETER]: 'glm-4.6',
   [AgentRole.CODE_GENERATOR]: 'glm-4.6',
   [AgentRole.TEST_CRAFTER]: 'glm-4.6',
-  // Other agents - use gpt-5-nano for efficiency
-  [AgentRole.BUG_HUNTER]: 'glm-4.6',
-  [AgentRole.SECURITY_SENTINEL]: 'glm-4.6',
-  [AgentRole.PERFORMANCE_PROFILER]: 'glm-4.6',
-  [AgentRole.DOC_WEAVER]: 'glm-4.6',
+  // Non-coding agents - use gpt-5-nano-2025-08-07 for efficiency
+  [AgentRole.BUG_HUNTER]: 'gpt-5-nano-2025-08-07',
+  [AgentRole.SECURITY_SENTINEL]: 'gpt-5-nano-2025-08-07',
+  [AgentRole.PERFORMANCE_PROFILER]: 'gpt-5-nano-2025-08-07',
+  [AgentRole.DOC_WEAVER]: 'gpt-5-nano-2025-08-07',
 }
 
 /**

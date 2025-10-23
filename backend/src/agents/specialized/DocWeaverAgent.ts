@@ -70,7 +70,7 @@ export const DocWeaverAgent = async (options?: DocWeaverOptions) => {
   const enhancedPrompt = enhancePromptWithGitHub(instancePrompt, githubContext);
   
   let builder = AgentBuilder.create('DocWeaverAgent')
-    .withModel('glm-4.6')
+    .withModel('gpt-5-nano-2025-08-07')
     .withInstruction(enhancedPrompt)
     .withTools(commentInserterTool);
   
