@@ -381,12 +381,25 @@ class ChatQueueManager {
         
         // Validate response format
         if (response.files && response.files.length > 0) {
-          console.warn(`[ChatQueue] ⚠️ WARNING: ChatAgent returned files array! This should never happen.`);
-          console.warn(`[ChatQueue] ChatAgent should only route to specialists, not generate code.`);
-          // Force routing to appropriate specialist based on content
-          needsSpecialist = true;
-          specialistAgent = 'CodeModification'; // Default fallback
-          console.log(`[ChatQueue] Forcing route to ${specialistAgent} due to unexpected files in response`);
+          // Check if this is a legitimate GitHub fetch operation (not code generation)
+          const isGitHubFetch = response.summary && 
+                               (response.summary.toLowerCase().includes('fetched') || 
+                                response.summary.toLowerCase().includes('pulled') ||
+                                response.summary.toLowerCase().includes('files from'));
+          
+          if (isGitHubFetch) {
+            console.log(`[ChatQueue] ✅ ChatAgent returned files from github_fetch_all_files tool - this is valid!`);
+            console.log(`[ChatQueue] Files will be returned directly to frontend for preview`);
+            needsSpecialist = false;
+            specialistAgent = '';
+          } else {
+            console.warn(`[ChatQueue] ⚠️ WARNING: ChatAgent returned files array but not from GitHub fetch!`);
+            console.warn(`[ChatQueue] ChatAgent should only route to specialists for code generation.`);
+            // Force routing to appropriate specialist based on content
+            needsSpecialist = true;
+            specialistAgent = 'CodeModification'; // Default fallback
+            console.log(`[ChatQueue] Forcing route to ${specialistAgent} due to unexpected files in response`);
+          }
         } else {
           // Check if ChatAgent determined a specialist is needed
           needsSpecialist = response.needsSpecialist || false;
@@ -427,41 +440,57 @@ class ChatQueueManager {
           console.log(`[ChatQueue] No specialist needed - handling as conversational response`);
           
           // Check if this is a conversational response (no files) or code changes
-          const isConversational = !response.files || response.files.length === 0;
+          const hasFiles = response.files && response.files.length > 0;
+          const isConversational = !hasFiles;
+          
+          // Check if this is a GitHub fetch operation
+          const isGitHubFetch = response.summary && 
+                               (response.summary.toLowerCase().includes('fetched') || 
+                                response.summary.toLowerCase().includes('pulled') ||
+                                response.summary.toLowerCase().includes('files from'));
           
           // Additional check: if user message looks like a code request, this might be an error
-          const codeKeywords = ['create', 'build', 'generate', 'add', 'fix', 'update', 'modify', 'write', 'implement'];
-          const userWantsCode = codeKeywords.some(keyword => 
-            job.message.toLowerCase().includes(keyword)
-          );
-          
-          if (userWantsCode && isConversational) {
-            console.warn(`[ChatQueue] ⚠️ POTENTIAL ROUTING ERROR:`);
-            console.warn(`[ChatQueue] User message appears to request code: "${job.message.substring(0, 100)}"`);
-            console.warn(`[ChatQueue] But ChatAgent returned conversational response without routing`);
-            console.warn(`[ChatQueue] This might indicate ChatAgent failed to properly route the request`);
+          // BUT: Don't warn for GitHub fetch operations - those are legitimate
+          if (!isGitHubFetch) {
+            const codeKeywords = ['create', 'build', 'generate', 'add', 'fix', 'update', 'modify', 'write', 'implement'];
+            const userWantsCode = codeKeywords.some(keyword => 
+              job.message.toLowerCase().includes(keyword)
+            );
+            
+            if (userWantsCode && isConversational) {
+              console.warn(`[ChatQueue] ⚠️ POTENTIAL ROUTING ERROR:`);
+              console.warn(`[ChatQueue] User message appears to request code: "${job.message.substring(0, 100)}"`);
+              console.warn(`[ChatQueue] But ChatAgent returned conversational response without routing`);
+              console.warn(`[ChatQueue] This might indicate ChatAgent failed to properly route the request`);
+            }
           }
           
           let updatedFiles: Array<{ path: string; content: string }> = [...job.currentFiles];
           
-          if (!isConversational && response.files) {
-            // Merge modified/new files with existing files
-            const responseFilesMap = new Map<string, { path: string; content: string }>(
-              response.files.map((f: any) => [f.path, f as { path: string; content: string }])
-            );
-            
-            updatedFiles = job.currentFiles.map(originalFile => {
-              const modifiedFile = responseFilesMap.get(originalFile.path);
-              if (modifiedFile) {
-                responseFilesMap.delete(originalFile.path);
-                return modifiedFile;
-              }
-              return originalFile;
-            });
-            
-            responseFilesMap.forEach((newFile: { path: string; content: string }) => {
-              updatedFiles.push(newFile);
-            });
+          if (hasFiles && response.files) {
+            if (isGitHubFetch) {
+              // For GitHub fetch, return the files directly (don't merge with current files)
+              console.log(`[ChatQueue] GitHub fetch detected - returning fetched files directly`);
+              updatedFiles = response.files as Array<{ path: string; content: string }>;
+            } else {
+              // Merge modified/new files with existing files
+              const responseFilesMap = new Map<string, { path: string; content: string }>(
+                response.files.map((f: any) => [f.path, f as { path: string; content: string }])
+              );
+              
+              updatedFiles = job.currentFiles.map(originalFile => {
+                const modifiedFile = responseFilesMap.get(originalFile.path);
+                if (modifiedFile) {
+                  responseFilesMap.delete(originalFile.path);
+                  return modifiedFile;
+                }
+                return originalFile;
+              });
+              
+              responseFilesMap.forEach((newFile: { path: string; content: string }) => {
+                updatedFiles.push(newFile);
+              });
+            }
           }
 
           // Store assistant response in memory
@@ -472,15 +501,16 @@ class ChatQueueManager {
             metadata: {
               filesModified: response.files?.length || 0,
               isConversational,
+              isGitHubFetch,
             },
           });
 
           // Update job with result in database
           job.status = 'completed';
           job.result = {
-            // 🐛 FIX: Don't include files for conversational responses at all
-            // Empty array would cause frontend to clear workspace files
-            ...(isConversational ? {} : { files: updatedFiles }),
+            // For GitHub fetch or file changes, include files
+            // For conversational, don't include files (would clear workspace)
+            ...(isConversational && !isGitHubFetch ? {} : { files: updatedFiles }),
             summary: response.summary || (isConversational ? 'Chat response' : 'Applied requested changes to the codebase'),
           };
           job.updatedAt = new Date();
