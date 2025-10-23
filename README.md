@@ -300,31 +300,35 @@ Process long-running tasks asynchronously:
 
 CodeForge AI employs 10+ specialized AI agents, each with unique expertise:
 
+### Model Configuration
+- **Coding Agents** use **GLM-4.6** for superior code generation, modification, and testing capabilities
+- **Review & Analysis Agents** use **GPT-5-nano** for efficient code analysis, security scanning, and documentation
+
 ### Core Agents
 
-| Agent | Role | Specialty |
-|-------|------|-----------|
-| 💬 **Chat Agent** | Orchestrator | Smart routing and conversation management |
-| ⚡ **Simple Coder** | Generator | HTML/CSS/Vanilla JS websites |
-| 🚀 **Complex Coder** | Generator | React, TypeScript, advanced frameworks |
-| 🔧 **Code Modifier** | Enhancer | Bugs, features, refactoring |
+| Agent | Role | Specialty | Model |
+|-------|------|-----------|-------|
+| 💬 **Chat Agent** | Orchestrator | Smart routing and conversation management | GPT-5-nano |
+| ⚡ **Simple Coder** | Generator | HTML/CSS/Vanilla JS websites | GLM-4.6 |
+| 🚀 **Complex Coder** | Generator | React, TypeScript, advanced frameworks | GLM-4.6 |
+| 🔧 **Code Modifier** | Enhancer | Bugs, features, refactoring | GLM-4.6 |
 
 ### Review & Quality Agents
 
-| Agent | Role | Focus Area |
-|-------|------|-----------|
-| 🔒 **Security Sentinel** | Reviewer | Vulnerability scanning and security |
-| ⚡ **Performance Profiler** | Optimizer | Performance analysis and optimization |
-| 🐛 **Bug Hunter** | Debugger | Logical errors and edge cases |
-| ✅ **Quality Assurance** | Validator | Best practices and architecture |
+| Agent | Role | Focus Area | Model |
+|-------|------|-----------|--------|
+| 🔒 **Security Sentinel** | Reviewer | Vulnerability scanning and security | GPT-5-nano |
+| ⚡ **Performance Profiler** | Optimizer | Performance analysis and optimization | GPT-5-nano |
+| 🐛 **Bug Hunter** | Debugger | Logical errors and edge cases | GPT-5-nano |
+| ✅ **Quality Assurance** | Validator | Best practices and architecture | GPT-5-nano |
 
 ### Support Agents
 
-| Agent | Role | Capability |
-|-------|------|-----------|
-| 🧪 **Test Crafter** | Tester | Comprehensive test generation |
-| 📚 **Doc Weaver** | Writer | Documentation and comments |
-| 🐙 **GitHub Agent** | Integrator | Repository operations and analysis |
+| Agent | Role | Capability | Model |
+|-------|------|-----------|--------|
+| 🧪 **Test Crafter** | Tester | Comprehensive test generation | GLM-4.6 |
+| 📚 **Doc Weaver** | Writer | Documentation and comments | GPT-5-nano |
+| 🐙 **GitHub Agent** | Integrator | Repository operations and analysis | GLM-4.6 |
 
 ---
 
@@ -480,7 +484,9 @@ Result: Fully functional website with AI-generated product images!
 
 ### AI & Integrations
 - **ADK-TS** - Multi-agent framework
-- **OpenAI GPT-4** - Primary LLM
+- **GLM-4.6** - Primary LLM for coding agents (SimpleCoder, ComplexCoder, CodeModifier, TestCrafter, GitHubAgent)
+- **GPT-5-nano** - Primary LLM for analysis & review agents (ChatAgent, Security, Performance, BugHunter, QA, Documentation)
+- **OpenAI GPT-4** - Alternative LLM
 - **Anthropic Claude** - Alternative LLM
 - **Google Gemini** - Alternative LLM
 - **Runware API** - High-performance image generation (model: runware:101@1)
@@ -966,7 +972,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **[ADK-TS](https://adk.iqai.com)** - Agent Development Kit framework
-- **[OpenAI](https://openai.com)** - GPT-5 language model
+- **[GLM-4.6](https://open.bigmodel.cn/)** - Primary model for coding-related agents
+- **[OpenAI GPT-5-nano](https://openai.com)** - Primary model for non-coding agents
+- **[OpenAI](https://openai.com)** - GPT-4 language model
 - **[Anthropic](https://anthropic.com)** - Claude language model
 - **[Google](https://ai.google)** - Gemini language model
 - **[Runware](https://runware.ai)** - High-performance image generation API
