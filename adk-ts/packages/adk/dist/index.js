@@ -2827,11 +2827,21 @@ init_logger();
 var LLMRegistry = (_class8 = class _LLMRegistry {
   static __initStatic() {this.llmRegistry = /* @__PURE__ */ new Map()}
   static __initStatic2() {this.modelInstances = /* @__PURE__ */ new Map()}
+  /**
+   * Default provider to use when model doesn't match any pattern
+   * Can be set via environment variable ADK_DEFAULT_LLM_PROVIDER
+   */
+  
   static __initStatic3() {this.logger = new Logger({ name: "LLMRegistry" })}
   static newLLM(model) {
     const llmClass = _LLMRegistry.resolve(model);
     if (!llmClass) {
-      throw new Error(`No LLM class found for model: ${model}`);
+      const availableProviders = _LLMRegistry.getAvailableProviders();
+      throw new Error(
+        `No LLM class found for model: ${model}
+Available providers: ${availableProviders.join(", ")}
+Set the appropriate API key environment variable (OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY) to enable fallback detection.`
+      );
     }
     return new llmClass(model);
   }
@@ -2841,7 +2851,79 @@ var LLMRegistry = (_class8 = class _LLMRegistry {
         return llmClass;
       }
     }
+    const fallbackClass = _LLMRegistry.detectProviderFallback(model);
+    if (fallbackClass) {
+      return fallbackClass;
+    }
     return null;
+  }
+  /**
+   * Detect provider based on model name patterns or environment configuration
+   */
+  static detectProviderFallback(model) {
+    if (_LLMRegistry.defaultProvider) {
+      _LLMRegistry.logger.debug(`Using default provider for model: ${model}`);
+      return _LLMRegistry.defaultProvider;
+    }
+    const defaultProviderName = _optionalChain([process, 'access', _139 => _139.env, 'access', _140 => _140.ADK_DEFAULT_LLM_PROVIDER, 'optionalAccess', _141 => _141.toLowerCase, 'call', _142 => _142()]);
+    if (defaultProviderName) {
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (defaultProviderName === "openai" && patterns.some((p) => p.includes("gpt")) || defaultProviderName === "anthropic" && patterns.some((p) => p.includes("claude")) || defaultProviderName === "google" && patterns.some((p) => p.includes("gemini"))) {
+          _LLMRegistry.logger.debug(`Using ${defaultProviderName} provider (from ADK_DEFAULT_LLM_PROVIDER) for model: ${model}`);
+          return llmClass;
+        }
+      }
+    }
+    if (process.env.OPENAI_API_KEY) {
+      _LLMRegistry.logger.debug(`Fallback: Using OpenAI provider for model: ${model}`);
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (patterns.some((p) => p.includes("gpt") || p.includes("o1") || p.includes("o3"))) {
+          return llmClass;
+        }
+      }
+    }
+    if (process.env.ANTHROPIC_API_KEY) {
+      _LLMRegistry.logger.debug(`Fallback: Using Anthropic provider for model: ${model}`);
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (patterns.some((p) => p.includes("claude"))) {
+          return llmClass;
+        }
+      }
+    }
+    if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_USE_VERTEXAI === "true") {
+      _LLMRegistry.logger.debug(`Fallback: Using Google provider for model: ${model}`);
+      for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+        const patterns = llmClass.supportedModels();
+        if (patterns.some((p) => p.includes("gemini"))) {
+          return llmClass;
+        }
+      }
+    }
+    return null;
+  }
+  /**
+   * Set the default provider to use for models that don't match any pattern
+   * @param providerName - 'openai', 'anthropic', or 'google'
+   */
+  static setDefaultProvider(providerName) {
+    for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+      const patterns = llmClass.supportedModels();
+      if (providerName === "openai" && patterns.some((p) => p.includes("gpt")) || providerName === "anthropic" && patterns.some((p) => p.includes("claude")) || providerName === "google" && patterns.some((p) => p.includes("gemini"))) {
+        _LLMRegistry.defaultProvider = llmClass;
+        _LLMRegistry.logger.debug(`Default provider set to: ${providerName}`);
+        return;
+      }
+    }
+    throw new Error(`Provider ${providerName} not found in registry`);
+  }
+  /**
+   * Clear the default provider
+   */
+  static clearDefaultProvider() {
+    _LLMRegistry.defaultProvider = void 0;
   }
   static register(modelNameRegex, llmClass) {
     _LLMRegistry.llmRegistry.set(new RegExp(modelNameRegex), llmClass);
@@ -2891,6 +2973,25 @@ var LLMRegistry = (_class8 = class _LLMRegistry {
     const instanceNames = [..._LLMRegistry.modelInstances.keys()];
     _LLMRegistry.logger.debug("Registered LLM class patterns:", classPatterns);
     _LLMRegistry.logger.debug("Registered LLM instances:", instanceNames);
+  }
+  /**
+   * Get list of available provider names based on registered LLM classes
+   */
+  static getAvailableProviders() {
+    const providers = [];
+    for (const [, llmClass] of _LLMRegistry.llmRegistry.entries()) {
+      const patterns = llmClass.supportedModels();
+      if (patterns.some((p) => p.includes("gpt") || p.includes("o1") || p.includes("o3"))) {
+        if (!providers.includes("OpenAI")) providers.push("OpenAI");
+      }
+      if (patterns.some((p) => p.includes("claude"))) {
+        if (!providers.includes("Anthropic")) providers.push("Anthropic");
+      }
+      if (patterns.some((p) => p.includes("gemini"))) {
+        if (!providers.includes("Google")) providers.push("Google");
+      }
+    }
+    return providers;
   }
 }, _class8.__initStatic(), _class8.__initStatic2(), _class8.__initStatic3(), _class8);
 
@@ -3109,7 +3210,7 @@ var OAuth2Credential = class extends AuthCredential {
         "Cannot refresh token: no refresh token or refresh function"
       );
     }
-    const result = await _optionalChain([this, 'access', _139 => _139.refreshFunction, 'optionalCall', _140 => _140(this.refreshToken)]);
+    const result = await _optionalChain([this, 'access', _143 => _143.refreshFunction, 'optionalCall', _144 => _144(this.refreshToken)]);
     if (!result) {
       throw new Error("Failed to refresh token");
     }
@@ -3144,7 +3245,7 @@ var AuthHandler = class {
    * Gets the authentication token
    */
   getToken() {
-    return _optionalChain([this, 'access', _141 => _141.credential, 'optionalAccess', _142 => _142.getToken, 'call', _143 => _143()]);
+    return _optionalChain([this, 'access', _145 => _145.credential, 'optionalAccess', _146 => _146.getToken, 'call', _147 => _147()]);
   }
   /**
    * Gets headers for HTTP requests
@@ -3159,7 +3260,7 @@ var AuthHandler = class {
    * Refreshes the token if necessary
    */
   async refreshToken() {
-    if (_optionalChain([this, 'access', _144 => _144.credential, 'optionalAccess', _145 => _145.canRefresh, 'call', _146 => _146()])) {
+    if (_optionalChain([this, 'access', _148 => _148.credential, 'optionalAccess', _149 => _149.canRefresh, 'call', _150 => _150()])) {
       await this.credential.refresh();
     }
   }
@@ -4442,7 +4543,7 @@ var AgentTool = (_class15 = class extends BaseTool {
       } catch (e3) {
         toolResult = mergedText;
       }
-      if (this.outputKey && _optionalChain([context4, 'optionalAccess', _147 => _147.state])) {
+      if (this.outputKey && _optionalChain([context4, 'optionalAccess', _151 => _151.state])) {
         context4.state[this.outputKey] = toolResult;
       }
       return toolResult;
@@ -4709,7 +4810,7 @@ var FileOperationsTool = class extends BaseTool {
       name: "file_operations",
       description: "Perform file system operations like reading, writing, and managing files"
     });
-    this.basePath = _optionalChain([options, 'optionalAccess', _148 => _148.basePath]) || process.cwd();
+    this.basePath = _optionalChain([options, 'optionalAccess', _152 => _152.basePath]) || process.cwd();
   }
   /**
    * Get the function declaration for the tool
@@ -5192,7 +5293,7 @@ var LoadMemoryTool = (_class20 = class extends BaseTool {
       const searchResult = await context4.searchMemory(args.query);
       return {
         memories: searchResult.memories || [],
-        count: _optionalChain([searchResult, 'access', _149 => _149.memories, 'optionalAccess', _150 => _150.length]) || 0
+        count: _optionalChain([searchResult, 'access', _153 => _153.memories, 'optionalAccess', _154 => _154.length]) || 0
       };
     } catch (error) {
       console.error("Error searching memory:", error);
@@ -5749,7 +5850,7 @@ var McpClientService = (_class22 = class {
         },
         this,
         async (instance) => await instance.reinitialize(),
-        _optionalChain([this, 'access', _151 => _151.config, 'access', _152 => _152.retryOptions, 'optionalAccess', _153 => _153.maxRetries]) || 2
+        _optionalChain([this, 'access', _155 => _155.config, 'access', _156 => _156.retryOptions, 'optionalAccess', _157 => _157.maxRetries]) || 2
       );
       return await wrappedCall();
     } catch (error) {
@@ -5833,7 +5934,7 @@ var McpClientService = (_class22 = class {
     this.mcpSamplingHandler = null;
     if (this.client) {
       try {
-        _optionalChain([this, 'access', _154 => _154.client, 'access', _155 => _155.removeRequestHandler, 'optionalCall', _156 => _156("sampling/createMessage")]);
+        _optionalChain([this, 'access', _158 => _158.client, 'access', _159 => _159.removeRequestHandler, 'optionalCall', _160 => _160("sampling/createMessage")]);
       } catch (error) {
         this.logger.error("Failed to remove sampling handler:", error);
       }
@@ -6353,7 +6454,7 @@ var McpToolset = (_class24 = class {
           "resource_closed_error" /* RESOURCE_CLOSED_ERROR */
         );
       }
-      if (this.tools.length > 0 && !_optionalChain([this, 'access', _157 => _157.config, 'access', _158 => _158.cacheConfig, 'optionalAccess', _159 => _159.enabled]) === false) {
+      if (this.tools.length > 0 && !_optionalChain([this, 'access', _161 => _161.config, 'access', _162 => _162.cacheConfig, 'optionalAccess', _163 => _163.enabled]) === false) {
         return this.tools;
       }
       if (!this.clientService) {
@@ -6382,7 +6483,7 @@ var McpToolset = (_class24 = class {
           }
         }
       }
-      if (_optionalChain([this, 'access', _160 => _160.config, 'access', _161 => _161.cacheConfig, 'optionalAccess', _162 => _162.enabled]) !== false) {
+      if (_optionalChain([this, 'access', _164 => _164.config, 'access', _165 => _165.cacheConfig, 'optionalAccess', _166 => _166.enabled]) !== false) {
         this.tools = tools;
       }
       return tools;
@@ -6471,12 +6572,12 @@ function populateClientFunctionCallId(modelResponseEvent) {
   }
 }
 function removeClientFunctionCallId(content) {
-  if (_optionalChain([content, 'optionalAccess', _163 => _163.parts])) {
+  if (_optionalChain([content, 'optionalAccess', _167 => _167.parts])) {
     for (const part of content.parts) {
-      if (_optionalChain([part, 'access', _164 => _164.functionCall, 'optionalAccess', _165 => _165.id, 'optionalAccess', _166 => _166.startsWith, 'call', _167 => _167(AF_FUNCTION_CALL_ID_PREFIX)])) {
+      if (_optionalChain([part, 'access', _168 => _168.functionCall, 'optionalAccess', _169 => _169.id, 'optionalAccess', _170 => _170.startsWith, 'call', _171 => _171(AF_FUNCTION_CALL_ID_PREFIX)])) {
         part.functionCall.id = void 0;
       }
-      if (_optionalChain([part, 'access', _168 => _168.functionResponse, 'optionalAccess', _169 => _169.id, 'optionalAccess', _170 => _170.startsWith, 'call', _171 => _171(AF_FUNCTION_CALL_ID_PREFIX)])) {
+      if (_optionalChain([part, 'access', _172 => _172.functionResponse, 'optionalAccess', _173 => _173.id, 'optionalAccess', _174 => _174.startsWith, 'call', _175 => _175(AF_FUNCTION_CALL_ID_PREFIX)])) {
         part.functionResponse.id = void 0;
       }
     }
@@ -6638,7 +6739,7 @@ function mergeParallelFunctionResponseEvents(functionResponseEvents) {
   }
   const mergedParts = [];
   for (const event of functionResponseEvents) {
-    if (_optionalChain([event, 'access', _172 => _172.content, 'optionalAccess', _173 => _173.parts])) {
+    if (_optionalChain([event, 'access', _176 => _176.content, 'optionalAccess', _177 => _177.parts])) {
       for (const part of event.content.parts) {
         mergedParts.push(part);
       }
@@ -6763,7 +6864,7 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
       const seen = /* @__PURE__ */ new Set();
       const filtered = [];
       for (const t of tools) {
-        const name = _optionalChain([t, 'optionalAccess', _174 => _174.name]);
+        const name = _optionalChain([t, 'optionalAccess', _178 => _178.name]);
         if (!name) continue;
         if (seen.has(name)) {
           continue;
@@ -6780,7 +6881,7 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
     if (tools.length > 0) {
       const toolsData = tools.map((tool) => ({
         Name: tool.name,
-        Description: _optionalChain([tool, 'access', _175 => _175.description, 'optionalAccess', _176 => _176.substring, 'call', _177 => _177(0, 50)]) + (_optionalChain([tool, 'access', _178 => _178.description, 'optionalAccess', _179 => _179.length]) > 50 ? "..." : ""),
+        Description: _optionalChain([tool, 'access', _179 => _179.description, 'optionalAccess', _180 => _180.substring, 'call', _181 => _181(0, 50)]) + (_optionalChain([tool, 'access', _182 => _182.description, 'optionalAccess', _183 => _183.length]) > 50 ? "..." : ""),
         "Long Running": tool.isLongRunning ? "Yes" : "No"
       }));
       this.logger.debugArray("\u{1F6E0}\uFE0F Available Tools", toolsData);
@@ -6843,14 +6944,14 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
       );
       if (functionResponseEvent) {
         yield functionResponseEvent;
-        const transferToAgent = _optionalChain([functionResponseEvent, 'access', _180 => _180.actions, 'optionalAccess', _181 => _181.transferToAgent]);
+        const transferToAgent = _optionalChain([functionResponseEvent, 'access', _184 => _184.actions, 'optionalAccess', _185 => _185.transferToAgent]);
         if (transferToAgent) {
           this.logger.debug(`\u{1F504} Live transfer to agent '${transferToAgent}'`);
           const agentToRun = this._getAgentToRun(
             invocationContext,
             transferToAgent
           );
-          for await (const event of _optionalChain([agentToRun, 'access', _182 => _182.runLive, 'optionalCall', _183 => _183(invocationContext)]) || agentToRun.runAsync(invocationContext)) {
+          for await (const event of _optionalChain([agentToRun, 'access', _186 => _186.runLive, 'optionalCall', _187 => _187(invocationContext)]) || agentToRun.runAsync(invocationContext)) {
             yield event;
           }
         }
@@ -6882,7 +6983,7 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
         yield authEvent;
       }
       yield functionResponseEvent;
-      const transferToAgent = _optionalChain([functionResponseEvent, 'access', _184 => _184.actions, 'optionalAccess', _185 => _185.transferToAgent]);
+      const transferToAgent = _optionalChain([functionResponseEvent, 'access', _188 => _188.actions, 'optionalAccess', _189 => _189.transferToAgent]);
       if (transferToAgent) {
         this.logger.debug(`\u{1F504} Transferring to agent '${transferToAgent}'`);
         const agentToRun = this._getAgentToRun(
@@ -6928,7 +7029,7 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
     }
     invocationContext.incrementLlmCallCount();
     const isStreaming = invocationContext.runConfig.streamingMode === "sse" /* SSE */;
-    let tools = _optionalChain([llmRequest, 'access', _186 => _186.config, 'optionalAccess', _187 => _187.tools]) || [];
+    let tools = _optionalChain([llmRequest, 'access', _190 => _190.config, 'optionalAccess', _191 => _191.tools]) || [];
     if (tools.length) {
       const deduped = [];
       const seenFn = /* @__PURE__ */ new Set();
@@ -6937,7 +7038,7 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
         if (tool && Array.isArray(tool.functionDeclarations)) {
           const newFds = tool.functionDeclarations.filter(
             (fd) => {
-              if (_optionalChain([fd, 'optionalAccess', _188 => _188.name])) {
+              if (_optionalChain([fd, 'optionalAccess', _192 => _192.name])) {
                 if (seenFn.has(fd.name)) {
                   return false;
                 }
@@ -6949,7 +7050,7 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
           if (newFds.length) {
             deduped.push({ ...tool, functionDeclarations: newFds });
           }
-        } else if (_optionalChain([tool, 'optionalAccess', _189 => _189.name])) {
+        } else if (_optionalChain([tool, 'optionalAccess', _193 => _193.name])) {
           if (seenFn.has(tool.name)) continue;
           seenFn.add(tool.name);
           deduped.push(tool);
@@ -6969,21 +7070,21 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
         return tool.functionDeclarations.map((fn) => fn.name).join(", ");
       }
       if (tool.name) return tool.name;
-      if (_optionalChain([tool, 'access', _190 => _190.function, 'optionalAccess', _191 => _191.name])) return tool.function.name;
-      if (_optionalChain([tool, 'access', _192 => _192.function, 'optionalAccess', _193 => _193.function, 'optionalAccess', _194 => _194.name])) return tool.function.function.name;
+      if (_optionalChain([tool, 'access', _194 => _194.function, 'optionalAccess', _195 => _195.name])) return tool.function.name;
+      if (_optionalChain([tool, 'access', _196 => _196.function, 'optionalAccess', _197 => _197.function, 'optionalAccess', _198 => _198.name])) return tool.function.function.name;
       return "unknown";
     }).join(", ");
     const systemInstruction = llmRequest.getSystemInstructionText() || "";
     const truncatedSystemInstruction = systemInstruction.length > 100 ? `${systemInstruction.substring(0, 100)}...` : systemInstruction;
-    const contentPreview = _optionalChain([llmRequest, 'access', _195 => _195.contents, 'optionalAccess', _196 => _196.length]) > 0 ? LogFormatter.formatContentPreview(llmRequest.contents[0]) : "none";
+    const contentPreview = _optionalChain([llmRequest, 'access', _199 => _199.contents, 'optionalAccess', _200 => _200.length]) > 0 ? LogFormatter.formatContentPreview(llmRequest.contents[0]) : "none";
     this.logger.debugStructured("\u{1F4E4} LLM Request", {
       Model: llm.model,
       Agent: invocationContext.agent.name,
-      "Content Items": _optionalChain([llmRequest, 'access', _197 => _197.contents, 'optionalAccess', _198 => _198.length]) || 0,
+      "Content Items": _optionalChain([llmRequest, 'access', _201 => _201.contents, 'optionalAccess', _202 => _202.length]) || 0,
       "Content Preview": contentPreview,
       "System Instruction": truncatedSystemInstruction || "none",
       "Available Tools": toolNames || "none",
-      "Tool Count": _optionalChain([llmRequest, 'access', _199 => _199.config, 'optionalAccess', _200 => _200.tools, 'optionalAccess', _201 => _201.length]) || 0,
+      "Tool Count": _optionalChain([llmRequest, 'access', _203 => _203.config, 'optionalAccess', _204 => _204.tools, 'optionalAccess', _205 => _205.length]) || 0,
       Streaming: isStreaming ? "Yes" : "No"
     });
     let responseCount = 0;
@@ -6998,8 +7099,8 @@ var BaseLlmFlow = (_class25 = class {constructor() { _class25.prototype.__init43
         llmRequest,
         llmResponse
       );
-      const tokenCount = _optionalChain([llmResponse, 'access', _202 => _202.usageMetadata, 'optionalAccess', _203 => _203.totalTokenCount]) || "unknown";
-      const functionCalls = _optionalChain([llmResponse, 'access', _204 => _204.content, 'optionalAccess', _205 => _205.parts, 'optionalAccess', _206 => _206.filter, 'call', _207 => _207((part) => part.functionCall)]) || [];
+      const tokenCount = _optionalChain([llmResponse, 'access', _206 => _206.usageMetadata, 'optionalAccess', _207 => _207.totalTokenCount]) || "unknown";
+      const functionCalls = _optionalChain([llmResponse, 'access', _208 => _208.content, 'optionalAccess', _209 => _209.parts, 'optionalAccess', _210 => _210.filter, 'call', _211 => _211((part) => part.functionCall)]) || [];
       const functionCallsDisplay = LogFormatter.formatFunctionCalls(functionCalls);
       const responsePreview = LogFormatter.formatResponsePreview(llmResponse);
       this.logger.debugStructured("\u{1F4E5} LLM Response", {
@@ -7143,7 +7244,7 @@ var EnhancedAuthConfig = class {
    */
   generateCredentialKey() {
     const schemeKey = this.authScheme.type || "unknown";
-    const credentialKey = _optionalChain([this, 'access', _208 => _208.rawAuthCredential, 'optionalAccess', _209 => _209.type]) || "none";
+    const credentialKey = _optionalChain([this, 'access', _212 => _212.rawAuthCredential, 'optionalAccess', _213 => _213.type]) || "none";
     const timestamp = Date.now();
     return `adk_${schemeKey}_${credentialKey}_${timestamp}`;
   }
@@ -7300,7 +7401,7 @@ var AuthLlmRequestProcessor = class extends BaseLlmRequestProcessor {
    */
   parseAndStoreAuthResponse(authHandler, invocationContext) {
     try {
-      const credentialKey = _optionalChain([authHandler, 'access', _210 => _210.authConfig, 'access', _211 => _211.context, 'optionalAccess', _212 => _212.credentialKey]) || `temp:${Date.now()}`;
+      const credentialKey = _optionalChain([authHandler, 'access', _214 => _214.authConfig, 'access', _215 => _215.context, 'optionalAccess', _216 => _216.credentialKey]) || `temp:${Date.now()}`;
       const fullCredentialKey = credentialKey.startsWith("temp:") ? credentialKey : `temp:${credentialKey}`;
       invocationContext.session.state[fullCredentialKey] = authHandler.credential;
       if (authHandler.authConfig.authScheme.type === "oauth2" || authHandler.authConfig.authScheme.type === "openIdConnect") {
@@ -7329,7 +7430,7 @@ var BasicLlmRequestProcessor = class extends BaseLlmRequestProcessor {
       llmRequest.config = {};
     }
     if (agent.outputSchema) {
-      const hasTools = await _asyncOptionalChain([(await _optionalChain([agent, 'access', _213 => _213.canonicalTools, 'optionalCall', _214 => _214(invocationContext)])), 'optionalAccess', async _215 => _215.length]) > 0;
+      const hasTools = await _asyncOptionalChain([(await _optionalChain([agent, 'access', _217 => _217.canonicalTools, 'optionalCall', _218 => _218(invocationContext)])), 'optionalAccess', async _219 => _219.length]) > 0;
       const hasTransfers = !!("subAgents" in agent && agent.subAgents && agent.subAgents.length > 0 && !(agent.disallowTransferToParent && agent.disallowTransferToPeers));
       if (!hasTools && !hasTransfers) {
         llmRequest.setOutputSchema(agent.outputSchema);
@@ -7421,7 +7522,7 @@ var BuiltInCodeExecutor = class extends BaseCodeExecutor {
    * Pre-process the LLM request for Gemini 2.0+ models to use the code execution tool
    */
   processLlmRequest(llmRequest) {
-    if (!_optionalChain([llmRequest, 'access', _216 => _216.model, 'optionalAccess', _217 => _217.startsWith, 'call', _218 => _218("gemini-2")])) {
+    if (!_optionalChain([llmRequest, 'access', _220 => _220.model, 'optionalAccess', _221 => _221.startsWith, 'call', _222 => _222("gemini-2")])) {
       throw new Error(
         `Gemini code execution tool is not supported for model ${llmRequest.model}`
       );
@@ -7466,7 +7567,7 @@ var CodeExecutionUtils = class _CodeExecutionUtils {
    * Extracts the first code block from the content and truncates everything after it
    */
   static extractCodeAndTruncateContent(content, codeBlockDelimiters) {
-    if (!_optionalChain([content, 'optionalAccess', _219 => _219.parts, 'optionalAccess', _220 => _220.length])) {
+    if (!_optionalChain([content, 'optionalAccess', _223 => _223.parts, 'optionalAccess', _224 => _224.length])) {
       return null;
     }
     for (let idx = 0; idx < content.parts.length; idx++) {
@@ -7552,7 +7653,7 @@ ${fileNames}`);
    * Converts the code execution parts to text parts in a Content
    */
   static convertCodeExecutionParts(content, codeBlockDelimiter, executionResultDelimiters) {
-    if (!_optionalChain([content, 'access', _221 => _221.parts, 'optionalAccess', _222 => _222.length])) {
+    if (!_optionalChain([content, 'access', _225 => _225.parts, 'optionalAccess', _226 => _226.length])) {
       return;
     }
     const lastPart = content.parts[content.parts.length - 1];
@@ -7945,7 +8046,7 @@ async function* runPostProcessor(invocationContext, llmResponse) {
 function extractAndReplaceInlineFiles(codeExecutorContext, llmRequest) {
   const allInputFiles = codeExecutorContext.getInputFiles();
   const savedFileNames = new Set(allInputFiles.map((f) => f.name));
-  for (let i = 0; i < (_optionalChain([llmRequest, 'access', _223 => _223.contents, 'optionalAccess', _224 => _224.length]) || 0); i++) {
+  for (let i = 0; i < (_optionalChain([llmRequest, 'access', _227 => _227.contents, 'optionalAccess', _228 => _228.length]) || 0); i++) {
     const content = llmRequest.contents[i];
     if (content.role !== "user" || !content.parts) {
       continue;
@@ -7977,7 +8078,7 @@ Available file: \`${fileName}\`
 }
 function getOrSetExecutionId(invocationContext, codeExecutorContext) {
   const agent = invocationContext.agent;
-  if (!hasCodeExecutor(agent) || !_optionalChain([agent, 'access', _225 => _225.codeExecutor, 'optionalAccess', _226 => _226.stateful])) {
+  if (!hasCodeExecutor(agent) || !_optionalChain([agent, 'access', _229 => _229.codeExecutor, 'optionalAccess', _230 => _230.stateful])) {
     return void 0;
   }
   let executionId = codeExecutorContext.getExecutionId();
@@ -8208,7 +8309,7 @@ function rearrangeEventsForLatestFunctionResponse(events) {
       continue;
     }
     const functionResponses2 = event.getFunctionResponses();
-    if (_optionalChain([functionResponses2, 'optionalAccess', _227 => _227.some, 'call', _228 => _228((fr) => fr.id && functionResponsesIds.has(fr.id))])) {
+    if (_optionalChain([functionResponses2, 'optionalAccess', _231 => _231.some, 'call', _232 => _232((fr) => fr.id && functionResponsesIds.has(fr.id))])) {
       functionResponseEvents.push(event);
     }
   }
@@ -8307,7 +8408,7 @@ function mergeFunctionResponseEvents(functionResponseEvents) {
   const partIndicesInMergedEvent = {};
   for (let idx = 0; idx < partsInMergedEvent.length; idx++) {
     const part = partsInMergedEvent[idx];
-    if (_optionalChain([part, 'access', _229 => _229.functionResponse, 'optionalAccess', _230 => _230.id])) {
+    if (_optionalChain([part, 'access', _233 => _233.functionResponse, 'optionalAccess', _234 => _234.id])) {
       partIndicesInMergedEvent[part.functionResponse.id] = idx;
     }
   }
@@ -8316,7 +8417,7 @@ function mergeFunctionResponseEvents(functionResponseEvents) {
       throw new Error("There should be at least one function_response part.");
     }
     for (const part of event.content.parts) {
-      if (_optionalChain([part, 'access', _231 => _231.functionResponse, 'optionalAccess', _232 => _232.id])) {
+      if (_optionalChain([part, 'access', _235 => _235.functionResponse, 'optionalAccess', _236 => _236.id])) {
         const functionCallId = part.functionResponse.id;
         if (functionCallId in partIndicesInMergedEvent) {
           partsInMergedEvent[partIndicesInMergedEvent[functionCallId]] = part;
@@ -8584,7 +8685,7 @@ var PlanReActPlanner = class extends BasePlanner {
     let firstFcPartIndex = -1;
     for (let i = 0; i < responseParts.length; i++) {
       if (responseParts[i].functionCall) {
-        if (!_optionalChain([responseParts, 'access', _233 => _233[i], 'access', _234 => _234.functionCall, 'optionalAccess', _235 => _235.name])) {
+        if (!_optionalChain([responseParts, 'access', _237 => _237[i], 'access', _238 => _238.functionCall, 'optionalAccess', _239 => _239.name])) {
           continue;
         }
         preservedParts.push(responseParts[i]);
@@ -8623,7 +8724,7 @@ var PlanReActPlanner = class extends BasePlanner {
    * Handles non-function-call parts of the response
    */
   _handleNonFunctionCallParts(responsePart, preservedParts) {
-    if (_optionalChain([responsePart, 'access', _236 => _236.text, 'optionalAccess', _237 => _237.includes, 'call', _238 => _238(FINAL_ANSWER_TAG)])) {
+    if (_optionalChain([responsePart, 'access', _240 => _240.text, 'optionalAccess', _241 => _241.includes, 'call', _242 => _242(FINAL_ANSWER_TAG)])) {
       const [reasoningText, finalAnswerText] = this._splitByLastPattern(
         responsePart.text,
         FINAL_ANSWER_TAG
@@ -8869,7 +8970,7 @@ var OutputSchemaResponseProcessor = (_class26 = class extends BaseLlmResponsePro
   stripCodeFences(raw) {
     const fencePattern = /```(?:json)?\s*([\s\S]*?)```/i;
     const fenceMatch = raw.match(fencePattern);
-    if (_optionalChain([fenceMatch, 'optionalAccess', _239 => _239[1]])) {
+    if (_optionalChain([fenceMatch, 'optionalAccess', _243 => _243[1]])) {
       return fenceMatch[1].trim();
     }
     const lines = raw.split(/\r?\n/).map((l) => l.trim());
@@ -8923,7 +9024,7 @@ var SharedMemoryRequestProcessor = class extends BaseLlmRequestProcessor {
     const memoryService = invocationContext.memoryService;
     if (!memoryService) return;
     const lastUserEvent = invocationContext.session.events.findLast(
-      (e) => e.author === "user" && _optionalChain([e, 'access', _240 => _240.content, 'optionalAccess', _241 => _241.parts, 'optionalAccess', _242 => _242.length])
+      (e) => e.author === "user" && _optionalChain([e, 'access', _244 => _244.content, 'optionalAccess', _245 => _245.parts, 'optionalAccess', _246 => _246.length])
     );
     if (!lastUserEvent) return;
     const query = (_nullishCoalesce(lastUserEvent.content.parts, () => ( []))).map((p) => p.text || "").join(" ");
@@ -8934,7 +9035,7 @@ var SharedMemoryRequestProcessor = class extends BaseLlmRequestProcessor {
     });
     const sessionTexts = new Set(
       (llmRequest.contents || []).flatMap(
-        (c) => _optionalChain([c, 'access', _243 => _243.parts, 'optionalAccess', _244 => _244.map, 'call', _245 => _245((p) => p.text)]) || []
+        (c) => _optionalChain([c, 'access', _247 => _247.parts, 'optionalAccess', _248 => _248.map, 'call', _249 => _249((p) => p.text)]) || []
       )
     );
     for (const memory of results.memories) {
@@ -9355,7 +9456,7 @@ var LlmAgent = (_class27 = class _LlmAgent extends BaseAgent {
    * This matches the Python implementation's _llm_flow property
    */
   get llmFlow() {
-    if (this.disallowTransferToParent && this.disallowTransferToPeers && !_optionalChain([this, 'access', _246 => _246.subAgents, 'optionalAccess', _247 => _247.length])) {
+    if (this.disallowTransferToParent && this.disallowTransferToPeers && !_optionalChain([this, 'access', _250 => _250.subAgents, 'optionalAccess', _251 => _251.length])) {
       return new SingleFlow();
     }
     return new AutoFlow();
@@ -9371,7 +9472,7 @@ var LlmAgent = (_class27 = class _LlmAgent extends BaseAgent {
       );
       return;
     }
-    if (this.outputKey && event.isFinalResponse() && _optionalChain([event, 'access', _248 => _248.content, 'optionalAccess', _249 => _249.parts])) {
+    if (this.outputKey && event.isFinalResponse() && _optionalChain([event, 'access', _252 => _252.content, 'optionalAccess', _253 => _253.parts])) {
       let result = event.content.parts.map((part) => part.text || "").join("");
       if (this.outputSchema) {
         if (!result.trim()) {
@@ -9591,7 +9692,7 @@ var LoopAgent = class extends BaseAgent {
       for (const subAgent of this.subAgents) {
         for await (const event of subAgent.runAsync(ctx)) {
           yield event;
-          if (_optionalChain([event, 'access', _250 => _250.actions, 'optionalAccess', _251 => _251.escalate])) {
+          if (_optionalChain([event, 'access', _254 => _254.actions, 'optionalAccess', _255 => _255.escalate])) {
             return;
           }
         }
@@ -9903,17 +10004,17 @@ var RunConfig = class {
    */
   
   constructor(config) {
-    this.speechConfig = _optionalChain([config, 'optionalAccess', _252 => _252.speechConfig]);
-    this.responseModalities = _optionalChain([config, 'optionalAccess', _253 => _253.responseModalities]);
-    this.saveInputBlobsAsArtifacts = _optionalChain([config, 'optionalAccess', _254 => _254.saveInputBlobsAsArtifacts]) || false;
-    this.supportCFC = _optionalChain([config, 'optionalAccess', _255 => _255.supportCFC]) || false;
-    this.streamingMode = _optionalChain([config, 'optionalAccess', _256 => _256.streamingMode]) || "NONE" /* NONE */;
-    this.outputAudioTranscription = _optionalChain([config, 'optionalAccess', _257 => _257.outputAudioTranscription]);
-    this.inputAudioTranscription = _optionalChain([config, 'optionalAccess', _258 => _258.inputAudioTranscription]);
-    this.realtimeInputConfig = _optionalChain([config, 'optionalAccess', _259 => _259.realtimeInputConfig]);
-    this.enableAffectiveDialog = _optionalChain([config, 'optionalAccess', _260 => _260.enableAffectiveDialog]);
-    this.proactivity = _optionalChain([config, 'optionalAccess', _261 => _261.proactivity]);
-    this.maxLlmCalls = _nullishCoalesce(_optionalChain([config, 'optionalAccess', _262 => _262.maxLlmCalls]), () => ( 500));
+    this.speechConfig = _optionalChain([config, 'optionalAccess', _256 => _256.speechConfig]);
+    this.responseModalities = _optionalChain([config, 'optionalAccess', _257 => _257.responseModalities]);
+    this.saveInputBlobsAsArtifacts = _optionalChain([config, 'optionalAccess', _258 => _258.saveInputBlobsAsArtifacts]) || false;
+    this.supportCFC = _optionalChain([config, 'optionalAccess', _259 => _259.supportCFC]) || false;
+    this.streamingMode = _optionalChain([config, 'optionalAccess', _260 => _260.streamingMode]) || "NONE" /* NONE */;
+    this.outputAudioTranscription = _optionalChain([config, 'optionalAccess', _261 => _261.outputAudioTranscription]);
+    this.inputAudioTranscription = _optionalChain([config, 'optionalAccess', _262 => _262.inputAudioTranscription]);
+    this.realtimeInputConfig = _optionalChain([config, 'optionalAccess', _263 => _263.realtimeInputConfig]);
+    this.enableAffectiveDialog = _optionalChain([config, 'optionalAccess', _264 => _264.enableAffectiveDialog]);
+    this.proactivity = _optionalChain([config, 'optionalAccess', _265 => _265.proactivity]);
+    this.maxLlmCalls = _nullishCoalesce(_optionalChain([config, 'optionalAccess', _266 => _266.maxLlmCalls]), () => ( 500));
     this.validateMaxLlmCalls();
   }
   /**
@@ -10057,7 +10158,7 @@ var InMemoryMemoryService = (_class30 = class {
     }
     const userSessions = this._sessionEvents.get(userKey);
     const filteredEvents = session.events.filter(
-      (event) => _optionalChain([event, 'access', _263 => _263.content, 'optionalAccess', _264 => _264.parts])
+      (event) => _optionalChain([event, 'access', _267 => _267.content, 'optionalAccess', _268 => _268.parts])
     );
     userSessions.set(session.id, filteredEvents);
   }
@@ -10196,7 +10297,7 @@ var InMemorySessionService = (_class31 = class extends BaseSessionService {const
     return this.createSessionImpl(appName, userId, state, sessionId);
   }
   createSessionImpl(appName, userId, state, sessionId) {
-    const finalSessionId = _optionalChain([sessionId, 'optionalAccess', _265 => _265.trim, 'call', _266 => _266()]) || _crypto.randomUUID.call(void 0, );
+    const finalSessionId = _optionalChain([sessionId, 'optionalAccess', _269 => _269.trim, 'call', _270 => _270()]) || _crypto.randomUUID.call(void 0, );
     const session = {
       appName,
       userId,
@@ -10353,7 +10454,7 @@ var InMemorySessionService = (_class31 = class extends BaseSessionService {const
       warning(`sessionId ${sessionId} not in sessions[appName][userId]`);
       return event;
     }
-    if (_optionalChain([event, 'access', _267 => _267.actions, 'optionalAccess', _268 => _268.stateDelta])) {
+    if (_optionalChain([event, 'access', _271 => _271.actions, 'optionalAccess', _272 => _272.stateDelta])) {
       for (const key in event.actions.stateDelta) {
         const value = event.actions.stateDelta[key];
         if (key.startsWith(State.APP_PREFIX)) {
@@ -10387,14 +10488,14 @@ function _findFunctionCallEventIfLastEventIsFunctionResponse(session) {
     return null;
   }
   const lastEvent = events[events.length - 1];
-  if (_optionalChain([lastEvent, 'access', _269 => _269.content, 'optionalAccess', _270 => _270.parts, 'optionalAccess', _271 => _271.some, 'call', _272 => _272((part) => part.functionResponse)])) {
-    const functionCallId = _optionalChain([lastEvent, 'access', _273 => _273.content, 'access', _274 => _274.parts, 'access', _275 => _275.find, 'call', _276 => _276(
+  if (_optionalChain([lastEvent, 'access', _273 => _273.content, 'optionalAccess', _274 => _274.parts, 'optionalAccess', _275 => _275.some, 'call', _276 => _276((part) => part.functionResponse)])) {
+    const functionCallId = _optionalChain([lastEvent, 'access', _277 => _277.content, 'access', _278 => _278.parts, 'access', _279 => _279.find, 'call', _280 => _280(
       (part) => part.functionResponse
-    ), 'optionalAccess', _277 => _277.functionResponse, 'optionalAccess', _278 => _278.id]);
+    ), 'optionalAccess', _281 => _281.functionResponse, 'optionalAccess', _282 => _282.id]);
     if (!functionCallId) return null;
     for (let i = events.length - 2; i >= 0; i--) {
       const event = events[i];
-      const functionCalls = _optionalChain([event, 'access', _279 => _279.getFunctionCalls, 'optionalCall', _280 => _280()]) || [];
+      const functionCalls = _optionalChain([event, 'access', _283 => _283.getFunctionCalls, 'optionalCall', _284 => _284()]) || [];
       for (const functionCall of functionCalls) {
         if (functionCall.id === functionCallId) {
           return event;
@@ -10597,15 +10698,15 @@ var Runner = (_class32 = class {
    */
   _findAgentToRun(session, rootAgent) {
     const event = _findFunctionCallEventIfLastEventIsFunctionResponse(session);
-    if (_optionalChain([event, 'optionalAccess', _281 => _281.author])) {
+    if (_optionalChain([event, 'optionalAccess', _285 => _285.author])) {
       return rootAgent.findAgent(event.author);
     }
-    const nonUserEvents = _optionalChain([session, 'access', _282 => _282.events, 'optionalAccess', _283 => _283.filter, 'call', _284 => _284((e) => e.author !== "user"), 'access', _285 => _285.reverse, 'call', _286 => _286()]) || [];
+    const nonUserEvents = _optionalChain([session, 'access', _286 => _286.events, 'optionalAccess', _287 => _287.filter, 'call', _288 => _288((e) => e.author !== "user"), 'access', _289 => _289.reverse, 'call', _290 => _290()]) || [];
     for (const event2 of nonUserEvents) {
       if (event2.author === rootAgent.name) {
         return rootAgent;
       }
-      const agent = _optionalChain([rootAgent, 'access', _287 => _287.findSubAgent, 'optionalCall', _288 => _288(event2.author)]);
+      const agent = _optionalChain([rootAgent, 'access', _291 => _291.findSubAgent, 'optionalCall', _292 => _292(event2.author)]);
       if (!agent) {
         this.logger.debug(
           `Event from an unknown agent: ${event2.author}, event id: ${event2.id}`
@@ -11219,7 +11320,7 @@ var AgentBuilder = (_class33 = class _AgentBuilder {
     const outputSchema = this.config.outputSchema;
     const agentType = this.agentType;
     const isMulti = agentType === "parallel" || agentType === "sequential";
-    const subAgentNames = _optionalChain([this, 'access', _289 => _289.config, 'access', _290 => _290.subAgents, 'optionalAccess', _291 => _291.map, 'call', _292 => _292((a) => a.name)]) || [];
+    const subAgentNames = _optionalChain([this, 'access', _293 => _293.config, 'access', _294 => _294.subAgents, 'optionalAccess', _295 => _295.map, 'call', _296 => _296((a) => a.name)]) || [];
     const runConfig = this.runConfig;
     return {
       __outputSchema: outputSchema,
@@ -11228,7 +11329,7 @@ var AgentBuilder = (_class33 = class _AgentBuilder {
         let combinedResponse = "";
         const perAgentBuffers = {};
         const authors = /* @__PURE__ */ new Set();
-        if (!_optionalChain([sessionOptions, 'optionalAccess', _293 => _293.userId])) {
+        if (!_optionalChain([sessionOptions, 'optionalAccess', _297 => _297.userId])) {
           throw new Error("Session configuration is required");
         }
         for await (const event of baseRunner.runAsync({
@@ -11237,7 +11338,7 @@ var AgentBuilder = (_class33 = class _AgentBuilder {
           newMessage,
           runConfig
         })) {
-          if (_optionalChain([event, 'access', _294 => _294.content, 'optionalAccess', _295 => _295.parts]) && Array.isArray(event.content.parts)) {
+          if (_optionalChain([event, 'access', _298 => _298.content, 'optionalAccess', _299 => _299.parts]) && Array.isArray(event.content.parts)) {
             const content = event.content.parts.map(
               (part) => (part && typeof part === "object" && "text" in part ? part.text : "") || ""
             ).join("");
@@ -11350,7 +11451,7 @@ var VertexAiSessionService = class extends BaseSessionService {
         path: `operations/${operationId}`,
         request_dict: {}
       });
-      if (_optionalChain([lroResponse, 'optionalAccess', _296 => _296.done])) {
+      if (_optionalChain([lroResponse, 'optionalAccess', _300 => _300.done])) {
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 1e3));
@@ -11721,12 +11822,12 @@ var DatabaseSessionService = (_class34 = class extends BaseSessionService {
   }
   async createSession(appName, userId, state, sessionId) {
     await this.ensureInitialized();
-    const id = _optionalChain([sessionId, 'optionalAccess', _297 => _297.trim, 'call', _298 => _298()]) || this.generateSessionId();
+    const id = _optionalChain([sessionId, 'optionalAccess', _301 => _301.trim, 'call', _302 => _302()]) || this.generateSessionId();
     return await this.db.transaction().execute(async (trx) => {
       const appState = await trx.selectFrom("app_states").selectAll().where("app_name", "=", appName).executeTakeFirst();
       const userState = await trx.selectFrom("user_states").selectAll().where("app_name", "=", appName).where("user_id", "=", userId).executeTakeFirst();
-      let currentAppState = this.parseJsonSafely(_optionalChain([appState, 'optionalAccess', _299 => _299.state]), {});
-      let currentUserState = this.parseJsonSafely(_optionalChain([userState, 'optionalAccess', _300 => _300.state]), {});
+      let currentAppState = this.parseJsonSafely(_optionalChain([appState, 'optionalAccess', _303 => _303.state]), {});
+      let currentUserState = this.parseJsonSafely(_optionalChain([userState, 'optionalAccess', _304 => _304.state]), {});
       if (!appState) {
         await trx.insertInto("app_states").values({
           app_name: appName,
@@ -11785,21 +11886,21 @@ var DatabaseSessionService = (_class34 = class extends BaseSessionService {
         return void 0;
       }
       let eventQuery = trx.selectFrom("events").selectAll().where("session_id", "=", sessionId).orderBy("timestamp", "desc");
-      if (_optionalChain([config, 'optionalAccess', _301 => _301.afterTimestamp])) {
+      if (_optionalChain([config, 'optionalAccess', _305 => _305.afterTimestamp])) {
         eventQuery = eventQuery.where(
           "timestamp",
           ">=",
           new Date(config.afterTimestamp * 1e3)
         );
       }
-      if (_optionalChain([config, 'optionalAccess', _302 => _302.numRecentEvents])) {
+      if (_optionalChain([config, 'optionalAccess', _306 => _306.numRecentEvents])) {
         eventQuery = eventQuery.limit(config.numRecentEvents);
       }
       const storageEvents = await eventQuery.execute();
       const appState = await trx.selectFrom("app_states").selectAll().where("app_name", "=", appName).executeTakeFirst();
       const userState = await trx.selectFrom("user_states").selectAll().where("app_name", "=", appName).where("user_id", "=", userId).executeTakeFirst();
-      const currentAppState = this.parseJsonSafely(_optionalChain([appState, 'optionalAccess', _303 => _303.state]), {});
-      const currentUserState = this.parseJsonSafely(_optionalChain([userState, 'optionalAccess', _304 => _304.state]), {});
+      const currentAppState = this.parseJsonSafely(_optionalChain([appState, 'optionalAccess', _307 => _307.state]), {});
+      const currentUserState = this.parseJsonSafely(_optionalChain([userState, 'optionalAccess', _308 => _308.state]), {});
       const sessionState = this.parseJsonSafely(storageSession.state, {});
       const mergedState = this.mergeState(
         currentAppState,
@@ -11857,13 +11958,13 @@ var DatabaseSessionService = (_class34 = class extends BaseSessionService {
       }
       const appState = await trx.selectFrom("app_states").selectAll().where("app_name", "=", session.appName).executeTakeFirst();
       const userState = await trx.selectFrom("user_states").selectAll().where("app_name", "=", session.appName).where("user_id", "=", session.userId).executeTakeFirst();
-      let currentAppState = this.parseJsonSafely(_optionalChain([appState, 'optionalAccess', _305 => _305.state]), {});
-      let currentUserState = this.parseJsonSafely(_optionalChain([userState, 'optionalAccess', _306 => _306.state]), {});
+      let currentAppState = this.parseJsonSafely(_optionalChain([appState, 'optionalAccess', _309 => _309.state]), {});
+      let currentUserState = this.parseJsonSafely(_optionalChain([userState, 'optionalAccess', _310 => _310.state]), {});
       let sessionState = this.parseJsonSafely(storageSession.state, {});
       let appStateDelta = {};
       let userStateDelta = {};
       let sessionStateDelta = {};
-      if (_optionalChain([event, 'access', _307 => _307.actions, 'optionalAccess', _308 => _308.stateDelta])) {
+      if (_optionalChain([event, 'access', _311 => _311.actions, 'optionalAccess', _312 => _312.stateDelta])) {
         const deltas = this.extractStateDelta(event.actions.stateDelta);
         appStateDelta = deltas.appStateDelta;
         userStateDelta = deltas.userStateDelta;
@@ -12009,7 +12110,7 @@ var DatabaseSessionService = (_class34 = class extends BaseSessionService {
    * Overrides the base class method to work with plain object state.
    */
   updateSessionState(session, event) {
-    if (!_optionalChain([event, 'access', _309 => _309.actions, 'optionalAccess', _310 => _310.stateDelta])) {
+    if (!_optionalChain([event, 'access', _313 => _313.actions, 'optionalAccess', _314 => _314.stateDelta])) {
       return;
     }
     for (const [key, value] of Object.entries(event.actions.stateDelta)) {
@@ -12179,7 +12280,7 @@ var GcsArtifactService = class {
       };
       return part;
     } catch (error) {
-      if (_optionalChain([error, 'optionalAccess', _311 => _311.code]) === 404) {
+      if (_optionalChain([error, 'optionalAccess', _315 => _315.code]) === 404) {
         return null;
       }
       throw error;
@@ -12430,13 +12531,13 @@ var VertexAiEvalFacade = class _VertexAiEvalFacade {
     };
   }
   _getText(content) {
-    if (_optionalChain([content, 'optionalAccess', _312 => _312.parts])) {
+    if (_optionalChain([content, 'optionalAccess', _316 => _316.parts])) {
       return content.parts.map((p) => p.text || "").filter((text) => text.length > 0).join("\n");
     }
     return "";
   }
   _getScore(evalResult) {
-    if (_optionalChain([evalResult, 'optionalAccess', _313 => _313.summaryMetrics, 'optionalAccess', _314 => _314[0], 'optionalAccess', _315 => _315.meanScore]) !== void 0 && typeof evalResult.summaryMetrics[0].meanScore === "number" && !Number.isNaN(evalResult.summaryMetrics[0].meanScore)) {
+    if (_optionalChain([evalResult, 'optionalAccess', _317 => _317.summaryMetrics, 'optionalAccess', _318 => _318[0], 'optionalAccess', _319 => _319.meanScore]) !== void 0 && typeof evalResult.summaryMetrics[0].meanScore === "number" && !Number.isNaN(evalResult.summaryMetrics[0].meanScore)) {
       return evalResult.summaryMetrics[0].meanScore;
     }
     return void 0;
@@ -12586,7 +12687,7 @@ var ResponseEvaluator = class extends Evaluator {
     return fmeasure;
   }
   extractText(content) {
-    if (_optionalChain([content, 'optionalAccess', _316 => _316.parts])) {
+    if (_optionalChain([content, 'optionalAccess', _320 => _320.parts])) {
       return content.parts.map((p) => p.text || "").filter((text) => text.length > 0).join(" ");
     }
     return "";
@@ -12619,7 +12720,7 @@ var TrajectoryEvaluator = class extends Evaluator {
     for (let i = 0; i < actualInvocations.length; i++) {
       const actual = actualInvocations[i];
       const expected = expectedInvocations[i];
-      if (!_optionalChain([actual, 'access', _317 => _317.intermediateData, 'optionalAccess', _318 => _318.toolUses]) || !_optionalChain([expected, 'access', _319 => _319.intermediateData, 'optionalAccess', _320 => _320.toolUses])) {
+      if (!_optionalChain([actual, 'access', _321 => _321.intermediateData, 'optionalAccess', _322 => _322.toolUses]) || !_optionalChain([expected, 'access', _323 => _323.intermediateData, 'optionalAccess', _324 => _324.toolUses])) {
         perInvocationResults.push({
           actualInvocation: actual,
           expectedInvocation: expected,
@@ -12707,7 +12808,7 @@ var SafetyEvaluatorV1 = class extends Evaluator {
 
 // src/evaluation/llm-as-judge-utils.ts
 function getTextFromContent(content) {
-  if (_optionalChain([content, 'optionalAccess', _321 => _321.parts])) {
+  if (_optionalChain([content, 'optionalAccess', _325 => _325.parts])) {
     return content.parts.map((part) => part.text).filter(Boolean).join("\n");
   }
   return "";
@@ -12719,9 +12820,9 @@ function getEvalStatus(score, threshold) {
 // src/evaluation/llm-as-judge.ts
 var LlmAsJudge = class {
   async sampleJudge(prompt, numSamples, critiqueParser, judgeModelOptions) {
-    const modelName = _optionalChain([judgeModelOptions, 'optionalAccess', _322 => _322.judgeModel]) || "gemini-2.5-flash";
+    const modelName = _optionalChain([judgeModelOptions, 'optionalAccess', _326 => _326.judgeModel]) || "gemini-2.5-flash";
     const model = LLMRegistry.getModelOrCreate(modelName);
-    const config = _optionalChain([judgeModelOptions, 'optionalAccess', _323 => _323.judgeModelConfig]) || {};
+    const config = _optionalChain([judgeModelOptions, 'optionalAccess', _327 => _327.judgeModelConfig]) || {};
     const samples = [];
     for (let i = 0; i < numSamples; i++) {
       try {
@@ -12787,7 +12888,7 @@ function parseCritique(response) {
   const labelMatchIsResponseValid = response.match(
     /"is_the_agent_response_valid":\s*\[*[\n\s]*"*([^"^\]^\s]*)"*[\n\s]*\]*\s*[,\n\}]/
   );
-  if (_optionalChain([labelMatchIsResponseValid, 'optionalAccess', _324 => _324[1]])) {
+  if (_optionalChain([labelMatchIsResponseValid, 'optionalAccess', _328 => _328[1]])) {
     const label = labelMatchIsResponseValid[1].toLowerCase();
     return label === "valid" ? "valid" /* VALID */ : "invalid" /* INVALID */;
   }
@@ -12832,7 +12933,7 @@ var FinalResponseMatchV2Evaluator = class extends Evaluator {
         "{prompt}",
         prompt
       ).replace("{response}", response).replace("{golden_response}", goldenResponse);
-      const numSamples = _nullishCoalesce(_optionalChain([this, 'access', _325 => _325.metric, 'access', _326 => _326.judgeModelOptions, 'optionalAccess', _327 => _327.numSamples]), () => ( DEFAULT_NUM_SAMPLES));
+      const numSamples = _nullishCoalesce(_optionalChain([this, 'access', _329 => _329.metric, 'access', _330 => _330.judgeModelOptions, 'optionalAccess', _331 => _331.numSamples]), () => ( DEFAULT_NUM_SAMPLES));
       const labels = await this.llmAsJudge.sampleJudge(
         formattedPrompt,
         numSamples,
@@ -12872,7 +12973,7 @@ var MetricEvaluatorRegistry = (_class35 = class {constructor() { _class35.protot
     const metricName = metricInfo.metricName;
     if (this.registry.has(metricName)) {
       console.info(
-        `Updating Evaluator class for ${metricName} from ${_optionalChain([this, 'access', _328 => _328.registry, 'access', _329 => _329.get, 'call', _330 => _330(metricName), 'optionalAccess', _331 => _331.evaluator, 'access', _332 => _332.name])} to ${evaluator.name}`
+        `Updating Evaluator class for ${metricName} from ${_optionalChain([this, 'access', _332 => _332.registry, 'access', _333 => _333.get, 'call', _334 => _334(metricName), 'optionalAccess', _335 => _335.evaluator, 'access', _336 => _336.name])} to ${evaluator.name}`
       );
     }
     this.registry.set(metricName, {
@@ -12986,10 +13087,10 @@ var LocalEvalService = class extends BaseEvalService {
       for (const evalMetric of evaluateConfig.evalMetrics) {
         const evaluator = DEFAULT_METRIC_EVALUATOR_REGISTRY.getEvaluator(evalMetric);
         const actual = results.filter(
-          (r) => !_optionalChain([r, 'access', _333 => _333.invocationId, 'optionalAccess', _334 => _334.includes, 'call', _335 => _335("expected")])
+          (r) => !_optionalChain([r, 'access', _337 => _337.invocationId, 'optionalAccess', _338 => _338.includes, 'call', _339 => _339("expected")])
         );
         const expected = results.filter(
-          (r) => _optionalChain([r, 'access', _336 => _336.invocationId, 'optionalAccess', _337 => _337.includes, 'call', _338 => _338("expected")])
+          (r) => _optionalChain([r, 'access', _340 => _340.invocationId, 'optionalAccess', _341 => _341.includes, 'call', _342 => _342("expected")])
         );
         const result = await evaluator.evaluateInvocations(actual, expected);
         evalResult.evalCaseResults.push({
@@ -13381,13 +13482,13 @@ ${failures.join(
     console.log("\n\n");
   }
   static _convertContentToText(content) {
-    if (_optionalChain([content, 'optionalAccess', _339 => _339.parts])) {
+    if (_optionalChain([content, 'optionalAccess', _343 => _343.parts])) {
       return content.parts.map((p) => p.text || "").filter((text) => text.length > 0).join("\n");
     }
     return "";
   }
   static _convertToolCallsToText(intermediateData) {
-    if (_optionalChain([intermediateData, 'optionalAccess', _340 => _340.toolUses])) {
+    if (_optionalChain([intermediateData, 'optionalAccess', _344 => _344.toolUses])) {
       return intermediateData.toolUses.map((t) => JSON.stringify(t)).join("\n");
     }
     return "";
@@ -13442,7 +13543,7 @@ ${failures.join(
     for (const [metricName, evalMetricResultsWithInvocations] of Object.entries(
       evalMetricResults
     )) {
-      const threshold = _optionalChain([evalMetricResultsWithInvocations, 'access', _341 => _341[0], 'optionalAccess', _342 => _342.evalMetricResult, 'access', _343 => _343.threshold]) || 0;
+      const threshold = _optionalChain([evalMetricResultsWithInvocations, 'access', _345 => _345[0], 'optionalAccess', _346 => _346.evalMetricResult, 'access', _347 => _347.threshold]) || 0;
       const scores = evalMetricResultsWithInvocations.map((m) => m.evalMetricResult.score).filter((s) => s !== void 0);
       let overallScore;
       let overallEvalStatus;
@@ -13531,7 +13632,7 @@ var RougeEvaluator = class extends Evaluator {
   }
 };
 function getTextFromContent2(content) {
-  if (_optionalChain([content, 'optionalAccess', _344 => _344.parts])) {
+  if (_optionalChain([content, 'optionalAccess', _348 => _348.parts])) {
     return content.parts.map((part) => part.text).filter(Boolean).join("\n");
   }
   return "";

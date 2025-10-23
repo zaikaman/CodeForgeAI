@@ -55,7 +55,7 @@ export const TestCrafterAgent = async (options?: TestCrafterOptions) => {
   const systemPrompt = enhancePromptWithGitHub(baseSystemPrompt, options?.githubContext || null);
   
   let builder = AgentBuilder.create('TestCrafterAgent')
-    .withModel('gpt-5-nano-2025-08-07')
+    .withModel('glm-4.6')
     .withInstruction(systemPrompt)
     .withOutputSchema(testGenerationSchema);
   

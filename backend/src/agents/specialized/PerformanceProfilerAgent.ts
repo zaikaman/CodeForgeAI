@@ -27,7 +27,7 @@ export const PerformanceProfilerAgent = async (options?: PerformanceProfilerOpti
   const systemPrompt = enhancePromptWithGitHub(baseSystemPrompt, options?.githubContext || null);
   
   let builder = AgentBuilder.create('PerformanceProfilerAgent')
-    .withModel('gpt-5-nano-2025-08-07')
+    .withModel('glm-4.6')
     .withInstruction(systemPrompt);
   
   // Add GitHub tools if context is available

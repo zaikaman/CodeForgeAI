@@ -63,7 +63,7 @@ const validationSchema: z.ZodTypeAny = z.object({
 
 export const CodeValidatorAgent = async () => {
   return AgentBuilder.create('CodeValidatorAgent')
-    .withModel('gpt-5-nano-2025-08-07')
+    .withModel('glm-4.6')
     .withInstruction(systemPrompt)
     .withOutputSchema(validationSchema as unknown as z.ZodTypeAny)
     .build();

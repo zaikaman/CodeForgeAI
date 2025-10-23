@@ -168,7 +168,7 @@ This is a **web-first monorepo application** with the following structure:
 
 ### Agent Implementations
 
-- [x] **T075** [P] Implement LeadEngineerAgent in `backend/src/agents/base/LeadEngineerAgent.ts` (orchestrator, AgentBuilder.withModel('gpt-5-nano-2025-08-07'), system prompt)
+- [x] **T075** [P] Implement LeadEngineerAgent in `backend/src/agents/base/LeadEngineerAgent.ts` (orchestrator, AgentBuilder.withModel('glm-4.6'), system prompt)
 - [x] **T076** [P] Implement SpecInterpreterAgent in `backend/src/agents/specialized/SpecInterpreterAgent.ts` (parse NL specs, extract requirements)
 - [x] **T077** [P] Implement CodeGeneratorAgent in `backend/src/agents/specialized/CodeGeneratorAgent.ts` (generate code from requirements, use codeParseTool)
 - [x] **T078** [P] Implement BugHunterAgent in `backend/src/agents/specialized/BugHunterAgent.ts` (find bugs, security issues)
@@ -431,7 +431,7 @@ This is a **web-first monorepo application** with the following structure:
 - **Parallel Execution**: Tasks marked [P] can run simultaneously (different files, no dependencies)
 - **Commit Strategy**: Commit after each task completion
 - **Local ADK-TS**: Import from `../../adk-ts/src` (already cloned and built)
-- **Model**: Use `AgentBuilder.withModel('gpt-5-nano-2025-08-07')` for all agents
+- **Model**: Use `AgentBuilder.withModel('glm-4.6')` for all agents
 - **Environment**: Set `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` before running
 - **Testing**: Run tests frequently to catch regressions early
 - **Code Quality**: ESLint + Prettier on every commit via Husky

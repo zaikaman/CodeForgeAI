@@ -40,9 +40,9 @@
 
 ---
 
-### 2. LLM: OpenAI gpt-5-nano-2025-08-07
+### 2. LLM: OpenAI glm-4.6
 
-**Decision**: Exclusively use OpenAI's gpt-5-nano-2025-08-07 model for all LLM calls via ADK-TS
+**Decision**: Exclusively use OpenAI's glm-4.6 model for all LLM calls via ADK-TS
 
 **Rationale**:
 - Optimized for code generation tasks (fast, accurate)
@@ -57,14 +57,14 @@
 import { AgentBuilder } from '@iqai/adk';
 
 const agent = await AgentBuilder
-  .withModel('gpt-5-nano-2025-08-07')  // Just specify model name
+  .withModel('glm-4.6')  // Just specify model name
   .withTemperature(0.2)
   .withMaxTokens(4096)
   .build();
 ```
 
 **Configuration**:
-- Model: `gpt-5-nano-2025-08-07` (passed to `AgentBuilder.withModel()`)
+- Model: `glm-4.6` (passed to `AgentBuilder.withModel()`)
 - Temperature: 0.2 for generation (deterministic), 0.7 for debates (creative)
 - Max tokens: 4096 for generation, 1024 for reviews
 - System prompts: Role-specific per agent via `withSystemPrompt()`
@@ -425,7 +425,7 @@ socket.on('generation', (chunk) => {
 # plugins/agents/go-generator.yml
 name: GoCodeGenerator
 description: Generates Go code from prompts
-model: gpt-5-nano-2025-08-07
+model: glm-4.6
 tools:
   - go_ast_parser
   - go_formatter
