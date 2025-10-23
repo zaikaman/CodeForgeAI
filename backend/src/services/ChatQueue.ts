@@ -582,8 +582,10 @@ class ChatQueueManager {
             job.message        // taskDescription
           );
           
-          // Use streaming API to get real-time agent thoughts
-          const response = await safeAgentCallWithStreaming(builtAgent, contextMessage, {
+          // Use streaming API to get real-time agent thoughts with timeout (4 minutes max)
+          const GITHUB_AGENT_TIMEOUT = 4 * 60 * 1000; // 4 minutes
+          
+          const responsePromise = safeAgentCallWithStreaming(builtAgent, contextMessage, {
             maxRetries: 3,
             retryDelay: 1000,
             context: 'ChatQueue/GitHubAgent',
@@ -616,7 +618,16 @@ class ChatQueueManager {
                   break;
               }
             }
-          }) as any;
+          });
+          
+          // Add timeout wrapper to prevent agent from running indefinitely
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(new Error(`GitHubAgent timeout after ${GITHUB_AGENT_TIMEOUT / 1000}s - Agent took too long to complete. This usually happens when the agent gets stuck in a loop or the task is too complex.`));
+            }, GITHUB_AGENT_TIMEOUT);
+          });
+          
+          const response = await Promise.race([responsePromise, timeoutPromise]) as any;
           
           // 🚨 CRITICAL: Ignore "files" field if PR was created
           // Agent sometimes incorrectly returns files when creating PRs

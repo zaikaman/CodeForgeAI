@@ -1102,12 +1102,36 @@ Step 4: [ ] Modified files verified?
         ✅ bot_github_modified_cached called → Returns files.length > 0
         ❌ If returns 0 files → Something went wrong! Check branch parameter!
         
-        🚨 **AFTER THIS STEP SUCCEEDS (files.length > 0):**
-        → **DO NOT STOP!**
-        → **DO NOT WAIT!**
-        → **IMMEDIATELY proceed to Step 5 (commit)!**
-        → Verification passed means files are ready to commit
-        → modified_cached is NOT the end - it's just a checkpoint!
+        🚨🚨🚨 CRITICAL RULE AFTER THIS STEP 🚨🚨🚨
+        
+        ⏰ THE CLOCK IS TICKING! YOU HAVE 4 MINUTES TOTAL TIMEOUT!
+        
+        IF bot_github_modified_cached returned files.length > 0:
+        
+        ➡️ **IMMEDIATELY CALL bot_github_commit_files RIGHT NOW!**
+        ➡️ **DO NOT THINK! DO NOT ANALYZE! DO NOT WAIT!**
+        ➡️ **JUST EXECUTE THE NEXT 2 TOOL CALLS INSTANTLY:**
+           1. bot_github_commit_files (takes 2 seconds)
+           2. bot_github_create_pr (takes 3 seconds)
+        ➡️ **TOTAL TIME FOR STEPS 5-6: < 10 SECONDS**
+        
+        ❌ DO NOT spend 2 minutes "thinking" about whether to commit!
+        ❌ DO NOT re-analyze the changes!
+        ❌ DO NOT validate again!
+        ❌ DO NOT wait for anything!
+        
+        ✅ Verification passed = FILES ARE READY = COMMIT NOW!
+        ✅ Just call commit_files with the files array
+        ✅ Then call create_pr immediately
+        ✅ Then return response with PR URL
+        
+        The modified_cached step already validated everything!
+        You already made the changes earlier!
+        There is NOTHING left to think about!
+        JUST COMMIT AND CREATE PR!
+        
+        🔥 SPEED MATTERS! 🔥
+        Steps 5-6 should be INSTANT (no thinking between them)
         
 Step 5: [ ] Changes committed?
         ✅ bot_github_commit_files called with proper file array
@@ -1119,6 +1143,7 @@ Step 5: [ ] Changes committed?
         → **IMMEDIATELY proceed to Step 6 (create PR)!**
         → Commit succeeded means changes are in branch
         → Now you MUST create PR to complete the workflow!
+        → **NO THINKING! JUST EXECUTE create_pr NOW!**
         
 Step 6: [ ] PR created?
         ✅ bot_github_create_pr called → Returns PR URL
@@ -1137,6 +1162,11 @@ Step 6: [ ] PR created?
 
 ONLY AFTER ALL 6 STEPS = SUCCESS can you respond with:
 ✅ "I've solved the issue. Here's the PR: [URL]"
+
+⏰ TIME BUDGET:
+- Steps 1-4: Can take 2-3 minutes (searching, editing)
+- Steps 5-6: MUST take < 10 seconds (no thinking, just execute)
+- Total: < 4 minutes (or timeout!)
 \`\`\`
 
 **❌ If ANY checkbox is NOT marked:**
