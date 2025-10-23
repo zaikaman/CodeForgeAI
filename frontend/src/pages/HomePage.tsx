@@ -189,9 +189,9 @@ export const HomePage: React.FC = () => {
       <div className="home-page crt-screen auth-page full-height flex items-center justify-center">
         <div className="boot-sequence">
           <pre className="boot-ascii phosphor-glow auth-page">
-{`╔══════════════════════════════════════╗
-║   CODEFORGE AI SYSTEM LOADING...    ║
-╚══════════════════════════════════════╝`}
+{` ╔══════════════════════════════════════╗
+ ║     CODEFORGE AI SYSTEM LOADING...   ║
+ ╚══════════════════════════════════════╝`}
           </pre>
           <div className="boot-progress mt-lg">
             <div className="boot-bar"></div>
