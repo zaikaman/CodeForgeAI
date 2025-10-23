@@ -152,16 +152,29 @@ Any request involving:
    ✅ PROCESS:
    1. Extract owner/repo from GitHub URL or request
    2. Call github_fetch_all_files({owner: "user", repo: "repo"})
-   3. Return the files array in response
+   3. **EXTRACT the 'files' array from tool response**
+   4. Return files array in YOUR response
    
-   ✅ REQUIRED RESPONSE FORMAT:
+   ✅ TOOL RETURNS THIS:
+   {
+     "success": true,
+     "files": [{"path": "...", "content": "..."}, ...],
+     "message": "..."
+   }
+   
+   ✅ YOU MUST RETURN THIS (extract 'files' field):
    {
      "summary": "✅ Fetched [N] files from [owner]/[repo]",
      "files": [
-       { "path": "index.html", "content": "..." },
-       { "path": "style.css", "content": "..." }
+       { "path": "index.html", "content": "<!DOCTYPE html>..." },
+       { "path": "style.css", "content": "body { ... }" }
      ]
    }
+   
+   🚨 **CRITICAL: Extract the 'files' array from tool response!**
+   - Don't return the entire tool response object
+   - Extract ONLY the 'files' array
+   - Include FULL file contents in each file object
    
    🚨 **IMPORTANT:**
    - Handle this YOURSELF - do NOT route to GitHubAgent
